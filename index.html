@@ -144,7 +144,7 @@
       <h2>Join the waitlist</h2>
       <p>We’re building the first platform where mates invest together with full transparency.</p>
 
-      <!-- Netlify Forms: single, self-contained form -->
+      <!-- SINGLE Netlify form -->
       <form name="waitlist"
             method="POST"
             data-netlify="true"
@@ -152,10 +152,10 @@
             action="/thanks.html"
             class="form">
 
-        <!-- required hidden input -->
+        <!-- required for Netlify -->
         <input type="hidden" name="form-name" value="waitlist">
 
-        <!-- anti-spam honeypot -->
+        <!-- honeypot -->
         <p style="display:none;">
           <label>Don’t fill this out if you're human:
             <input name="bot-field">
@@ -180,14 +180,19 @@
           <input id="message" type="text" name="message" placeholder="Tell us a bit about you">
         </label>
 
-        <!-- Optional: enable and turn on reCAPTCHA in Netlify settings -->
-        <!-- <div data-netlify-recaptcha="true"></div> -->
-
         <button type="submit" class="btn btn-primary">Join</button>
         <p class="muted">By joining, you agree to our <a href="#">Privacy Policy</a>.</p>
       </form>
     </div>
 
+    <div class="contact-card">
+      <h3>Contact</h3>
+      <p>Email: <a href="mailto:hello@matesinvest.com">hello@matesinvest.com</a></p>
+      <p>Media / Investors: <a href="mailto:luke@matesinvest.com">luke@matesinvest.com</a></p>
+      <p>Partners: <a href="mailto:dale@matesinvest.com">dale@matesinvest.com</a></p>
+    </div>
+  </div>
+</section>
     <div class="contact-card">
       <h3>Contact</h3>
       <p>Email: <a href="mailto:hello@matesinvest.com">hello@matesinvest.com</a></p>
