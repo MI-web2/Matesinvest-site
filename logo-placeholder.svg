@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="60" viewBox="0 0 220 60" fill="none">
+<rect rx="12" width="60" height="60" fill="#00BFFF"/>
+<path d="M18 35c8 6 16 6 24 0v8c-8 6-16 6-24 0v-8z" fill="white"/>
+<circle cx="24" cy="25" r="3" fill="white"/><circle cx="32" cy="23" r="3" fill="white"/><circle cx="40" cy="20" r="3" fill="white"/>
+<text x="72" y="38" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="28" fill="#002040">MatesInvest</text>
+</svg>

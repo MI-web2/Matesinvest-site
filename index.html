@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MatesInvest – Invest together. Decide together.</title>
+  <meta name="description" content="Create private investment pools with mates. Every trade is voted on by the group. Platform only — custody & execution via licensed broker.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav-inner">
+      <div class="brand">
+        <img src="assets/logo-placeholder.svg" alt="MatesInvest logo" class="logo"/>
+        <span>MatesInvest</span>
+      </div>
+      <nav>
+        <a href="#how">How it works</a>
+        <a href="#security">Security</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+        <a href="#contact" class="btn btn-outline">Join waitlist</a>
+      </nav>
+      <button class="menu-btn" aria-label="Menu" onclick="toggleMenu()">☰</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container grid">
+        <div>
+          <h1>Invest together. <span class="accent">Decide together.</span></h1>
+          <p>Create private investment pools with mates. Every trade is voted on by the group. Platform only — custody & execution via a licensed broker.</p>
+          <div class="cta-row">
+            <a href="#contact" class="btn btn-primary">Join the waitlist</a>
+            <a href="#how" class="btn btn-ghost">See how it works</a>
+          </div>
+          <div class="badges">
+            <span class="badge">Platform only — no advice</span>
+            <span class="badge">Multi‑group support</span>
+            <span class="badge">Transparent voting</span>
+          </div>
+        </div>
+        <div class="mockup">
+          <img src="assets/ui-mockup-placeholder.png" alt="App mockup"/>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" class="section">
+      <div class="container">
+        <h2>How it works</h2>
+        <div class="cards">
+          <div class="card">
+            <h3>1) Create a private pool</h3>
+            <p>Start a pool, set simple rules, invite your mates via link.</p>
+          </div>
+          <div class="card">
+            <h3>2) Fund & track ownership</h3>
+            <p>Deposit funds; we track each member’s beneficial share with a clean ledger.</p>
+          </div>
+          <div class="card">
+            <h3>3) Propose & vote</h3>
+            <p>Any member can propose a trade. The group votes; majority wins.</p>
+          </div>
+          <div class="card">
+            <h3>4) Broker executes</h3>
+            <p>Trades executed under a broker sub‑account; holdings update automatically.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="security" class="section alt">
+      <div class="container grid-2">
+        <div>
+          <h2>Security & Compliance</h2>
+          <ul class="tick">
+            <li>Custody & execution via a licensed broker partner</li>
+            <li>KYC/AML handled through broker workflows</li>
+            <li>Data encryption in transit & at rest</li>
+            <li>Audit logs for votes & trades</li>
+          </ul>
+        </div>
+        <div class="flow">
+          <h3>Flow</h3>
+          <ol>
+            <li>MatesInvest (platform)</li>
+            <li>Broker API (KYC, execution, custody)</li>
+            <li>ASX/CHESS settlement</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing" class="section">
+      <div class="container">
+        <h2>Pricing</h2>
+        <div class="pricing">
+          <div class="price-card">
+            <h3>Founders’ Beta</h3>
+            <p class="price">$3 <span>/ member / month</span></p>
+            <ul>
+              <li>Unlimited private pools</li>
+              <li>Group voting & chat</li>
+              <li>Simple reporting</li>
+            </ul>
+            <p class="note">+ illustrative $1 trade markup (subject to broker fees)</p>
+            <a href="#contact" class="btn btn-primary">Join beta waitlist</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="section alt">
+      <div class="container">
+        <h2>FAQ</h2>
+        <div class="faq">
+          <details>
+            <summary>Is MatesInvest giving financial advice?</summary>
+            <p>No. We’re a technology platform. We don’t provide financial product advice or discretionary management.</p>
+          </details>
+          <details>
+            <summary>How do withdrawals work?</summary>
+            <p>Sell down your share of the pool per group rules. Settlement is handled through the broker.</p>
+          </details>
+          <details>
+            <summary>Can I join multiple groups?</summary>
+            <p>Yes. Your dashboard shows each pool’s holdings, votes, and cash independently.</p>
+          </details>
+          <details>
+            <summary>Is this a managed investment scheme?</summary>
+            <p>The MVP is designed around sub‑accounts + beneficial ownership to avoid MIS classification; at scale we may migrate to an MIS.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="section">
+      <div class="container grid-2">
+        <div>
+          <h2>Join the waitlist</h2>
+          <p>We’re building the first platform where mates invest together with full transparency.</p>
+          <form action="https://formspree.io/f/your-form-id" method="POST" class="form">
+            <label>
+              Your email
+              <input type="email" name="email" placeholder="you@domain.com" required>
+            </label>
+            <label>
+              Are you a…
+              <select name="persona">
+                <option>Potential user</option>
+                <option>Broker partner</option>
+                <option>Investor</option>
+                <option>Media</option>
+              </select>
+            </label>
+            <button type="submit" class="btn btn-primary">Join</button>
+            <p class="muted">By joining, you agree to our <a href="#">Privacy Policy</a>.</p>
+          </form>
+        </div>
+        <div class="contact-card">
+          <h3>Contact</h3>
+          <p>Email: <a href="mailto:hello@matesinvest.com">hello@matesinvest.com</a></p>
+          <p>Media / Investors: <a href="mailto:luke@swieteniacapital.com">luke@swieteniacapital.com</a></p>
+          <p>Partners: <a href="mailto:dale@swieteniacapital.com">dale@swieteniacapital.com</a></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>© <span id="year"></span> MatesInvest — Platform only. We do not provide financial product advice. Custody & execution via a licensed broker partner.</p>
+      <nav>
+        <a href="#">Terms</a>
+        <a href="#">Privacy</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+    function toggleMenu(){ document.body.classList.toggle('open'); }
+  </script>
+</body>
+</html>
