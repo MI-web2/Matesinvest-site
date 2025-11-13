@@ -12,68 +12,374 @@
   <link rel="icon" sizes="192x192" href="/assets/img/favicon.png">
 
   <style>
+    :root {
+      --bg: #050814;
+      --card: #151a2b;
+      --accent: #3fbf7f;
+      --accent-soft: rgba(63,191,127,0.12);
+      --border-subtle: rgba(255,255,255,0.08);
+      --text-muted: rgba(255,255,255,0.7);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 0;
-      padding: 1.5rem;
-      background: #0b1020;
+      min-height: 100vh;
+      background: radial-gradient(circle at top left, #20274a 0, #050814 45%);
       color: #ffffff;
     }
-    .container { max-width: 900px; margin: 0 auto; }
-    .card {
-      background: #151a2b;
-      border-radius: 16px;
-      padding: 1.25rem 1.5rem;
-      margin-bottom: 1.2rem;
+
+    .page-shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 1.5rem 2rem;
     }
+
+    /* Sticky top nav */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(16px);
+      background: linear-gradient(to bottom, rgba(5,8,20,0.9), rgba(5,8,20,0.7));
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .nav-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .nav-logo {
+      height: 32px;
+      border-radius: 50%;
+    }
+
+    .nav-title {
+      font-weight: 600;
+      font-size: 1.1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .nav-pill {
+      padding: 0.2rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      background: rgba(63,191,127,0.16);
+      color: var(--accent);
+      border: 1px solid rgba(63,191,127,0.4);
+    }
+
+    .nav-right {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* Cards & layout */
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 1.4rem 1.6rem;
+      margin-bottom: 1.4rem;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .card-hero {
+      margin-top: 1.4rem;
+      background: radial-gradient(circle at top left, #273c72 0, #151a2b 45%);
+    }
+
+    .hero-grid {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.2rem;
+    }
+
+    .hero-text h1 {
+      margin: 0 0 .35rem 0;
+      font-size: clamp(1.6rem, 3vw, 2rem);
+    }
+
+    .hero-text p {
+      margin: 0 0 0.6rem 0;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+
+    .hero-logo {
+      height: 64px;
+      border-radius: 18px;
+    }
+
+    .hero-meta {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .hero-meta span {
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.08);
+      margin-right: .4rem;
+    }
+
+    /* Category chips + refresh */
+    .feed-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .feed-header h2 {
+      margin: 0;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .chip {
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      font-size: 0.8rem;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+    }
+
+    .chip.chip-active {
+      background: var(--accent-soft);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+
+    .refresh-btn {
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      padding: 0.4rem 0.9rem;
+      font-size: 0.8rem;
+      background: rgba(255,255,255,0.02);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .refresh-btn span {
+      font-size: 0.95rem;
+    }
+
+    .refresh-btn:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    /* Headlines */
     .headline {
       margin-bottom: 1.2rem;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid var(--border-subtle);
       padding-bottom: 1.2rem;
     }
-    a { color: #7bd4ff; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+
+    .headline:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .headline h3 {
+      margin: 0 0 0.3rem 0;
+      font-size: 1rem;
+    }
+
+    .headline small {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+
+    a {
+      color: #7bd4ff;
+      text-decoration: none;
+      font-size: 0.86rem;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
     .btn {
-      background: #3fbf7f;
+      background: var(--accent);
       border: none;
       padding: 0.55rem 1.2rem;
-      border-radius: 6px;
+      border-radius: 999px;
       cursor: pointer;
       color: #000;
       font-weight: 600;
       margin-top: .6rem;
+      font-size: 0.85rem;
     }
+
     .btn:disabled {
       opacity: 0.45;
       cursor: default;
+    }
+
+    /* Summary block */
+    .summary-block {
+      margin-top: .6rem;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: .6rem;
+      font-size: 0.9rem;
+    }
+
+    .summary-block ul {
+      padding-left: 1.1rem;
+      margin: 0.3rem 0 0.6rem 0;
+    }
+
+    .summary-block li {
+      margin-bottom: 0.15rem;
+    }
+
+    .summary-block small {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 1.4rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-align: center;
+      padding-bottom: 0.5rem;
+    }
+
+    footer p {
+      margin: 0.15rem 0;
+    }
+
+    @media (max-width: 600px) {
+      .nav-inner {
+        padding-inline: 1rem;
+      }
+      .page-shell {
+        padding-inline: 1rem;
+      }
+      .card {
+        padding-inline: 1.2rem;
+      }
     }
   </style>
 </head>
 
 <body>
-  <div class="container">
-    
-    <!-- Updated Header with Logo + New Title + Slogan -->
-    <header class="card" style="text-align:center;">
-      <img src="/assets/img/logo-placeholder.png" 
-           alt="MatesInvest Logo" 
-           style="height: 60px; margin-bottom: 1rem;">
-      <h1 style="margin-bottom:0.3rem;">MatesFeed</h1>
-      <p>Your daily, plain-English investing brief — powered by MatesInvest.</p>
-    </header>
+  <!-- Sticky nav -->
+  <div class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <img src="/assets/img/logo-placeholder.png" alt="MatesInvest Logo" class="nav-logo">
+        <div>
+          <div class="nav-title">MatesInvest</div>
+          <div class="nav-pill">MatesFeed · Prototype</div>
+        </div>
+      </div>
+      <div class="nav-right">
+        Live AI summaries · Not financial advice
+      </div>
+    </div>
+  </div>
 
-    <section id="news" class="card">
-      <h2>Latest Headlines</h2>
-      <div id="newsList">Loading headlines…</div>
+  <div class="page-shell">
+    <!-- Gradient hero -->
+    <section class="card card-hero">
+      <div class="hero-grid">
+        <div class="hero-text">
+          <h1>MatesFeed</h1>
+          <p>Your daily, plain-English investing brief — powered by MatesInvest.</p>
+          <div class="hero-meta">
+            <span>AI summaries</span>
+            <span>News & announcements</span>
+            <span>Retail investors first</span>
+          </div>
+        </div>
+        <div>
+          <img src="/assets/img/logo-placeholder.png"
+               alt="MatesInvest Logo"
+               class="hero-logo">
+        </div>
+      </div>
     </section>
 
+    <!-- Feed card -->
+    <section id="news" class="card">
+      <div class="feed-header">
+        <h2 style="margin:0;">Latest Headlines</h2>
+
+        <button id="refreshBtn" class="refresh-btn">
+          <span>⟳</span>
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      <div class="chip-row" id="categoryRow">
+        <button class="chip chip-active" data-category="all">All</button>
+        <button class="chip" data-category="energy">Energy</button>
+        <button class="chip" data-category="tech">Tech</button>
+        <button class="chip" data-category="macro">Macro</button>
+        <button class="chip" data-category="other">Other</button>
+      </div>
+
+      <div id="newsList" style="margin-top:0.9rem;">Loading headlines…</div>
+    </section>
+
+    <footer>
+      <p>© <span id="yearSpan"></span> MatesInvest. All rights reserved.</p>
+      <p>This page is a prototype for product exploration. Information is general only and is not financial advice.</p>
+    </footer>
   </div>
 
   <script>
+    const newsList = document.getElementById("newsList");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const categoryRow = document.getElementById("categoryRow");
+    const yearSpan = document.getElementById("yearSpan");
+
+    yearSpan.textContent = new Date().getFullYear();
+
+    let allArticles = [];
+    let currentCategory = "all";
+
     function renderSummary(s) {
       const bullets = (s.tldrBullets || []).map(b => `<li>${b}</li>`).join("");
       return `
-        <div style="margin-top:.6rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:.6rem;">
+        <div class="summary-block">
           <strong>TL;DR</strong>
           <ul>${bullets}</ul>
           <p><strong>What’s happening:</strong> ${s.whatsHappening || ""}</p>
@@ -94,67 +400,126 @@
       return res.json();
     }
 
-    async function loadNews() {
-      const newsList = document.getElementById("newsList");
+    function categoryFromArticle(article) {
+      const title = (article.title || "").toLowerCase();
+      if (title.match(/\boil\b|\benergy\b|\bcoal\b|\bgas\b|\bpetroleum\b|\bmining\b/)) {
+        return "energy";
+      }
+      if (title.match(/\btech\b|\bsoftware\b|\bai\b|\bchip\b|\bsemiconductor\b|\bcloud\b/)) {
+        return "tech";
+      }
+      if (title.match(/\binflation\b|\brate\b|\bcentral bank\b|\bfed\b|\breserve bank\b|\bmacro\b/)) {
+        return "macro";
+      }
+      return "other";
+    }
 
+    function renderArticles() {
+      if (!allArticles.length) {
+        newsList.textContent = "No headlines found.";
+        return;
+      }
+
+      newsList.innerHTML = "";
+
+      const filtered = allArticles.filter(a => {
+        if (currentCategory === "all") return true;
+        return categoryFromArticle(a) === currentCategory;
+      });
+
+      if (!filtered.length) {
+        newsList.textContent = "No headlines for this category yet.";
+        return;
+      }
+
+      filtered.forEach((a) => {
+        const item = document.createElement("div");
+        item.className = "headline";
+
+        const pubDate = a.publishedAt ? new Date(a.publishedAt).toLocaleString() : "";
+        const cat = categoryFromArticle(a);
+
+        item.innerHTML = `
+          <h3>${a.title}</h3>
+          <small>${a.source || "Unknown source"} ${pubDate ? "• " + pubDate : ""} • ${cat}</small><br>
+          <a href="${a.url}" target="_blank" rel="noopener noreferrer">Read original</a>
+          <br><br>
+          <button class="btn">MatesInvest summary</button>
+          <div class="summary-output"></div>
+        `;
+
+        const btn = item.querySelector("button");
+        const output = item.querySelector(".summary-output");
+
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          const originalText = `${a.title}\n\n${a.description || ""}`;
+          const originalLabel = btn.textContent;
+          btn.textContent = "Summarising…";
+          try {
+            const summary = await callMatesSummary({
+              text: originalText,
+              sourceType: "news_article",
+              headline: a.title
+            });
+            output.innerHTML = renderSummary(summary);
+          } catch (err) {
+            console.error(err);
+            output.textContent = "Sorry, something went wrong generating the summary.";
+          } finally {
+            btn.disabled = false;
+            btn.textContent = originalLabel;
+          }
+        });
+
+        newsList.appendChild(item);
+      });
+    }
+
+    async function loadNews() {
       try {
+        if (refreshBtn) {
+          refreshBtn.disabled = true;
+          refreshBtn.querySelector("span:nth-child(2)").textContent = "Refreshing…";
+        }
+
+        newsList.textContent = "Loading headlines…";
+
         const res = await fetch("/.netlify/functions/newsFeed");
         if (!res.ok) throw new Error("News feed error");
 
         const data = await res.json();
-
-        if (!data.articles || data.articles.length === 0) {
-          newsList.textContent = "No headlines found.";
-          return;
-        }
-
-        newsList.innerHTML = "";
-
-        data.articles.forEach((a) => {
-          const item = document.createElement("div");
-          item.className = "headline";
-
-          const pubDate = a.publishedAt ? new Date(a.publishedAt).toLocaleString() : "";
-
-          item.innerHTML = `
-            <h3>${a.title}</h3>
-            <small>${a.source || "Unknown source"} ${pubDate ? "• " + pubDate : ""}</small><br>
-            <a href="${a.url}" target="_blank">Read original</a>
-            <br><br>
-            <button class="btn">MatesInvest summary</button>
-            <div class="summary-output"></div>
-          `;
-
-          const btn = item.querySelector("button");
-          const output = item.querySelector(".summary-output");
-
-          btn.addEventListener("click", async () => {
-            btn.disabled = true;
-            btn.textContent = "Summarising…";
-            try {
-              const originalText = `${a.title}\n\n${a.description || ""}`;
-              const summary = await callMatesSummary({
-                text: originalText,
-                sourceType: "news_article",
-                headline: a.title
-              });
-              output.innerHTML = renderSummary(summary);
-            } catch (err) {
-              console.error(err);
-              output.textContent = "Sorry, something went wrong generating the summary.";
-            } finally {
-              btn.disabled = false;
-              btn.textContent = "MatesInvest summary";
-            }
-          });
-
-          newsList.appendChild(item);
-        });
-
+        allArticles = data.articles || [];
+        renderArticles();
       } catch (err) {
         console.error(err);
         newsList.textContent = "Could not load headlines.";
+      } finally {
+        if (refreshBtn) {
+          refreshBtn.disabled = false;
+          refreshBtn.querySelector("span:nth-child(2)").textContent = "Refresh";
+        }
       }
+    }
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", loadNews);
+    }
+
+    if (categoryRow) {
+      categoryRow.addEventListener("click", (e) => {
+        const btn = e.target.closest(".chip");
+        if (!btn) return;
+
+        const cat = btn.getAttribute("data-category");
+        currentCategory = cat;
+
+        Array.from(categoryRow.querySelectorAll(".chip")).forEach(c => {
+          c.classList.toggle("chip-active", c === btn);
+        });
+
+        renderArticles();
+      });
     }
 
     loadNews();
