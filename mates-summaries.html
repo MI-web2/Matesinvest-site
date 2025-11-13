@@ -297,28 +297,36 @@
   let currentCategory = "all";
 
   function renderSummary(s) {
-    const bullets = (s.tldrBullets || []).map(b => `<li>${b}</li>`).join("");
-    return `
-      <div class="summary-block">
-        <strong>TL;DR</strong>
-        <ul>${bullets}</ul>
-        <p><strong>What’s happening:</strong> ${s.whatsHappening || ""}</p>
-        <p><strong>Why it matters:</strong> ${s.whyItMatters || ""}</p>
-        <p><strong>Risks / uncertainty:</strong> ${s.riskNote || ""}</p>
-        <small>${s.disclaimer || "General information only, not financial advice."}</small>
-      </div>
-    `;
-  }
+  const oneLiner = s.oneLiner || s.shortSummary || "";
+  const tldrBullets = s.tldrBullets || [];
+  const keyMetrics = s.keyMetrics || [];
+  const riskNote = s.riskNote || "";
+  const disclaimer = s.disclaimer || "General information only, not financial advice.";
 
-  async function callMatesSummary({ text, sourceType, headline }) {
-    const res = await fetch("/.netlify/functions/matesSummary", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ text, sourceType, headline })
-    });
-    if (!res.ok) throw new Error("MatesSummary error");
-    return res.json();
-  }
+  const tldrHtml = tldrBullets.map(b => `<li>${b}</li>`).join("");
+  const metricsHtml = keyMetrics.map(b => `<li>${b}</li>`).join("");
+
+  return `
+    <div class="summary-block">
+      ${oneLiner ? `<p><strong>${oneLiner}</strong></p>` : ""}
+      ${tldrBullets.length ? `
+        <p><strong>TL;DR</strong></p>
+        <ul>${tldrHtml}</ul>
+      ` : ""}
+
+      ${keyMetrics.length ? `
+        <p><strong>Key metrics / details</strong></p>
+        <ul>${metricsHtml}</ul>
+      ` : ""}
+
+      ${riskNote ? `
+        <p><strong>Risks / uncertainty:</strong> ${riskNote}</p>
+      ` : ""}
+
+      <small>${disclaimer}</small>
+    </div>
+    `;
+}
 
   function categoryFromArticle(article) {
     const title = (article.title || "").toLowerCase();
