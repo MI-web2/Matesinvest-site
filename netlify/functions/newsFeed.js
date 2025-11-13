@@ -7,44 +7,31 @@ exports.handler = async () => {
       return { statusCode: 500, body: "Missing NEWSAPI_KEY" };
     }
 
-    // Build URL with apiKey as a query parameter
-    const url = new URL("https://newsapi.org/v2/top-headlines");
-    url.searchParams.set("country", "au");
-    url.searchParams.set("category", "business");
-    url.searchParams.set("pageSize", "20");
-    url.searchParams.set("apiKey", apiKey);
+    // First attempt: AU + business
+    const primaryUrl = new URL("https://newsapi.org/v2/top-headlines");
+    primaryUrl.searchParams.set("country", "au");
+    primaryUrl.searchParams.set("category", "business");
+    primaryUrl.searchParams.set("pageSize", "20");
+    primaryUrl.searchParams.set("apiKey", apiKey);
 
-    const res = await fetch(url.toString());
+    let articles = await fetchHeadlines(primaryUrl);
 
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("NewsAPI HTTP error:", text);
-      const fallbackArticles = getFallbackArticles("HTTP error: " + text);
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ articles: fallbackArticles }),
-      };
-    }
-
-    const data = await res.json();
-
-    // NewsAPI can return { status: "error", ... } with 200 OK
-    if (data.status && data.status !== "ok") {
-      console.error("NewsAPI logical error:", data);
-      const fallbackArticles = getFallbackArticles(
-        "NewsAPI error: " + (data.message || data.code)
-      );
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ articles: fallbackArticles }),
-      };
-    }
-
-    let articles = Array.isArray(data.articles) ? data.articles : [];
-
+    // If nothing came back, try AU with no category filter
     if (!articles.length) {
-      console.warn("NewsAPI returned zero articles, using fallback.");
-      articles = getFallbackArticles("No live headlines returned");
+      console.warn("No AU business headlines, retrying with country=au only");
+
+      const fallbackUrl = new URL("https://newsapi.org/v2/top-headlines");
+      fallbackUrl.searchParams.set("country", "au");
+      fallbackUrl.searchParams.set("pageSize", "20");
+      fallbackUrl.searchParams.set("apiKey", apiKey);
+
+      articles = await fetchHeadlines(fallbackUrl);
+    }
+
+    // If we STILL have nothing, use our hard-coded demo ones
+    if (!articles.length) {
+      console.warn("Still zero headlines from NewsAPI, using hard-coded demos.");
+      articles = getFallbackArticles("No live headlines returned from NewsAPI");
     }
 
     const mapped = articles.map((a, idx) => ({
@@ -70,6 +57,29 @@ exports.handler = async () => {
   }
 };
 
+async function fetchHeadlines(url) {
+  try {
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("NewsAPI HTTP error:", text);
+      return [];
+    }
+
+    const data = await res.json();
+
+    if (data.status && data.status !== "ok") {
+      console.error("NewsAPI logical error:", data);
+      return [];
+    }
+
+    return Array.isArray(data.articles) ? data.articles : [];
+  } catch (e) {
+    console.error("Error fetching headlines:", e);
+    return [];
+  }
+}
+
 function getFallbackArticles(reason) {
   const now = new Date().toISOString();
   return [
@@ -78,7 +88,7 @@ function getFallbackArticles(reason) {
       title: "Demo: MatesSummaries prototype is live",
       description: `Fallback headlines being used (${reason}). This item shows how summaries will look for real articles.`,
       url: "https://matesinvest.com",
-      source: "MatesInvest (demo)",
+      source: "MatesInvest",
       publishedAt: now,
     },
     {
@@ -87,7 +97,7 @@ function getFallbackArticles(reason) {
       description:
         "Live ASX company announcements will appear here with MatesInvest summaries underneath.",
       url: "https://matesinvest.com",
-      source: "MatesInvest (demo)",
+      source: "MatesInvest",
       publishedAt: now,
     },
     {
@@ -96,7 +106,7 @@ function getFallbackArticles(reason) {
       description:
         "Users will get a personalised, plain-English morning summary based on their real portfolio.",
       url: "https://matesinvest.com",
-      source: "MatesInvest (demo)",
+      source: "MatesInvest",
       publishedAt: now,
     },
   ];
