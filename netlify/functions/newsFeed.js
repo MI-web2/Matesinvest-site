@@ -1,7 +1,6 @@
 // netlify/functions/newsFeed.js
-import fetch from "node-fetch";
 
-export const handler = async () => {
+exports.handler = async () => {
   try {
     const apiKey = process.env.NEWSAPI_KEY;
     if (!apiKey) {
@@ -26,7 +25,7 @@ export const handler = async () => {
     const data = await res.json();
 
     const articles = (data.articles || []).map((a, idx) => ({
-      id: idx, // just an index for now
+      id: idx,
       title: a.title,
       description: a.description,
       url: a.url,
