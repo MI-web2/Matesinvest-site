@@ -1,4 +1,3 @@
-@ -0,0 +1,101 @@
 // netlify/functions/matesSummary.js
 
 exports.handler = async (event) => {
