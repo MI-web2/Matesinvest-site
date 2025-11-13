@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>MatesSummaries | MatesInvest</title>
+  <title>MatesFeed | MatesInvest</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/assets/img/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/img/favicon.png">
+  <link rel="icon" sizes="32x32" href="/assets/img/favicon.png">
+  <link rel="icon" sizes="192x192" href="/assets/img/favicon.png">
+
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -46,9 +53,13 @@
 <body>
   <div class="container">
     
-    <header class="card">
-      <h1>MatesSummaries (Prototype)</h1>
-      <p>Live Australian business headlines, soon with AI-powered MatesInvest summaries.</p>
+    <!-- Updated Header with Logo + New Title + Slogan -->
+    <header class="card" style="text-align:center;">
+      <img src="/assets/img/logo-placeholder.png" 
+           alt="MatesInvest Logo" 
+           style="height: 60px; margin-bottom: 1rem;">
+      <h1 style="margin-bottom:0.3rem;">MatesFeed</h1>
+      <p>Your daily, plain-English investing brief — powered by MatesInvest.</p>
     </header>
 
     <section id="news" class="card">
@@ -58,96 +69,95 @@
 
   </div>
 
-<script>
-  function renderSummary(s) {
-    const bullets = (s.tldrBullets || []).map(b => `<li>${b}</li>`).join("");
-    return `
-      <div style="margin-top:.6rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:.6rem;">
-        <strong>TL;DR</strong>
-        <ul>${bullets}</ul>
-        <p><strong>What’s happening:</strong> ${s.whatsHappening || ""}</p>
-        <p><strong>Why it matters:</strong> ${s.whyItMatters || ""}</p>
-        <p><strong>Risks / uncertainty:</strong> ${s.riskNote || ""}</p>
-        <small>${s.disclaimer || "General information only, not financial advice."}</small>
-      </div>
-    `;
-  }
+  <script>
+    function renderSummary(s) {
+      const bullets = (s.tldrBullets || []).map(b => `<li>${b}</li>`).join("");
+      return `
+        <div style="margin-top:.6rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:.6rem;">
+          <strong>TL;DR</strong>
+          <ul>${bullets}</ul>
+          <p><strong>What’s happening:</strong> ${s.whatsHappening || ""}</p>
+          <p><strong>Why it matters:</strong> ${s.whyItMatters || ""}</p>
+          <p><strong>Risks / uncertainty:</strong> ${s.riskNote || ""}</p>
+          <small>${s.disclaimer || "General information only, not financial advice."}</small>
+        </div>
+      `;
+    }
 
-  async function callMatesSummary({ text, sourceType, headline }) {
-    const res = await fetch("/.netlify/functions/matesSummary", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, sourceType, headline }),
-    });
-    if (!res.ok) throw new Error("MatesSummary error");
-    return res.json();
-  }
+    async function callMatesSummary({ text, sourceType, headline }) {
+      const res = await fetch("/.netlify/functions/matesSummary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, sourceType, headline }),
+      });
+      if (!res.ok) throw new Error("MatesSummary error");
+      return res.json();
+    }
 
-  async function loadNews() {
-    const newsList = document.getElementById("newsList");
+    async function loadNews() {
+      const newsList = document.getElementById("newsList");
 
-    try {
-      const res = await fetch("/.netlify/functions/newsFeed");
-      if (!res.ok) throw new Error("News feed error");
+      try {
+        const res = await fetch("/.netlify/functions/newsFeed");
+        if (!res.ok) throw new Error("News feed error");
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (!data.articles || data.articles.length === 0) {
-        newsList.textContent = "No headlines found.";
-        return;
-      }
+        if (!data.articles || data.articles.length === 0) {
+          newsList.textContent = "No headlines found.";
+          return;
+        }
 
-      newsList.innerHTML = "";
+        newsList.innerHTML = "";
 
-      data.articles.forEach((a) => {
-        const item = document.createElement("div");
-        item.className = "headline";
+        data.articles.forEach((a) => {
+          const item = document.createElement("div");
+          item.className = "headline";
 
-        const pubDate = a.publishedAt ? new Date(a.publishedAt).toLocaleString() : "";
+          const pubDate = a.publishedAt ? new Date(a.publishedAt).toLocaleString() : "";
 
-        item.innerHTML = `
-          <h3>${a.title}</h3>
-          <small>${a.source || "Unknown source"} ${pubDate ? "• " + pubDate : ""}</small><br>
-          <a href="${a.url}" target="_blank">Read original</a>
-          <br><br>
-          <button class="btn">MatesInvest summary</button>
-          <div class="summary-output"></div>
-        `;
+          item.innerHTML = `
+            <h3>${a.title}</h3>
+            <small>${a.source || "Unknown source"} ${pubDate ? "• " + pubDate : ""}</small><br>
+            <a href="${a.url}" target="_blank">Read original</a>
+            <br><br>
+            <button class="btn">MatesInvest summary</button>
+            <div class="summary-output"></div>
+          `;
 
-        const btn = item.querySelector("button");
-        const output = item.querySelector(".summary-output");
+          const btn = item.querySelector("button");
+          const output = item.querySelector(".summary-output");
 
-        btn.addEventListener("click", async () => {
-          btn.disabled = true;
-          const originalText = `${a.title}\n\n${a.description || ""}`;
-          btn.textContent = "Summarising…";
-          try {
-            const summary = await callMatesSummary({
-              text: originalText,
-              sourceType: "news_article",
-              headline: a.title
-            });
-            output.innerHTML = renderSummary(summary);
-          } catch (err) {
-            console.error(err);
-            output.textContent = "Sorry, something went wrong generating the summary.";
-          } finally {
-            btn.disabled = false;
-            btn.textContent = "MatesInvest summary";
-          }
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            btn.textContent = "Summarising…";
+            try {
+              const originalText = `${a.title}\n\n${a.description || ""}`;
+              const summary = await callMatesSummary({
+                text: originalText,
+                sourceType: "news_article",
+                headline: a.title
+              });
+              output.innerHTML = renderSummary(summary);
+            } catch (err) {
+              console.error(err);
+              output.textContent = "Sorry, something went wrong generating the summary.";
+            } finally {
+              btn.disabled = false;
+              btn.textContent = "MatesInvest summary";
+            }
+          });
+
+          newsList.appendChild(item);
         });
 
-        newsList.appendChild(item);
-      });
-
-    } catch (err) {
-      console.error(err);
-      newsList.textContent = "Could not load headlines.";
+      } catch (err) {
+        console.error(err);
+        newsList.textContent = "Could not load headlines.";
+      }
     }
-  }
 
-  loadNews();
-</script>
-
+    loadNews();
+  </script>
 </body>
 </html>
