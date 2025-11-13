@@ -54,3 +54,61 @@ body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-s
   body.open .nav nav a{display:block;padding:8px 12px}
 }
 @media (max-width:560px){ .cards{grid-template-columns:1fr} .hero h1{font-size:34px} }
+/* --- MatesInvest homepage refinements --- */
+
+body {
+  background: #f5f7fb;
+}
+
+.hero {
+  padding: 3.5rem 0 2.5rem;
+  background: radial-gradient(circle at top left, #e2ebff 0, #f5f7fb 55%);
+}
+
+.hero-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 2.5rem 2.25rem;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.hero-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 0 0 0.75rem 0;
+}
+
+.hero h1 {
+  margin-top: 0;
+  margin-bottom: 0.4rem;
+}
+
+.hero-lead {
+  margin-top: 0.2rem;
+  margin-bottom: 1.1rem;
+  color: #475569;
+}
+
+.badges .badge {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding-inline: 0.75rem;
+}
+
+/* Make content cards feel consistent with hero */
+.section .card,
+.section .price-card,
+.section .contact-card {
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* Slightly softer alt sections */
+.section.alt {
+  background: #edf2ff;
+}

@@ -21,9 +21,7 @@
       --text-muted: rgba(255,255,255,0.7);
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -65,9 +63,11 @@
       gap: 0.65rem;
     }
 
+    /* 🔥 Enlarged main nav logo */
     .nav-logo {
-      height: 32px;
-      border-radius: 50%;
+      height: 48px !important;
+      width: auto !important;
+      border-radius: 10px;  /* nicer for non-square logos */
     }
 
     .nav-title {
@@ -115,7 +115,7 @@
 
     .hero-text h1 {
       margin: 0 0 .35rem 0;
-      font-size: clamp(1.6rem, 3vw, 2rem);
+      font-size: clamp(1.8rem, 3vw, 2.2rem);
     }
 
     .hero-text p {
@@ -124,9 +124,11 @@
       font-size: 0.92rem;
     }
 
+    /* 🔥 Enlarged hero section logo */
     .hero-logo {
-      height: 64px;
-      border-radius: 18px;
+      height: 90px !important;
+      width: auto !important;
+      border-radius: 14px;
     }
 
     .hero-meta {
@@ -142,25 +144,9 @@
       margin-right: .4rem;
     }
 
-    /* Category chips + refresh */
-    .feed-header {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      margin-bottom: 0.9rem;
-    }
-
-    .feed-header h2 {
-      margin: 0;
-    }
-
-    .chip-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-    }
+    /* Category chips */
+    .feed-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.9rem; }
+    .chip-row { display:flex; gap:0.5rem; flex-wrap:wrap; }
 
     .chip {
       padding: 0.25rem 0.75rem;
@@ -171,7 +157,6 @@
       background: transparent;
       color: var(--text-muted);
     }
-
     .chip.chip-active {
       background: var(--accent-soft);
       color: #ffffff;
@@ -191,15 +176,6 @@
       gap: 0.35rem;
     }
 
-    .refresh-btn span {
-      font-size: 0.95rem;
-    }
-
-    .refresh-btn:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
-
     /* Headlines */
     .headline {
       margin-bottom: 1.2rem;
@@ -207,31 +183,11 @@
       padding-bottom: 1.2rem;
     }
 
-    .headline:last-child {
-      border-bottom: none;
-      margin-bottom: 0;
-      padding-bottom: 0;
-    }
+    .headline h3 { margin:0 0 0.3rem 0; font-size:1rem; }
+    .headline small { color:var(--text-muted); }
 
-    .headline h3 {
-      margin: 0 0 0.3rem 0;
-      font-size: 1rem;
-    }
-
-    .headline small {
-      color: var(--text-muted);
-      font-size: 0.78rem;
-    }
-
-    a {
-      color: #7bd4ff;
-      text-decoration: none;
-      font-size: 0.86rem;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
+    a { color:#7bd4ff; font-size:0.86rem; }
+    a:hover { text-decoration:underline; }
 
     .btn {
       background: var(--accent);
@@ -245,56 +201,20 @@
       font-size: 0.85rem;
     }
 
-    .btn:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
-
     /* Summary block */
     .summary-block {
-      margin-top: .6rem;
-      border-top: 1px solid var(--border-subtle);
-      padding-top: .6rem;
-      font-size: 0.9rem;
-    }
-
-    .summary-block ul {
-      padding-left: 1.1rem;
-      margin: 0.3rem 0 0.6rem 0;
-    }
-
-    .summary-block li {
-      margin-bottom: 0.15rem;
-    }
-
-    .summary-block small {
-      font-size: 0.75rem;
-      color: var(--text-muted);
+      margin-top:.6rem;
+      border-top:1px solid var(--border-subtle);
+      padding-top:.6rem;
+      font-size:0.9rem;
     }
 
     /* Footer */
     footer {
-      margin-top: 1.4rem;
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      text-align: center;
-      padding-bottom: 0.5rem;
-    }
-
-    footer p {
-      margin: 0.15rem 0;
-    }
-
-    @media (max-width: 600px) {
-      .nav-inner {
-        padding-inline: 1rem;
-      }
-      .page-shell {
-        padding-inline: 1rem;
-      }
-      .card {
-        padding-inline: 1.2rem;
-      }
+      margin-top:1.4rem;
+      font-size:0.78rem;
+      color:var(--text-muted);
+      text-align:center;
     }
   </style>
 </head>
@@ -317,6 +237,7 @@
   </div>
 
   <div class="page-shell">
+
     <!-- Gradient hero -->
     <section class="card card-hero">
       <div class="hero-grid">
@@ -329,10 +250,10 @@
             <span>Retail investors first</span>
           </div>
         </div>
+
+        <!-- 🔥 Larger hero logo -->
         <div>
-          <img src="/assets/img/logo-placeholder.png"
-               alt="MatesInvest Logo"
-               class="hero-logo">
+          <img src="/assets/img/logo-placeholder.png" alt="MatesInvest Logo" class="hero-logo">
         </div>
       </div>
     </section>
@@ -341,10 +262,8 @@
     <section id="news" class="card">
       <div class="feed-header">
         <h2 style="margin:0;">Latest Headlines</h2>
-
         <button id="refreshBtn" class="refresh-btn">
-          <span>⟳</span>
-          <span>Refresh</span>
+          <span>⟳</span><span>Refresh</span>
         </button>
       </div>
 
@@ -363,166 +282,146 @@
       <p>© <span id="yearSpan"></span> MatesInvest. All rights reserved.</p>
       <p>This page is a prototype for product exploration. Information is general only and is not financial advice.</p>
     </footer>
+
   </div>
 
-  <script>
-    const newsList = document.getElementById("newsList");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const categoryRow = document.getElementById("categoryRow");
-    const yearSpan = document.getElementById("yearSpan");
+<script>
+  const newsList = document.getElementById("newsList");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const categoryRow = document.getElementById("categoryRow");
+  const yearSpan = document.getElementById("yearSpan");
 
-    yearSpan.textContent = new Date().getFullYear();
+  yearSpan.textContent = new Date().getFullYear();
 
-    let allArticles = [];
-    let currentCategory = "all";
+  let allArticles = [];
+  let currentCategory = "all";
 
-    function renderSummary(s) {
-      const bullets = (s.tldrBullets || []).map(b => `<li>${b}</li>`).join("");
-      return `
-        <div class="summary-block">
-          <strong>TL;DR</strong>
-          <ul>${bullets}</ul>
-          <p><strong>What’s happening:</strong> ${s.whatsHappening || ""}</p>
-          <p><strong>Why it matters:</strong> ${s.whyItMatters || ""}</p>
-          <p><strong>Risks / uncertainty:</strong> ${s.riskNote || ""}</p>
-          <small>${s.disclaimer || "General information only, not financial advice."}</small>
-        </div>
+  function renderSummary(s) {
+    const bullets = (s.tldrBullets || []).map(b => `<li>${b}</li>`).join("");
+    return `
+      <div class="summary-block">
+        <strong>TL;DR</strong>
+        <ul>${bullets}</ul>
+        <p><strong>What’s happening:</strong> ${s.whatsHappening || ""}</p>
+        <p><strong>Why it matters:</strong> ${s.whyItMatters || ""}</p>
+        <p><strong>Risks / uncertainty:</strong> ${s.riskNote || ""}</p>
+        <small>${s.disclaimer || "General information only, not financial advice."}</small>
+      </div>
+    `;
+  }
+
+  async function callMatesSummary({ text, sourceType, headline }) {
+    const res = await fetch("/.netlify/functions/matesSummary", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ text, sourceType, headline })
+    });
+    if (!res.ok) throw new Error("MatesSummary error");
+    return res.json();
+  }
+
+  function categoryFromArticle(article) {
+    const title = (article.title || "").toLowerCase();
+    if (title.match(/\boil\b|\benergy\b|\bcoal\b|\bgas\b|\bpetroleum\b|\bmining\b/)) return "energy";
+    if (title.match(/\btech\b|\bsoftware\b|\bai\b|\bchip\b|\bsemiconductor\b|\bcloud\b/)) return "tech";
+    if (title.match(/\binflation\b|\brate\b|\bcentral bank\b|\bfed\b|\breserve bank\b|\bmacro\b/)) return "macro";
+    return "other";
+  }
+
+  function renderArticles() {
+    if (!allArticles.length) {
+      newsList.textContent = "No headlines found.";
+      return;
+    }
+
+    newsList.innerHTML = "";
+
+    const filtered = allArticles.filter(a => currentCategory === "all" || categoryFromArticle(a) === currentCategory);
+
+    if (!filtered.length) {
+      newsList.textContent = "No headlines for this category yet.";
+      return;
+    }
+
+    filtered.forEach(a => {
+      const item = document.createElement("div");
+      item.className = "headline";
+
+      const pubDate = a.publishedAt ? new Date(a.publishedAt).toLocaleString() : "";
+      const cat = categoryFromArticle(a);
+
+      item.innerHTML = `
+        <h3>${a.title}</h3>
+        <small>${a.source || "Unknown source"} ${pubDate ? "• " + pubDate : ""} • ${cat}</small><br>
+        <a href="${a.url}" target="_blank" rel="noopener noreferrer">Read original</a>
+        <br><br>
+        <button class="btn">MatesInvest summary</button>
+        <div class="summary-output"></div>
       `;
-    }
 
-    async function callMatesSummary({ text, sourceType, headline }) {
-      const res = await fetch("/.netlify/functions/matesSummary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, sourceType, headline }),
-      });
-      if (!res.ok) throw new Error("MatesSummary error");
-      return res.json();
-    }
+      const btn = item.querySelector("button");
+      const output = item.querySelector(".summary-output");
 
-    function categoryFromArticle(article) {
-      const title = (article.title || "").toLowerCase();
-      if (title.match(/\boil\b|\benergy\b|\bcoal\b|\bgas\b|\bpetroleum\b|\bmining\b/)) {
-        return "energy";
-      }
-      if (title.match(/\btech\b|\bsoftware\b|\bai\b|\bchip\b|\bsemiconductor\b|\bcloud\b/)) {
-        return "tech";
-      }
-      if (title.match(/\binflation\b|\brate\b|\bcentral bank\b|\bfed\b|\breserve bank\b|\bmacro\b/)) {
-        return "macro";
-      }
-      return "other";
-    }
-
-    function renderArticles() {
-      if (!allArticles.length) {
-        newsList.textContent = "No headlines found.";
-        return;
-      }
-
-      newsList.innerHTML = "";
-
-      const filtered = allArticles.filter(a => {
-        if (currentCategory === "all") return true;
-        return categoryFromArticle(a) === currentCategory;
-      });
-
-      if (!filtered.length) {
-        newsList.textContent = "No headlines for this category yet.";
-        return;
-      }
-
-      filtered.forEach((a) => {
-        const item = document.createElement("div");
-        item.className = "headline";
-
-        const pubDate = a.publishedAt ? new Date(a.publishedAt).toLocaleString() : "";
-        const cat = categoryFromArticle(a);
-
-        item.innerHTML = `
-          <h3>${a.title}</h3>
-          <small>${a.source || "Unknown source"} ${pubDate ? "• " + pubDate : ""} • ${cat}</small><br>
-          <a href="${a.url}" target="_blank" rel="noopener noreferrer">Read original</a>
-          <br><br>
-          <button class="btn">MatesInvest summary</button>
-          <div class="summary-output"></div>
-        `;
-
-        const btn = item.querySelector("button");
-        const output = item.querySelector(".summary-output");
-
-        btn.addEventListener("click", async () => {
-          btn.disabled = true;
-          const originalText = `${a.title}\n\n${a.description || ""}`;
-          const originalLabel = btn.textContent;
-          btn.textContent = "Summarising…";
-          try {
-            const summary = await callMatesSummary({
-              text: originalText,
-              sourceType: "news_article",
-              headline: a.title
-            });
-            output.innerHTML = renderSummary(summary);
-          } catch (err) {
-            console.error(err);
-            output.textContent = "Sorry, something went wrong generating the summary.";
-          } finally {
-            btn.disabled = false;
-            btn.textContent = originalLabel;
-          }
-        });
-
-        newsList.appendChild(item);
-      });
-    }
-
-    async function loadNews() {
-      try {
-        if (refreshBtn) {
-          refreshBtn.disabled = true;
-          refreshBtn.querySelector("span:nth-child(2)").textContent = "Refreshing…";
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        const originalText = `${a.title}\n\n${a.description || ""}`;
+        const originalLabel = btn.textContent;
+        btn.textContent = "Summarising…";
+        try {
+          const summary = await callMatesSummary({
+            text: originalText,
+            sourceType: "news_article",
+            headline: a.title
+          });
+          output.innerHTML = renderSummary(summary);
+        } catch (err) {
+          console.error(err);
+          output.textContent = "Sorry, something went wrong generating the summary.";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
         }
-
-        newsList.textContent = "Loading headlines…";
-
-        const res = await fetch("/.netlify/functions/newsFeed");
-        if (!res.ok) throw new Error("News feed error");
-
-        const data = await res.json();
-        allArticles = data.articles || [];
-        renderArticles();
-      } catch (err) {
-        console.error(err);
-        newsList.textContent = "Could not load headlines.";
-      } finally {
-        if (refreshBtn) {
-          refreshBtn.disabled = false;
-          refreshBtn.querySelector("span:nth-child(2)").textContent = "Refresh";
-        }
-      }
-    }
-
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", loadNews);
-    }
-
-    if (categoryRow) {
-      categoryRow.addEventListener("click", (e) => {
-        const btn = e.target.closest(".chip");
-        if (!btn) return;
-
-        const cat = btn.getAttribute("data-category");
-        currentCategory = cat;
-
-        Array.from(categoryRow.querySelectorAll(".chip")).forEach(c => {
-          c.classList.toggle("chip-active", c === btn);
-        });
-
-        renderArticles();
       });
-    }
 
-    loadNews();
-  </script>
+      newsList.appendChild(item);
+    });
+  }
+
+  async function loadNews() {
+    try {
+      refreshBtn.disabled = true;
+      refreshBtn.querySelector("span:nth-child(2)").textContent = "Refreshing…";
+
+      newsList.textContent = "Loading headlines…";
+
+      const res = await fetch("/.netlify/functions/newsFeed");
+      if (!res.ok) throw new Error("News feed error");
+
+      const data = await res.json();
+      allArticles = data.articles || [];
+      renderArticles();
+    } catch (err) {
+      console.error(err);
+      newsList.textContent = "Could not load headlines.";
+    } finally {
+      refreshBtn.disabled = false;
+      refreshBtn.querySelector("span:nth-child(2)").textContent = "Refresh";
+    }
+  }
+
+  refreshBtn.addEventListener("click", loadNews);
+
+  categoryRow.addEventListener("click", e => {
+    const btn = e.target.closest(".chip");
+    if (!btn) return;
+    currentCategory = btn.getAttribute("data-category");
+
+    [...categoryRow.querySelectorAll(".chip")].forEach(c => c.classList.toggle("chip-active", c === btn));
+    renderArticles();
+  });
+
+  loadNews();
+</script>
+
 </body>
 </html>
