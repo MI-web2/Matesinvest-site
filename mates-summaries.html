@@ -58,43 +58,96 @@
 
   </div>
 
-  <script>
-    async function loadNews() {
-      const newsList = document.getElementById("newsList");
+<script>
+  function renderSummary(s) {
+    const bullets = (s.tldrBullets || []).map(b => `<li>${b}</li>`).join("");
+    return `
+      <div style="margin-top:.6rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:.6rem;">
+        <strong>TL;DR</strong>
+        <ul>${bullets}</ul>
+        <p><strong>What’s happening:</strong> ${s.whatsHappening || ""}</p>
+        <p><strong>Why it matters:</strong> ${s.whyItMatters || ""}</p>
+        <p><strong>Risks / uncertainty:</strong> ${s.riskNote || ""}</p>
+        <small>${s.disclaimer || "General information only, not financial advice."}</small>
+      </div>
+    `;
+  }
 
-      try {
-        const res = await fetch("/.netlify/functions/newsFeed");
-        if (!res.ok) throw new Error("News feed error");
+  async function callMatesSummary({ text, sourceType, headline }) {
+    const res = await fetch("/.netlify/functions/matesSummary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, sourceType, headline }),
+    });
+    if (!res.ok) throw new Error("MatesSummary error");
+    return res.json();
+  }
 
-        const data = await res.json();
+  async function loadNews() {
+    const newsList = document.getElementById("newsList");
 
-        if (!data.articles || data.articles.length === 0) {
-          newsList.textContent = "No headlines found.";
-          return;
-        }
+    try {
+      const res = await fetch("/.netlify/functions/newsFeed");
+      if (!res.ok) throw new Error("News feed error");
 
-        newsList.innerHTML = "";
+      const data = await res.json();
 
-        data.articles.forEach((a) => {
-          const item = document.createElement("div");
-          item.className = "headline";
-          item.innerHTML = `
-            <h3>${a.title}</h3>
-            <small>${a.source || "Unknown source"} • ${new Date(a.publishedAt).toLocaleString()}</small><br>
-            <a href="${a.url}" target="_blank">Read original</a>
-            <br><br>
-            <button class="btn" disabled>Summary coming soon</button>
-          `;
-          newsList.appendChild(item);
+      if (!data.articles || data.articles.length === 0) {
+        newsList.textContent = "No headlines found.";
+        return;
+      }
+
+      newsList.innerHTML = "";
+
+      data.articles.forEach((a) => {
+        const item = document.createElement("div");
+        item.className = "headline";
+
+        const pubDate = a.publishedAt ? new Date(a.publishedAt).toLocaleString() : "";
+
+        item.innerHTML = `
+          <h3>${a.title}</h3>
+          <small>${a.source || "Unknown source"} ${pubDate ? "• " + pubDate : ""}</small><br>
+          <a href="${a.url}" target="_blank">Read original</a>
+          <br><br>
+          <button class="btn">MatesInvest summary</button>
+          <div class="summary-output"></div>
+        `;
+
+        const btn = item.querySelector("button");
+        const output = item.querySelector(".summary-output");
+
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          const originalText = `${a.title}\n\n${a.description || ""}`;
+          btn.textContent = "Summarising…";
+          try {
+            const summary = await callMatesSummary({
+              text: originalText,
+              sourceType: "news_article",
+              headline: a.title
+            });
+            output.innerHTML = renderSummary(summary);
+          } catch (err) {
+            console.error(err);
+            output.textContent = "Sorry, something went wrong generating the summary.";
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "MatesInvest summary";
+          }
         });
 
-      } catch (err) {
-        console.error(err);
-        newsList.textContent = "Could not load headlines.";
-      }
-    }
+        newsList.appendChild(item);
+      });
 
-    loadNews();
-  </script>
+    } catch (err) {
+      console.error(err);
+      newsList.textContent = "Could not load headlines.";
+    }
+  }
+
+  loadNews();
+</script>
+
 </body>
 </html>
