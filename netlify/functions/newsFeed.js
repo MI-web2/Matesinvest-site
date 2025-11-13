@@ -7,32 +7,33 @@ exports.handler = async () => {
       return { statusCode: 500, body: "Missing NEWSAPI_KEY" };
     }
 
+    // Build URL with apiKey as a query parameter
     const url = new URL("https://newsapi.org/v2/top-headlines");
     url.searchParams.set("country", "au");
     url.searchParams.set("category", "business");
     url.searchParams.set("pageSize", "20");
+    url.searchParams.set("apiKey", apiKey);
 
-    const res = await fetch(url.toString(), {
-      headers: { "X-Api-Key": apiKey },
-    });
+    const res = await fetch(url.toString());
 
-    // If HTTP failed outright
     if (!res.ok) {
       const text = await res.text();
       console.error("NewsAPI HTTP error:", text);
+      const fallbackArticles = getFallbackArticles("HTTP error: " + text);
       return {
-        statusCode: 500,
-        body: JSON.stringify({ error: "Error from NewsAPI", details: text }),
+        statusCode: 200,
+        body: JSON.stringify({ articles: fallbackArticles }),
       };
     }
 
     const data = await res.json();
 
-    // NewsAPI sometimes returns 200 with { status: "error", ... }
+    // NewsAPI can return { status: "error", ... } with 200 OK
     if (data.status && data.status !== "ok") {
       console.error("NewsAPI logical error:", data);
-      // Fall back to demo articles so the UI always has something nicely formatted
-      const fallbackArticles = getFallbackArticles("NewsAPI error: " + (data.message || data.code));
+      const fallbackArticles = getFallbackArticles(
+        "NewsAPI error: " + (data.message || data.code)
+      );
       return {
         statusCode: 200,
         body: JSON.stringify({ articles: fallbackArticles }),
@@ -41,7 +42,6 @@ exports.handler = async () => {
 
     let articles = Array.isArray(data.articles) ? data.articles : [];
 
-    // If for some reason there are still no articles, also fall back
     if (!articles.length) {
       console.warn("NewsAPI returned zero articles, using fallback.");
       articles = getFallbackArticles("No live headlines returned");
@@ -84,7 +84,8 @@ function getFallbackArticles(reason) {
     {
       id: 1,
       title: "Demo: ASX announcements + AI summaries coming soon",
-      description: "Live ASX company announcements will appear here with MatesInvest summaries underneath.",
+      description:
+        "Live ASX company announcements will appear here with MatesInvest summaries underneath.",
       url: "https://matesinvest.com",
       source: "MatesInvest (demo)",
       publishedAt: now,
@@ -92,7 +93,8 @@ function getFallbackArticles(reason) {
     {
       id: 2,
       title: "Demo: Personal daily briefings for your holdings",
-      description: "Users will get a personalised, plain-English morning summary based on their real portfolio.",
+      description:
+        "Users will get a personalised, plain-English morning summary based on their real portfolio.",
       url: "https://matesinvest.com",
       source: "MatesInvest (demo)",
       publishedAt: now,
