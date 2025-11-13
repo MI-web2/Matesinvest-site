@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>MatesSummaries | MatesInvest</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      background: #0b1020;
+      color: #ffffff;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    .card {
+      background: #151a2b;
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.2rem;
+    }
+    .headline {
+      margin-bottom: 1.2rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 1.2rem;
+    }
+    a { color: #7bd4ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .btn {
+      background: #3fbf7f;
+      border: none;
+      padding: 0.55rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      color: #000;
+      font-weight: 600;
+      margin-top: .6rem;
+    }
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    
+    <header class="card">
+      <h1>MatesSummaries (Prototype)</h1>
+      <p>Live Australian business headlines, soon with AI-powered MatesInvest summaries.</p>
+    </header>
+
+    <section id="news" class="card">
+      <h2>Latest Headlines</h2>
+      <div id="newsList">Loading headlines…</div>
+    </section>
+
+  </div>
+
+  <script>
+    async function loadNews() {
+      const newsList = document.getElementById("newsList");
+
+      try {
+        const res = await fetch("/.netlify/functions/newsFeed");
+        if (!res.ok) throw new Error("News feed error");
+
+        const data = await res.json();
+
+        if (!data.articles || data.articles.length === 0) {
+          newsList.textContent = "No headlines found.";
+          return;
+        }
+
+        newsList.innerHTML = "";
+
+        data.articles.forEach((a) => {
+          const item = document.createElement("div");
+          item.className = "headline";
+          item.innerHTML = `
+            <h3>${a.title}</h3>
+            <small>${a.source || "Unknown source"} • ${new Date(a.publishedAt).toLocaleString()}</small><br>
+            <a href="${a.url}" target="_blank">Read original</a>
+            <br><br>
+            <button class="btn" disabled>Summary coming soon</button>
+          `;
+          newsList.appendChild(item);
+        });
+
+      } catch (err) {
+        console.error(err);
+        newsList.textContent = "Could not load headlines.";
+      }
+    }
+
+    loadNews();
+  </script>
+</body>
+</html>
