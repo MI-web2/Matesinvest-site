@@ -296,36 +296,21 @@
   let allArticles = [];
   let currentCategory = "all";
 
-  function renderSummary(s) {
-  const oneLiner = s.oneLiner || s.shortSummary || "";
-  const tldrBullets = s.tldrBullets || [];
-  const keyMetrics = s.keyMetrics || [];
-  const riskNote = s.riskNote || "";
-  const disclaimer = s.disclaimer || "General information only, not financial advice.";
-
-  const tldrHtml = tldrBullets.map(b => `<li>${b}</li>`).join("");
-  const metricsHtml = keyMetrics.map(b => `<li>${b}</li>`).join("");
+function renderSummary(s) {
+  const bullets = (s.tldrBullets || []).map(b => `<li>${b}</li>`).join("");
 
   return `
     <div class="summary-block">
-      ${oneLiner ? `<p><strong>${oneLiner}</strong></p>` : ""}
-      ${tldrBullets.length ? `
-        <p><strong>TL;DR</strong></p>
-        <ul>${tldrHtml}</ul>
-      ` : ""}
+      <p><strong>TL;DR</strong></p>
+      <ul>${bullets}</ul>
 
-      ${keyMetrics.length ? `
-        <p><strong>Key metrics / details</strong></p>
-        <ul>${metricsHtml}</ul>
-      ` : ""}
+      <p><strong>What’s happening:</strong> ${s.whatsHappening || ""}</p>
+      <p><strong>Why it matters:</strong> ${s.whyItMatters || ""}</p>
+      <p><strong>Risks / uncertainty:</strong> ${s.riskNote || ""}</p>
 
-      ${riskNote ? `
-        <p><strong>Risks / uncertainty:</strong> ${riskNote}</p>
-      ` : ""}
-
-      <small>${disclaimer}</small>
+      <small>${s.disclaimer || "General information only, not financial advice."}</small>
     </div>
-    `;
+  `;
 }
 
   function categoryFromArticle(article) {
