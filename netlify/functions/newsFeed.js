@@ -7,31 +7,42 @@ exports.handler = async () => {
       return { statusCode: 500, body: "Missing NEWSAPI_KEY" };
     }
 
-    // First attempt: AU + business
-    const primaryUrl = new URL("https://newsapi.org/v2/top-headlines");
-    primaryUrl.searchParams.set("country", "au");
-    primaryUrl.searchParams.set("category", "business");
-    primaryUrl.searchParams.set("pageSize", "20");
-    primaryUrl.searchParams.set("apiKey", apiKey);
+    const url = new URL("https://newsapi.org/v2/top-headlines");
+    url.searchParams.set("country", "us");       // <-- dev plan supports US
+    url.searchParams.set("category", "business");
+    url.searchParams.set("pageSize", "20");
+    url.searchParams.set("apiKey", apiKey);
 
-    let articles = await fetchHeadlines(primaryUrl);
+    const res = await fetch(url.toString());
 
-    // If nothing came back, try AU with no category filter
-    if (!articles.length) {
-      console.warn("No AU business headlines, retrying with country=au only");
-
-      const fallbackUrl = new URL("https://newsapi.org/v2/top-headlines");
-      fallbackUrl.searchParams.set("country", "au");
-      fallbackUrl.searchParams.set("pageSize", "20");
-      fallbackUrl.searchParams.set("apiKey", apiKey);
-
-      articles = await fetchHeadlines(fallbackUrl);
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("NewsAPI HTTP error:", text);
+      const fallbackArticles = getFallbackArticles("HTTP error: " + text);
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ articles: fallbackArticles }),
+      };
     }
 
-    // If we STILL have nothing, use our hard-coded demo ones
+    const data = await res.json();
+
+    if (data.status && data.status !== "ok") {
+      console.error("NewsAPI logical error:", data);
+      const fallbackArticles = getFallbackArticles(
+        "NewsAPI error: " + (data.message || data.code)
+      );
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ articles: fallbackArticles }),
+      };
+    }
+
+    let articles = Array.isArray(data.articles) ? data.articles : [];
+
     if (!articles.length) {
-      console.warn("Still zero headlines from NewsAPI, using hard-coded demos.");
-      articles = getFallbackArticles("No live headlines returned from NewsAPI");
+      console.warn("NewsAPI returned zero articles, using fallback.");
+      articles = getFallbackArticles("No live headlines returned");
     }
 
     const mapped = articles.map((a, idx) => ({
@@ -39,7 +50,7 @@ exports.handler = async () => {
       title: a.title,
       description: a.description,
       url: a.url || "https://matesinvest.com",
-      source: (a.source && a.source.name) || "MatesInvest",
+      source: (a.source && a.source.name) || "NewsAPI",
       publishedAt: a.publishedAt || new Date().toISOString(),
     }));
 
@@ -56,29 +67,6 @@ exports.handler = async () => {
     };
   }
 };
-
-async function fetchHeadlines(url) {
-  try {
-    const res = await fetch(url.toString());
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("NewsAPI HTTP error:", text);
-      return [];
-    }
-
-    const data = await res.json();
-
-    if (data.status && data.status !== "ok") {
-      console.error("NewsAPI logical error:", data);
-      return [];
-    }
-
-    return Array.isArray(data.articles) ? data.articles : [];
-  } catch (e) {
-    console.error("Error fetching headlines:", e);
-    return [];
-  }
-}
 
 function getFallbackArticles(reason) {
   const now = new Date().toISOString();
