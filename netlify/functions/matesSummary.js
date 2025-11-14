@@ -2,7 +2,6 @@
 
 exports.handler = async (event) => {
   try {
-    // Only allow POST
     if (event.httpMethod !== "POST") {
       return { statusCode: 405, body: "Method Not Allowed" };
     }
@@ -22,107 +21,115 @@ exports.handler = async (event) => {
     }
 
     const text = (body.text || "").trim();
-    const headline = body.headline || "";
     const sourceType = body.sourceType || "news_article";
+    const headline = body.headline || "";
 
     if (!text) {
       return { statusCode: 400, body: "Missing text to summarise" };
     }
 
-    // --- Prompt for Option 1 style summaries ---
+    // Prompt: matesy, analyst-style, numbers up front, still no advice
     const prompt = `
-You help Australian retail investors quickly understand market news.
+You are writing quick summaries for Australian retail investors.
 
-Return ONLY a JSON object (no backticks, no extra text) with these keys:
+Tone:
+- Think "good sell-side / buy-side analyst chatting to a smart mate at the pub".
+- Friendly, plain English, but not silly.
+- Avoid jargon where possible, and explain any jargon in simple terms.
+- No emojis, no exclamation marks, no hype.
 
-- "oneLiner": A single plain-English sentence (max 18 words) that captures the core idea.
-- "tldrBullets": Array of exactly 3 concise bullet points summarising the main points.
-- "keyMetrics": Array of 2–5 bullets with key numbers, dates or hard facts (e.g. % moves, guidance, deal size, EPS).
-- "riskNote": 1–2 sentences on risks or uncertainty. Keep it balanced and non-alarmist.
+Return ONLY a JSON object with exactly these keys:
+- "tldrBullets": array of 3 concise dot points.
+    • Bullet 1: What is happening in simple terms.
+    • Bullet 2: Key numbers or metrics (prices, %, revenue/EPS changes, deal size, dates, guidance etc).
+    • Bullet 3: Short takeaway in plain English.
+- "whatsHappening": 1–2 sentences that describe the situation, like you'd explain it to a mate.
+- "whyItMatters": 1–3 sentences on why this news matters for investors, in neutral language. No recommendations.
+- "riskNote": 1–2 sentences that flag uncertainties, execution risks, regulatory risk, or "things that could go wrong".
 - "disclaimer": Always exactly "General information only, not financial advice."
 
 Rules:
-- Very simple language, like explaining to a smart friend over coffee.
-- No hype, no clickbait, no financial advice.
-- Do NOT add any extra keys to the JSON.
-- Respond with JSON only, no commentary.
+- Do NOT give any financial advice, recommendations or price targets.
+- Focus on facts and how they affect the business / theme, not "you should".
+- Use numbers where they are present in the article (prices, moves, revenue/EPS/guidance, dates).
+- Keep everything short and skimmable.
+- Respond with pure JSON only, no backticks, no extra text outside the JSON.
 
 Context:
 - Source type: ${sourceType}
 - Headline: ${headline || "n/a"}
 
-Text to summarise (truncate if needed):
+Article / announcement text (may be truncated):
 """${text.slice(0, 8000)}"""
     `.trim();
 
-    // Call OpenAI (built-in fetch in Netlify’s Node runtime)
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
         messages: [
-          { role: "system", content: "You respond only with strict JSON, no extra text." },
-          { role: "user", content: prompt },
+          { role: "system", content: "You respond only with strict JSON. No extra commentary." },
+          { role: "user", content: prompt }
         ],
-        temperature: 0.3,
-        max_tokens: 450,
-      }),
+        temperature: 0.4,
+        max_tokens: 450
+      })
     });
 
-    // If OpenAI fails, fall back to a safe, empty summary but still status 200
-    if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      console.error("OpenAI HTTP error:", errText);
-      const fallback = {
-        oneLiner: "",
-        tldrBullets: [],
-        keyMetrics: [],
-        riskNote: "",
-        disclaimer: "General information only, not financial advice.",
+    if (!res.ok) {
+      const textErr = await res.text();
+      console.error("OpenAI error:", textErr);
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          tldrBullets: [],
+          whatsHappening: "",
+          whyItMatters: "",
+          riskNote: "",
+          disclaimer: "General information only, not financial advice."
+        })
       };
-      return { statusCode: 200, body: JSON.stringify(fallback) };
     }
 
-    const data = await aiRes.json();
+    const data = await res.json();
     const content = data.choices?.[0]?.message?.content || "{}";
 
     let summary;
     try {
       summary = JSON.parse(content);
     } catch (e) {
-      console.error("Failed to parse JSON from OpenAI. Raw content:", content);
+      console.error("JSON parse error from OpenAI. Raw content:", content);
       summary = {};
     }
 
-    // Normalise shape so frontend never breaks
+    // Normalise so the frontend never explodes
     const normalised = {
-      oneLiner: summary.oneLiner || "",
       tldrBullets: Array.isArray(summary.tldrBullets) ? summary.tldrBullets : [],
-      keyMetrics: Array.isArray(summary.keyMetrics) ? summary.keyMetrics : [],
+      whatsHappening: summary.whatsHappening || "",
+      whyItMatters: summary.whyItMatters || "",
       riskNote: summary.riskNote || "",
-      disclaimer: summary.disclaimer || "General information only, not financial advice.",
+      disclaimer: summary.disclaimer || "General information only, not financial advice."
     };
 
     return {
       statusCode: 200,
-      body: JSON.stringify(normalised),
+      body: JSON.stringify(normalised)
     };
   } catch (err) {
     console.error("matesSummary error:", err);
-    // Final safety fallback – still return 200 so the UI shows *something*
     return {
       statusCode: 200,
       body: JSON.stringify({
-        oneLiner: "",
         tldrBullets: [],
-        keyMetrics: [],
+        whatsHappening: "",
+        whyItMatters: "",
         riskNote: "",
-        disclaimer: "General information only, not financial advice.",
-      }),
+        disclaimer: "General information only, not financial advice."
+      })
     };
   }
 };
