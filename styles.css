@@ -112,3 +112,12 @@ body {
 .section.alt {
   background: #edf2ff;
 }
+.hero-center {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
