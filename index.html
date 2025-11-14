@@ -4,8 +4,8 @@
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MatesInvest – Investing, made social.</title>
-  <meta name="description" content="MatesInvest is a social investing companion for Australian retail investors. Connect your broker, see your holdings with mates, and get plain-English AI summaries of the news that matters to your portfolio.">
+  <title>MatesInvest – Social investing companion for Aussie retail investors</title>
+  <meta name="description" content="MatesInvest is an investing companion for Australian retail investors. Connect your existing broker, see your holdings alongside your mates, and get plain-English AI summaries of the news that actually matters to your portfolio.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
@@ -18,9 +18,9 @@
         <span>MatesInvest</span>
       </div>
       <nav>
-        <a href="/mates-summaries.html">MatesFeed</a>
+        <a href="mates-summaries.html">MatesFeed (prototype)</a>
         <a href="#how">How it works</a>
-        <a href="#security">Safety</a>
+        <a href="#security">Safety &amp; data</a>
         <a href="#pricing">Pricing</a>
         <a href="#faq">FAQ</a>
         <a href="#contact" class="btn btn-outline">Join waitlist</a>
@@ -30,60 +30,78 @@
   </header>
 
   <main>
-    <!-- New, cleaner hero (no mockup image) -->
+    <!-- HERO -->
     <section class="hero">
-      <div class="container hero-inner">
-        <p class="hero-eyebrow">Social investing companion · Australia</p>
-        <h1>Investing, made social. <span class="accent">With your mates.</span></h1>
-        <p class="hero-lead">
-          MatesInvest is an investing companion for Australian retail investors. Connect your existing broker,
-          see your holdings alongside your mates, and get plain-English AI summaries of the news that actually
-          matters to your portfolio.
-        </p>
-        <div class="cta-row">
-          <a href="#contact" class="btn btn-primary">Join the waitlist</a>
-          <a href="#how" class="btn btn-ghost">See how it works</a>
-          <a href="/mates-summaries.html" class="btn btn-outline">Open MatesFeed (prototype)</a>
+      <div class="container grid">
+        <div>
+          <h1>Investing, made social. <span class="accent">With your mates.</span></h1>
+          <p>
+            MatesInvest is an investing companion for Australian retail investors. 
+            Connect your existing broker, see your real holdings alongside your mates, 
+            and get plain-English AI summaries of the news that actually matters to your portfolio.
+          </p>
+          <div class="cta-row">
+            <a href="#contact" class="btn btn-primary">Join the waitlist</a>
+            <a href="mates-summaries.html" class="btn btn-ghost">Open MatesFeed (prototype)</a>
+          </div>
+          <div class="badges">
+            <span class="badge">Bring your own broker</span>
+            <span class="badge">Group chats &amp; watchlists</span>
+            <span class="badge">AI summaries · No advice</span>
+          </div>
         </div>
-        <div class="badges">
-          <span class="badge">Bring your own broker</span>
-          <span class="badge">Group chats &amp; watchlists</span>
-          <span class="badge">AI summaries · No advice</span>
+        <div class="mockup">
+          <!-- Keep or swap this image later – it’s just a placeholder -->
+          <img src="assets/ui-mockup-placeholder.png" alt="MatesInvest app mockup"/>
         </div>
       </div>
     </section>
 
+    <!-- HOW IT WORKS -->
     <section id="how" class="section">
       <div class="container">
         <h2>How it works</h2>
         <div class="cards">
           <div class="card">
             <h3>1) Connect your accounts</h3>
-            <p>Link your existing broker so you can see your real holdings and performance in one clean view. No new trading account required.</p>
+            <p>
+              Securely link your existing broker so MatesInvest can read your holdings and performance in one clean view. 
+              Read-only for the MVP – no new trading account required.
+            </p>
           </div>
           <div class="card">
             <h3>2) Build or join a crew</h3>
-            <p>Create private groups with mates or join communities around themes you care about – gold, small caps, ETFs, whatever fits your style.</p>
+            <p>
+              Create private groups with mates or join communities around themes you care about – gold, small caps, ETFs, 
+              whatever fits your style.
+            </p>
           </div>
           <div class="card">
             <h3>3) Follow the feed</h3>
-            <p>Our MatesFeed surfaces market headlines, ASX announcements and discussion, with plain-English AI summaries and context for your watchlist.</p>
+            <p>
+              Our MatesFeed surfaces market headlines, ASX announcements and discussion, with plain-English AI summaries 
+              and context for your watchlist and holdings.
+            </p>
           </div>
           <div class="card">
             <h3>4) Decide in one place</h3>
-            <p>Share ideas, react to news, compare portfolios and track how everyone is going – then place trades back with your broker when you’re ready.</p>
+            <p>
+              Share ideas, react to news, compare portfolios and track how everyone is going – 
+              then place trades back with your broker when you’re ready.
+            </p>
           </div>
         </div>
       </div>
     </section>
 
+    <!-- SAFETY / DATA -->
     <section id="security" class="section alt">
       <div class="container grid-2">
         <div>
           <h2>Safety &amp; data, front and centre</h2>
           <ul class="tick">
             <li>Read-only connections to your broker for the MVP — we don’t move money or execute trades.</li>
-            <li>No financial product advice. We surface information and tools; you make the decisions.</li>
+            <li>No financial product advice — we surface information and tools; you make the decisions.</li>
             <li>Data encryption in transit &amp; at rest, and strict least-privilege access internally.</li>
             <li>Clear audit trails for group activity, posts and shared ideas.</li>
           </ul>
@@ -99,55 +117,70 @@
       </div>
     </section>
 
+    <!-- PRICING -->
     <section id="pricing" class="section">
       <div class="container">
         <h2>Pricing</h2>
         <div class="pricing">
           <div class="price-card">
             <h3>Founders’ Beta</h3>
-            <p class="price">$0 <span>/ month during early access</span></p>
+            <p class="price">$10 <span>/ member / month · first 6 months free</span></p>
             <ul>
-              <li>Access to MatesFeed prototype</li>
-              <li>Early access to portfolio sync &amp; groups</li>
-              <li>AI summaries on headlines &amp; announcements</li>
-              <li>Direct input into roadmap &amp; features</li>
+              <li>Access to the MatesInvest app (when live)</li>
+              <li>MatesFeed summaries &amp; watchlists</li>
+              <li>Private groups, chats &amp; shared notes</li>
             </ul>
-            <p class="note">Long-term pricing will be simple, transparent and per user. No hidden brokerage mark-ups.</p>
+            <p class="note">(Brokerage and other broker fees are separate and set by your broker.)</p>
             <a href="#contact" class="btn btn-primary">Join beta waitlist</a>
           </div>
         </div>
       </div>
     </section>
 
+    <!-- FAQ -->
     <section id="faq" class="section alt">
       <div class="container">
         <h2>FAQ</h2>
         <div class="faq">
           <details>
-            <summary>Is MatesInvest a broker?</summary>
-            <p>No. MatesInvest is a social and research companion. You connect your existing broker, and you continue to execute trades with them.</p>
+            <summary>Is MatesInvest giving financial advice?</summary>
+            <p>
+              No. MatesInvest is a technology and information platform. 
+              We don’t provide financial product advice, recommendations or discretionary management. 
+              We help you see information and activity more clearly so you can make your own decisions.
+            </p>
           </details>
           <details>
-            <summary>Do you give financial advice?</summary>
-            <p>No. We don’t provide financial product advice or discretionary management. We help you see information, summaries and what your mates are doing in one place.</p>
+            <summary>Do you execute trades or hold my assets?</summary>
+            <p>
+              No. For the MVP, MatesInvest connects to your existing broker in a read-only way. 
+              You still place trades and hold assets with your broker as normal.
+            </p>
           </details>
           <details>
-            <summary>Will you ever touch client funds or custody?</summary>
-            <p>The current vision focuses on read-only connections and social features. Any future move into execution or custody would only happen with the right licences and partners.</p>
+            <summary>Can I join multiple groups?</summary>
+            <p>
+              Yes. Your dashboard will show each group’s discussions, watchlists and shared ideas, 
+              so you can keep different themes or circles separate.
+            </p>
           </details>
           <details>
-            <summary>What makes MatesInvest different?</summary>
-            <p>Most apps are either pure brokers or pure “finfluencer” content. MatesInvest sits in the middle – real holdings, real mates, and AI-powered summaries that cut through the noise.</p>
+            <summary>Who is MatesInvest designed for?</summary>
+            <p>
+              Australian retail investors who already use a broker and want a smarter, more social way to track ideas, 
+              news and performance with their mates — without handing over control of their account.
+            </p>
           </details>
         </div>
       </div>
     </section>
 
+    <!-- WAITLIST / CONTACT -->
     <section id="contact" class="section">
       <div class="container grid-2">
         <div>
           <h2>Join the waitlist</h2>
-          <p>Be one of the first to try MatesInvest and help shape how Aussie retail investors use AI and social tools to make sense of markets.</p>
+          <p>We’re building the first social investing companion where mates can see real holdings, follow the same news, and stay on the same page.</p>
 
           <!-- SINGLE Netlify form -->
           <form name="waitlist"
@@ -202,7 +235,7 @@
 
   <footer class="footer">
     <div class="container footer-inner">
-      <p>© <span id="year"></span> MatesInvest — Platform only. We do not provide financial product advice. Trades are executed via your existing licensed broker.</p>
+      <p>© <span id="year"></span> MatesInvest — Platform only. We do not provide financial product advice. Read-only connections to your broker; trades are executed by your broker.</p>
       <nav>
         <a href="#">Terms</a>
         <a href="#">Privacy</a>
