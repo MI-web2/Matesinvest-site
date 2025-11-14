@@ -2,14 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>MatesFeed | MatesInvest</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Page title & description -->
+  <title>MatesFeed – Plain-English market summaries | MatesInvest</title>
+  <meta name="description" content="MatesFeed delivers live market headlines and plain-English AI summaries built for Australian retail investors.">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="/assets/img/favicon.png">
   <link rel="apple-touch-icon" href="/assets/img/favicon.png">
   <link rel="icon" sizes="32x32" href="/assets/img/favicon.png">
   <link rel="icon" sizes="192x192" href="/assets/img/favicon.png">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="MatesFeed – Plain-English market summaries | MatesInvest">
+  <meta property="og:description" content="Live ASX news, market headlines and simple AI summaries for Australian investors.">
+  <meta property="og:url" content="https://matesinvest.com/mates-summaries.html">
+  <meta property="og:site_name" content="MatesInvest">
+  <meta property="og:image" content="https://matesinvest.com/assets/img/logo-placeholder.png">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="MatesFeed – Plain-English market summaries | MatesInvest">
+  <meta name="twitter:description" content="Live ASX news, market headlines and simple AI summaries for Australian investors.">
+  <meta name="twitter:image" content="https://matesinvest.com/assets/img/logo-placeholder.png">
+
+  <!-- Structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "MatesFeed",
+    "url": "https://matesinvest.com/mates-summaries.html",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "MatesInvest",
+      "url": "https://matesinvest.com/"
+    }
+  }
+  </script>
 
   <style>
     :root {
@@ -87,6 +119,23 @@
     .nav-right {
       font-size: 0.78rem;
       color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .nav-home-link {
+      padding: 0.25rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      text-decoration: none;
+      color: #ffffff;
+      font-size: 0.78rem;
+      background: rgba(255,255,255,0.04);
+    }
+
+    .nav-home-link:hover {
+      background: rgba(255,255,255,0.12);
     }
 
     /* Cards & layout */
@@ -129,35 +178,24 @@
       border-radius: 14px;
     }
 
-    .hero-meta {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-    }
-
-    .hero-meta span {
-      padding: 0.25rem 0.6rem;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(255,255,255,0.08);
-      margin-right: .4rem;
-    }
-
-    /* Category chips + refresh */
     .feed-header {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 0.75rem;
       margin-bottom: 0.9rem;
     }
 
-    .feed-header h2 { margin: 0; }
+    .feed-header h2 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
 
     .chip-row {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
+      margin-top: 0.4rem;
     }
 
     .chip {
@@ -196,7 +234,6 @@
       cursor: default;
     }
 
-    /* Headlines */
     .headline {
       margin-bottom: 1.2rem;
       border-bottom: 1px solid var(--border-subtle);
@@ -244,7 +281,6 @@
       cursor: default;
     }
 
-    /* Summary block */
     .summary-block {
       margin-top: .6rem;
       border-top: 1px solid var(--border-subtle);
@@ -264,7 +300,6 @@
       color: var(--text-muted);
     }
 
-    /* Footer */
     footer {
       margin-top: 1.4rem;
       font-size: 0.78rem;
@@ -273,12 +308,16 @@
       padding-bottom: 0.5rem;
     }
 
-    footer p { margin: 0.15rem 0; }
-
-    @media (max-width: 600px) {
-      .nav-inner { padding-inline: 1rem; }
-      .page-shell { padding-inline: 1rem; }
-      .card { padding-inline: 1.2rem; }
+    @media (max-width: 640px) {
+      .nav-inner {
+        padding-inline: 1rem;
+      }
+      .page-shell {
+        padding-inline: 1rem;
+      }
+      .card {
+        padding-inline: 1.2rem;
+      }
     }
   </style>
 </head>
@@ -295,23 +334,19 @@
         </div>
       </div>
       <div class="nav-right">
-        Live AI summaries · Not financial advice
+        <span>Live AI summaries · Not financial advice</span>
+        <a href="/" class="nav-home-link">Home</a>
       </div>
     </div>
   </div>
 
   <div class="page-shell">
-    <!-- Gradient hero -->
+    <!-- Hero -->
     <section class="card card-hero">
       <div class="hero-grid">
         <div class="hero-text">
           <h1>MatesFeed</h1>
           <p>Your daily, plain-English investing brief — powered by MatesInvest.</p>
-          <div class="hero-meta">
-            <span>AI summaries</span>
-            <span>News & announcements</span>
-            <span>Retail investors first</span>
-          </div>
         </div>
         <div>
           <img src="/assets/img/logo-placeholder.png" alt="MatesInvest Logo" class="hero-logo">
@@ -356,50 +391,46 @@
     let allArticles = [];
     let currentCategory = "all";
 
-function renderSummary(s) {
-  // Existing fields from the backend
-  const bullets = Array.isArray(s.tldrBullets) ? s.tldrBullets : [];
-  // Build a simple one-liner from what we already have
-  const oneLiner = s.oneLiner || bullets[0] || s.whatsHappening || "";
+    function renderSummary(s) {
+      const bullets = Array.isArray(s.tldrBullets) ? s.tldrBullets : [];
+      const oneLiner = s.oneLiner || bullets[0] || s.whatsHappening || "";
 
-  // TL;DR bullets (don’t repeat the one-liner if it’s the first bullet)
-  let restBullets = bullets;
-  if (oneLiner && bullets.length > 1 && bullets[0] === oneLiner) {
-    restBullets = bullets.slice(1);
-  }
-  const tldrHtml = restBullets.map(b => `<li>${b}</li>`).join("");
+      let restBullets = bullets;
+      if (oneLiner && bullets.length > 1 && bullets[0] === oneLiner) {
+        restBullets = bullets.slice(1);
+      }
+      const tldrHtml = restBullets.map(b => `<li>${b}</li>`).join("");
 
-  // “Key metrics / details” — reuse the old fields instead of showing them as headings
-  const keyItems = [];
-  if (s.whatsHappening) keyItems.push(s.whatsHappening);
-  if (s.whyItMatters) keyItems.push(s.whyItMatters);
-  const keyHtml = keyItems.map(b => `<li>${b}</li>`).join("");
+      const keyItems = [];
+      if (s.whatsHappening) keyItems.push(s.whatsHappening);
+      if (s.whyItMatters) keyItems.push(s.whyItMatters);
+      const keyHtml = keyItems.map(b => `<li>${b}</li>`).join("");
 
-  const riskNote = s.riskNote || "";
-  const disclaimer = s.disclaimer || "General information only, not financial advice.";
+      const riskNote = s.riskNote || "";
+      const disclaimer = s.disclaimer || "General information only, not financial advice.";
 
-  return `
-    <div class="summary-block">
-      ${oneLiner ? `<p><strong>${oneLiner}</strong></p>` : ""}
+      return `
+        <div class="summary-block">
+          ${oneLiner ? `<p><strong>${oneLiner}</strong></p>` : ""}
 
-      ${restBullets.length ? `
-        <p><strong>TL;DR</strong></p>
-        <ul>${tldrHtml}</ul>
-      ` : ""}
+          ${restBullets.length ? `
+            <p><strong>TL;DR</strong></p>
+            <ul>${tldrHtml}</ul>
+          ` : ""}
 
-      ${keyItems.length ? `
-        <p><strong>Key metrics / details</strong></p>
-        <ul>${keyHtml}</ul>
-      ` : ""}
+          ${keyItems.length ? `
+            <p><strong>Key metrics / details</strong></p>
+            <ul>${keyHtml}</ul>
+          ` : ""}
 
-      ${riskNote ? `
-        <p><strong>Risks / uncertainty:</strong> ${riskNote}</p>
-      ` : ""}
+          ${riskNote ? `
+            <p><strong>Risks / uncertainty:</strong> ${riskNote}</p>
+          ` : ""}
 
-      <small>${disclaimer}</small>
-    </div>
-  `;
-}
+          <small>${disclaimer}</small>
+        </div>
+      `;
+    }
 
     async function callMatesSummary({ text, sourceType, headline }) {
       const res = await fetch("/.netlify/functions/matesSummary", {
@@ -483,10 +514,8 @@ function renderSummary(s) {
 
     async function loadNews() {
       try {
-        if (refreshBtn) {
-          refreshBtn.disabled = true;
-          refreshBtn.querySelector("span:nth-child(2)").textContent = "Refreshing…";
-        }
+        refreshBtn.disabled = true;
+        refreshBtn.querySelector("span:nth-child(2)").textContent = "Refreshing…";
 
         newsList.textContent = "Loading headlines…";
 
@@ -500,32 +529,26 @@ function renderSummary(s) {
         console.error(err);
         newsList.textContent = "Could not load headlines.";
       } finally {
-        if (refreshBtn) {
-          refreshBtn.disabled = false;
-          refreshBtn.querySelector("span:nth-child(2)").textContent = "Refresh";
-        }
+        refreshBtn.disabled = false;
+        refreshBtn.querySelector("span:nth-child(2)").textContent = "Refresh";
       }
     }
 
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", loadNews);
-    }
+    refreshBtn.addEventListener("click", loadNews);
 
-    if (categoryRow) {
-      categoryRow.addEventListener("click", (e) => {
-        const btn = e.target.closest(".chip");
-        if (!btn) return;
+    categoryRow.addEventListener("click", (e) => {
+      const btn = e.target.closest(".chip");
+      if (!btn) return;
 
-        const cat = btn.getAttribute("data-category");
-        currentCategory = cat;
+      const cat = btn.getAttribute("data-category");
+      currentCategory = cat;
 
-        Array.from(categoryRow.querySelectorAll(".chip")).forEach(c => {
-          c.classList.toggle("chip-active", c === btn);
-        });
-
-        renderArticles();
+      Array.from(categoryRow.querySelectorAll(".chip")).forEach(c => {
+        c.classList.toggle("chip-active", c === btn);
       });
-    }
+
+      renderArticles();
+    });
 
     loadNews();
   </script>
