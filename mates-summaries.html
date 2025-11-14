@@ -356,22 +356,50 @@
     let allArticles = [];
     let currentCategory = "all";
 
-    function renderSummary(s) {
-      const bullets = (s.tldrBullets || []).map(b => `<li>${b}</li>`).join("");
+function renderSummary(s) {
+  // Existing fields from the backend
+  const bullets = Array.isArray(s.tldrBullets) ? s.tldrBullets : [];
+  // Build a simple one-liner from what we already have
+  const oneLiner = s.oneLiner || bullets[0] || s.whatsHappening || "";
 
-      return `
-        <div class="summary-block">
-          <p><strong>TL;DR</strong></p>
-          <ul>${bullets}</ul>
+  // TL;DR bullets (don’t repeat the one-liner if it’s the first bullet)
+  let restBullets = bullets;
+  if (oneLiner && bullets.length > 1 && bullets[0] === oneLiner) {
+    restBullets = bullets.slice(1);
+  }
+  const tldrHtml = restBullets.map(b => `<li>${b}</li>`).join("");
 
-          <p><strong>What’s happening:</strong> ${s.whatsHappening || ""}</p>
-          <p><strong>Why it matters:</strong> ${s.whyItMatters || ""}</p>
-          <p><strong>Risks / uncertainty:</strong> ${s.riskNote || ""}</p>
+  // “Key metrics / details” — reuse the old fields instead of showing them as headings
+  const keyItems = [];
+  if (s.whatsHappening) keyItems.push(s.whatsHappening);
+  if (s.whyItMatters) keyItems.push(s.whyItMatters);
+  const keyHtml = keyItems.map(b => `<li>${b}</li>`).join("");
 
-          <small>${s.disclaimer || "General information only, not financial advice."}</small>
-        </div>
-      `;
-    }
+  const riskNote = s.riskNote || "";
+  const disclaimer = s.disclaimer || "General information only, not financial advice.";
+
+  return `
+    <div class="summary-block">
+      ${oneLiner ? `<p><strong>${oneLiner}</strong></p>` : ""}
+
+      ${restBullets.length ? `
+        <p><strong>TL;DR</strong></p>
+        <ul>${tldrHtml}</ul>
+      ` : ""}
+
+      ${keyItems.length ? `
+        <p><strong>Key metrics / details</strong></p>
+        <ul>${keyHtml}</ul>
+      ` : ""}
+
+      ${riskNote ? `
+        <p><strong>Risks / uncertainty:</strong> ${riskNote}</p>
+      ` : ""}
+
+      <small>${disclaimer}</small>
+    </div>
+  `;
+}
 
     async function callMatesSummary({ text, sourceType, headline }) {
       const res = await fetch("/.netlify/functions/matesSummary", {
