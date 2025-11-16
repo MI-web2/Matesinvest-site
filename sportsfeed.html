@@ -35,16 +35,33 @@
           const card = document.createElement("div");
           card.className = "card";
 
-          card.innerHTML = `
-            <strong>${event.league}</strong><br>
-            ${event.home} vs ${event.away}<br>
-            ${
-              event.homeScore !== null
-                ? `${event.homeScore} - ${event.awayScore}`
-                : "Scheduled"
-            }<br>
-            <small>${event.localTime || event.utcTime}</small>
-          `;
+card.innerHTML = `
+  <strong>${event.league}</strong><br>
+  ${event.home} vs ${event.away}<br>
+  ${
+    event.homeScore !== null
+      ? `${event.homeScore} - ${event.awayScore}`
+      : "Scheduled"
+  }<br>
+  <small>${event.localTime || event.utcTime}</small>
+  <div class="summary" style="margin-top:8px;color:#555;">Loading summary…</div>
+`;
+
+feedDiv.appendChild(card);
+
+// Call mates-summary function
+fetch("/.netlify/functions/mates-summary", {
+  method: "POST",
+  body: JSON.stringify(event)
+})
+  .then(res => res.json())
+  .then(data => {
+    card.querySelector(".summary").innerText = data.summary;
+  })
+  .catch(() => {
+    card.querySelector(".summary").innerText = "No summary available.";
+  });
+
 
           feedDiv.appendChild(card);
         });
