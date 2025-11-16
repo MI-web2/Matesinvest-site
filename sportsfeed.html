@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MatesFeed Sports</title>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .card {
+      border: 1px solid #ddd;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>MatesFeed Sports (Test Mode)</h1>
+  <div id="feed">Loading…</div>
+
+  <script>
+    fetch("/.netlify/functions/sports-test")
+      .then(res => res.json())
+      .then(events => {
+        const feedDiv = document.getElementById("feed");
+        feedDiv.innerHTML = "";
+
+        if (events.length === 0) {
+          feedDiv.innerHTML = "<p>No games today.</p>";
+          return;
+        }
+
+        events.forEach(event => {
+          const card = document.createElement("div");
+          card.className = "card";
+
+          card.innerHTML = `
+            <strong>${event.league}</strong><br>
+            ${event.home} vs ${event.away}<br>
+            ${
+              event.homeScore !== null
+                ? `${event.homeScore} - ${event.awayScore}`
+                : "Scheduled"
+            }<br>
+            <small>${event.localTime || event.utcTime}</small>
+          `;
+
+          feedDiv.appendChild(card);
+        });
+      });
+  </script>
+
+</body>
+</html>
