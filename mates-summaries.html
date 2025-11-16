@@ -379,33 +379,34 @@ Status: ${ev.status}
 
   /* ------------------ ORIGINAL MARKET SUMMARY BLOCK ------------------ */
 
-  function renderSummary(s) {
-    return `
-      <div class="summary-block">
-        <strong>${s.oneLiner || ""}</strong>
+ function renderSummary(s) {
+  return `
+    <div class="summary-block">
 
-        ${
-          s.tldr && s.tldr.length
-            ? `<p><strong>TLDR:</strong><br>${s.tldr.map(b => `• ${b}`).join("<br>")}</p>`
-            : ""
-        }
+      <p><strong>TLDR:</strong><br>
+        ${s.tldrBullets.map(b => `• ${b}`).join("<br>")}
+      </p>
 
-        ${
-          s.whatsHappening
-            ? `<p><strong>Key Details:</strong><br>${s.whatsHappening}</p>`
-            : ""
-        }
+      <p><strong>What's Happening:</strong><br>
+        ${s.whatsHappening}
+      </p>
 
-        ${
-          s.risks
-            ? `<p><strong>Risks / Watch Outs:</strong><br>${s.risks}</p>`
-            : ""
-        }
+      <p><strong>Why It Matters:</strong><br>
+        ${s.whyItMatters}
+      </p>
 
-        <p style="opacity:0.6;">${s.disclaimer || ""}</p>
-      </div>
-    `;
-  }
+      <p><strong>Risks / Watch Outs:</strong><br>
+        ${s.riskNote}
+      </p>
+
+      <p style="opacity:0.6;">
+        ${s.disclaimer}
+      </p>
+
+    </div>
+  `;
+}
+
 
   /* ------------------ SPORTS SUMMARY (NO TLDR, NO DISCLAIMER) ------------------ */
 
