@@ -105,8 +105,8 @@
     }
     .btn:disabled { opacity:0.45; cursor:default; }
 
+    .summary-output { margin-top:0.8rem; }
     .summary-block { margin-top:0.6rem; border-top:1px solid var(--border-subtle); padding-top:0.6rem; font-size:0.9rem; }
-
   </style>
 </head>
 
@@ -140,7 +140,7 @@
 
       <h2>Latest Headlines</h2>
 
-      <!-- NEW TOGGLE ROW -->
+      <!-- Toggle -->
       <div class="toggle-row">
         <button id="toggleMarket" class="toggle-btn active">Market Mode</button>
         <button id="toggleMates" class="toggle-btn">Mates Mode</button>
@@ -157,22 +157,24 @@
       <div id="newsList" style="margin-top:0.9rem;">Loading…</div>
     </section>
 
-    <footer>
-      <p>© <span id="yearSpan"></span> MatesInvest</p>
-    </footer>
   </div>
 
 <script>
-  /* existing news logic preserved */
   const newsList = document.getElementById("newsList");
-  const yearSpan = document.getElementById("yearSpan");
-  yearSpan.textContent = new Date().getFullYear();
+  const toggleMarket = document.getElementById("toggleMarket");
+  const toggleMates = document.getElementById("toggleMates");
+  const categoryRow = document.getElementById("categoryRow");
 
   let allArticles = [];
   let currentCategory = "all";
 
-  const toggleMarket = document.getElementById("toggleMarket");
-  const toggleMates = document.getElementById("toggleMates");
+  function categoryFromArticle(article) {
+    const title = (article.title || "").toLowerCase();
+    if (title.match(/energy|oil|coal|gas|mining/)) return "energy";
+    if (title.match(/tech|software|ai|chip|cloud/)) return "tech";
+    if (title.match(/inflation|rate|central bank|macro/)) return "macro";
+    return "other";
+  }
 
   async function getMarketFeed() {
     const res = await fetch("/.netlify/functions/newsFeed");
@@ -185,27 +187,44 @@
     return await res.json();
   }
 
-  function categoryFromArticle(article) {
-    const title = (article.title || "").toLowerCase();
-    if (title.match(/\boil\b|\benergy\b|\bcoal\b|\bgas\b|\bmining\b/)) return "energy";
-    if (title.match(/\btech\b|\bsoftware\b|\bai\b|\bchip\b|\bcloud\b/)) return "tech";
-    if (title.match(/\binflation\b|\brate\b|\bcentral bank\b|\bmacro\b/)) return "macro";
-    return "other";
-  }
-
   function renderMarketMode() {
     newsList.innerHTML = "";
     const filtered = allArticles.filter(a => currentCategory === "all" || categoryFromArticle(a) === currentCategory);
-    if (!filtered.length) return newsList.textContent = "No headlines.";
 
     filtered.forEach(a => {
       const item = document.createElement("div");
       item.className = "headline";
+
       item.innerHTML = `
         <h3>${a.title}</h3>
         <small>${a.source || ""}</small><br>
         <a href="${a.url}" target="_blank">Read original</a>
+        <br><br>
+        <button class="btn">MatesInvest summary</button>
+        <div class="summary-output"></div>
       `;
+
+      const btn = item.querySelector("button");
+      const output = item.querySelector(".summary-output");
+
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = "Summarising…";
+        try {
+          const summary = await callMatesSummary({
+            text: `${a.title}\n\n${a.description || ""}`,
+            sourceType: "news_article",
+            headline: a.title,
+          });
+          output.innerHTML = renderSummary(summary);
+        } catch (err) {
+          output.textContent = "Summary failed.";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "MatesInvest summary";
+        }
+      };
+
       newsList.appendChild(item);
     });
   }
@@ -219,50 +238,148 @@
     const sportsCards = sports.map(ev => ({
       type: "sport",
       title: `${ev.home} vs ${ev.away}`,
+      subtitle: ev.league,
       summary: ev.matesSummary || "",
-      time: ev.localTime || ev.utcTime
+      time: ev.localTime || ev.utcTime,
+      raw: ev
     }));
 
-    const marketCards = market.map(m => ({
+    const marketCards = market.map(a => ({
       type: "market",
-      title: m.ticker || m.title,
-      summary: m.description || "",
-      time: m.publishedAt || new Date().toISOString()
+      title: a.title,
+      subtitle: a.source || "",
+      url: a.url,
+      description: a.description || "",
+      time: a.publishedAt || new Date().toISOString(),
+      raw: a
     }));
 
-    const combined = [...marketCards, ...sportsCards].sort((a,b) => new Date(b.time) - new Date(a.time));
+    const combined = [...marketCards, ...sportsCards]
+      .sort((a,b) => new Date(b.time) - new Date(a.time));
 
     newsList.innerHTML = "";
+
     combined.forEach(item => {
       const div = document.createElement("div");
       div.className = "headline";
-      div.innerHTML = `
-        <h3>${item.title}</h3>
-        <small>${item.type}</small><br>
-        <p>${item.summary}</p>
-        <small>${item.time}</small>
-      `;
-      newsList.appendChild(div);
+
+      // Sports card UI
+      if (item.type === "sport") {
+        div.innerHTML = `
+          <h3>${item.title}</h3>
+          <small>Sports • ${item.subtitle}</small>
+          <br><br>
+          <button class="btn">MatesInvest summary</button>
+          <div class="summary-output"></div>
+        `;
+
+        const btn = div.querySelector("button");
+        const output = div.querySelector(".summary-output");
+
+        btn.onclick = async () => {
+          btn.disabled = true;
+          btn.textContent = "Summarising…";
+          try {
+            const summary = await callMatesSummary({
+              text: `${item.raw.home} ${item.raw.homeScore} - ${item.raw.awayScore} ${item.raw.away}`,
+              sourceType: "sports_event",
+              headline: item.title,
+            });
+            output.innerHTML = renderSummary(summary);
+          } catch {
+            output.textContent = "Summary failed.";
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "MatesInvest summary";
+          }
+        };
+
+        newsList.appendChild(div);
+      }
+
+      // Market card UI
+      if (item.type === "market") {
+        div.innerHTML = `
+          <h3>${item.title}</h3>
+          <small>${item.subtitle}</small><br>
+          <a href="${item.url}" target="_blank">Read original</a>
+          <br><br>
+          <button class="btn">MatesInvest summary</button>
+          <div class="summary-output"></div>
+        `;
+
+        const btn = div.querySelector("button");
+        const output = div.querySelector(".summary-output");
+
+        btn.onclick = async () => {
+          btn.disabled = true;
+          btn.textContent = "Summarising…";
+          try {
+            const summary = await callMatesSummary({
+              text: `${item.title}\n\n${item.description}`,
+              sourceType: "news_article",
+              headline: item.title,
+            });
+            output.innerHTML = renderSummary(summary);
+          } catch {
+            output.textContent = "Summary failed.";
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "MatesInvest summary";
+          }
+        };
+
+        newsList.appendChild(div);
+      }
     });
   }
 
-  toggleMarket.addEventListener("click", async () => {
+  function renderSummary(s) {
+    return `
+      <div class="summary-block">
+        <strong>${s.oneLiner || ""}</strong>
+        <p>${(s.whatsHappening || "")}</p>
+        <small>${s.disclaimer || ""}</small>
+      </div>
+    `;
+  }
+
+  async function callMatesSummary(payload) {
+    const res = await fetch("/.netlify/functions/matesSummary", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  }
+
+  toggleMarket.onclick = async () => {
     toggleMarket.classList.add("active");
     toggleMates.classList.remove("active");
     allArticles = await getMarketFeed();
     renderMarketMode();
-  });
+  };
 
-  toggleMates.addEventListener("click", async () => {
+  toggleMates.onclick = () => {
     toggleMates.classList.add("active");
     toggleMarket.classList.remove("active");
     renderMatesMode();
-  });
+  };
+
+  categoryRow.onclick = (e) => {
+    const btn = e.target.closest(".chip");
+    if (!btn) return;
+    currentCategory = btn.dataset.category;
+    [...categoryRow.children].forEach(b => b.classList.remove("chip-active"));
+    btn.classList.add("chip-active");
+    renderMarketMode();
+  };
 
   (async function init() {
     allArticles = await getMarketFeed();
     renderMarketMode();
   })();
+
 </script>
 
 </body>
