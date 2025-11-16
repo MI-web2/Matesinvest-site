@@ -3,7 +3,6 @@ export async function handler() {
   const today = new Date().toISOString().split("T")[0];
 
   const url = `https://www.thesportsdb.com/api/v1/json/${API_KEY}/eventsday.php?d=${today}`;
-
   const response = await fetch(url);
   const data = await response.json();
 
@@ -24,8 +23,22 @@ export async function handler() {
     allowedLeagues.includes(event.strLeague)
   );
 
+  // Step 3: MAP to simple MatesFeed card format
+  const mapped = filtered.map(event => ({
+    id: event.idEvent,
+    league: event.strLeague,
+    sport: event.strSport,
+    home: event.strHomeTeam,
+    away: event.strAwayTeam,
+    homeScore: event.intHomeScore ? Number(event.intHomeScore) : null,
+    awayScore: event.intAwayScore ? Number(event.intAwayScore) : null,
+    status: event.strStatus || "Scheduled",
+    utcTime: event.dateEvent + "T" + (event.strTime || "00:00:00") + "Z",
+    localTime: event.strTimestamp || null
+  }));
+
   return {
     statusCode: 200,
-    body: JSON.stringify(filtered, null, 2),
+    body: JSON.stringify(mapped, null, 2),
   };
 }
