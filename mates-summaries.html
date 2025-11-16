@@ -158,7 +158,6 @@
     </section>
 
   </div>
-
 <script>
   const newsList = document.getElementById("newsList");
   const toggleMarket = document.getElementById("toggleMarket");
@@ -168,6 +167,7 @@
   let allArticles = [];
   let currentCategory = "all";
 
+  /* ---------- CATEGORY DETECTION FOR MARKET ARTICLES ---------- */
   function categoryFromArticle(article) {
     const title = (article.title || "").toLowerCase();
     if (title.match(/energy|oil|coal|gas|mining/)) return "energy";
@@ -175,6 +175,8 @@
     if (title.match(/inflation|rate|central bank|macro/)) return "macro";
     return "other";
   }
+
+  /* ------------------ FETCH FUNCTIONS ------------------ */
 
   async function getMarketFeed() {
     const res = await fetch("/.netlify/functions/newsFeed");
@@ -187,11 +189,33 @@
     return await res.json();
   }
 
-  /* ------------------ RENDER MARKET MODE (UNCHANGED) ------------------ */
+  /* ---------- SPORT ICON DETECTION ---------- */
+  function getSportIcon(ev) {
+    const league = (ev.league || "").toLowerCase();
+    const sport = (ev.sport || "").toLowerCase();
+
+    if (league.includes("nrl") || sport.includes("league")) return "🏉";
+    if (league.includes("afl")) return "🏉";
+    if (league.includes("nba") || sport.includes("basketball")) return "🏀";
+    if (league.includes("epl") || league.includes("premier") || sport.includes("soccer")) return "⚽";
+    if (sport.includes("cricket") || league.includes("bbl")) return "🏏";
+    if (league.includes("mlb") || sport.includes("baseball")) return "⚾";
+    if (league.includes("nfl") || sport.includes("football")) return "🏈";
+    if (league.includes("nhl") || sport.includes("hockey")) return "🏒";
+    if (sport.includes("f1") || sport.includes("formula")) return "🏎️";
+    if (sport.includes("tennis")) return "🎾";
+    if (sport.includes("golf")) return "⛳";
+
+    return "🎯";
+  }
+
+  /* ------------------ MARKET MODE (FULL RESTORE) ------------------ */
 
   function renderMarketMode() {
     newsList.innerHTML = "";
-    const filtered = allArticles.filter(a => currentCategory === "all" || categoryFromArticle(a) === currentCategory);
+    const filtered = allArticles.filter(a =>
+      currentCategory === "all" || categoryFromArticle(a) === currentCategory
+    );
 
     filtered.forEach(a => {
       const item = document.createElement("div");
@@ -212,13 +236,15 @@
       btn.onclick = async () => {
         btn.disabled = true;
         btn.textContent = "Summarising…";
+
         try {
           const summary = await callMatesSummary({
             text: `${a.title}\n\n${a.description || ""}`,
             sourceType: "news_article",
             headline: a.title,
           });
-          output.innerHTML = renderSummary(summary);
+
+          output.innerHTML = renderSummary(summary); // <-- ORIGINAL market summary block
         } catch (err) {
           output.textContent = "Summary failed.";
         } finally {
@@ -231,7 +257,7 @@
     });
   }
 
-  /* ------------------ RENDER MATESMODE: MARKET + SPORTS ------------------ */
+  /* ------------------ MATESMODE ------------------ */
 
   async function renderMatesMode() {
     newsList.innerHTML = "Loading…";
@@ -266,11 +292,13 @@
       const div = document.createElement("div");
       div.className = "headline";
 
-      /* --------- SPORTS CARD --------- */
+      /* ------------------ SPORTS CARD ------------------ */
       if (item.type === "sport") {
+        const icon = getSportIcon(item.raw);
+
         div.innerHTML = `
           <h3>${item.title}</h3>
-          <small>Sports • ${item.subtitle}</small>
+          <small>${icon} ${item.subtitle}</small>
           <br><br>
           <button class="btn">MatesInvest summary</button>
           <div class="summary-output"></div>
@@ -297,7 +325,7 @@ Status: ${ev.status}
 `,
             });
 
-            output.innerHTML = renderSportsSummary(summary);
+            output.innerHTML = renderSportsSummary(summary, icon);
 
           } catch {
             output.textContent = "Summary failed.";
@@ -310,7 +338,7 @@ Status: ${ev.status}
         newsList.appendChild(div);
       }
 
-      /* --------- MARKET CARD --------- */
+      /* ------------------ MARKET CARD IN MATESMODE ------------------ */
       if (item.type === "market") {
         div.innerHTML = `
           <h3>${item.title}</h3>
@@ -327,13 +355,15 @@ Status: ${ev.status}
         btn.onclick = async () => {
           btn.disabled = true;
           btn.textContent = "Summarising…";
+
           try {
             const summary = await callMatesSummary({
               text: `${item.title}\n\n${item.description}`,
               sourceType: "news_article",
               headline: item.title,
             });
-            output.innerHTML = renderSummary(summary);
+
+            output.innerHTML = renderSummary(summary); // <-- ORIGINAL full market summary
           } catch {
             output.textContent = "Summary failed.";
           } finally {
@@ -347,21 +377,39 @@ Status: ${ev.status}
     });
   }
 
-  /* ------------------ RENDER FUNCTIONS ------------------ */
+  /* ------------------ ORIGINAL MARKET SUMMARY BLOCK ------------------ */
 
   function renderSummary(s) {
     return `
       <div class="summary-block">
         <strong>${s.oneLiner || ""}</strong>
-        <p><strong>TLDR:</strong><br>${(s.tldr || []).map(b => `• ${b}`).join("<br>")}</p>
-        <p><strong>Key Details:</strong><br>${s.whatsHappening || ""}</p>
+
+        ${
+          s.tldr && s.tldr.length
+            ? `<p><strong>TLDR:</strong><br>${s.tldr.map(b => `• ${b}`).join("<br>")}</p>`
+            : ""
+        }
+
+        ${
+          s.whatsHappening
+            ? `<p><strong>Key Details:</strong><br>${s.whatsHappening}</p>`
+            : ""
+        }
+
+        ${
+          s.risks
+            ? `<p><strong>Risks / Watch Outs:</strong><br>${s.risks}</p>`
+            : ""
+        }
+
         <p style="opacity:0.6;">${s.disclaimer || ""}</p>
       </div>
     `;
   }
 
-  /* SPORTS summary → NO TLDR, NO DISCLAIMER */
-  function renderSportsSummary(s) {
+  /* ------------------ SPORTS SUMMARY (NO TLDR, NO DISCLAIMER) ------------------ */
+
+  function renderSportsSummary(s, icon) {
     return `
       <div class="summary-block">
         <strong>${s.oneLiner || ""}</strong>
@@ -369,6 +417,8 @@ Status: ${ev.status}
       </div>
     `;
   }
+
+  /* ------------------ CALL SUMMARY FUNCTION ------------------ */
 
   async function callMatesSummary(payload) {
     const res = await fetch("/.netlify/functions/matesSummary", {
@@ -398,10 +448,19 @@ Status: ${ev.status}
     const btn = e.target.closest(".chip");
     if (!btn) return;
     currentCategory = btn.dataset.category;
+
     [...categoryRow.children].forEach(b => b.classList.remove("chip-active"));
     btn.classList.add("chip-active");
-    renderMarketMode();
+
+    /* Category filters market articles only, sports always included */
+    if (toggleMates.classList.contains("active")) {
+      renderMatesMode();
+    } else {
+      renderMarketMode();
+    }
   };
+
+  /* ------------------ INITIAL LOAD ------------------ */
 
   (async function init() {
     allArticles = await getMarketFeed();
@@ -411,3 +470,4 @@ Status: ${ev.status}
 
 </body>
 </html>
+
