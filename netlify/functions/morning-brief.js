@@ -1,5 +1,5 @@
 // netlify/functions/morning-brief.js
-// Morning brief with OpenAI timeout and quick fallback
+// Faster morning-brief: single, low-latency OpenAI call with short timeout and small token budget.
 // Requires env vars: NEWSAPI_KEY and OPENAI_API_KEY
 export async function handler(event) {
   try {
@@ -41,29 +41,22 @@ export async function handler(event) {
     }));
 
     const prompt = `
-You are a market briefing assistant writing "Morning Briefing" for Australian retail investors.
-Produce a concise briefing using the input headlines below. Output JSON only with these fields:
-- tldr: array of 3 short bullet strings (each 10-18 words max).
-- summaryHtml: an HTML fragment (approx 3 short paragraphs, plain text, not lists).
-- movers: an array of objects { "name": <string>, "move": <string> } e.g. { "name":"ASX200 Futures","move":"-0.2%" }.
-- watchList: array of short strings describing 4 things to watch today (economic prints, earnings, rate decisions).
-- headlines: an array of at most 6 objects { "title", "url", "source", "publishedAt" } taken from the input.
+You are a market briefing assistant writing "Morning Briefing" for retail investors.
+Produce a concise briefing using the input headlines below. Output JSON ONLY with these fields:
+- tldr: array of 3 short bullet strings.
+- summaryHtml: an HTML fragment (approx 2-3 short paragraphs).
+- movers: array of objects { "name", "move" }.
+- watchList: array of 3-5 short items to watch today.
+- headlines: up to 6 headline objects { "title","url","source","publishedAt" } from the input.
 
-Input headlines (JSON array):
+Input headlines:
 ${JSON.stringify(articles, null, 2)}
 
-Requirements:
-- Keep language plain English, briefly Australian-flavoured (cheeky but professional).
-- Keep JSON strictly valid. Use only the keys above. Do not include any commentary, explanation, or extra keys.
-- Do NOT include markdown/code fences or any leading/trailing text.
-- If you can't find enough "movers", generate sensible high-level market movers (e.g. "Tech earnings", "RBA minutes", "AUD vs USD").
-- Limit summaryHtml to about 3 paragraphs and keep each under ~40 words.
-
-Return ONLY the JSON object (no commentary).
+Return only the JSON object, no surrounding text or commentary.
 `.trim();
 
-    // Helper: call OpenAI with AbortController timeout
-    async function callOpenAIWithTimeout(messages, temperature = 0.2, timeoutMs = 15000, maxTokens = 500) {
+    // Helper: one-shot OpenAI call with short timeout
+    async function callOpenAITimeout(messages, timeoutMs = 8000, maxTokens = 350, temperature = 0.0) {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -91,27 +84,22 @@ Return ONLY the JSON object (no commentary).
         return res.json();
       } catch (err) {
         clearTimeout(id);
-        if (err.name === 'AbortError') {
-          throw new Error('OpenAI request timeout');
-        }
+        if (err.name === 'AbortError') throw new Error('OpenAI request timeout');
         throw err;
       }
     }
 
-    // Balanced JSON extractor (same robust approach)
+    // Small robust extractor for JSON substring
     function extractBalancedJSON(text) {
       if (!text || typeof text !== 'string') return null;
       const first = text.indexOf('{');
       if (first === -1) return null;
-
       let inString = false;
       let escape = false;
       let depth = 0;
       let start = -1;
-
       for (let i = first; i < text.length; i++) {
         const ch = text[i];
-
         if (!inString) {
           if (ch === '{') {
             if (start === -1) start = i;
@@ -143,101 +131,56 @@ Return ONLY the JSON object (no commentary).
       return null;
     }
 
-    const systemMsg = { role: 'system', content: 'You are a JSON generator. Output ONLY valid JSON matching the schema requested. Do not include any explanation, commentary, or code fences.' };
+    const systemMsg = { role: 'system', content: 'You are a JSON generator. Output ONLY valid JSON matching the schema requested. No commentary.' };
     const userMsg = { role: 'user', content: prompt };
 
-    // Try first with timeout
+    // Try one quick call
     let parsed = null;
-    let modelOutputs = { first: null, retry: null };
-
+    let rawOutput = null;
     try {
-      const firstOpenai = await callOpenAIWithTimeout([systemMsg, userMsg], 0.2, 15000, 500);
-      const firstContent = firstOpenai.choices?.[0]?.message?.content || '';
-      modelOutputs.first = firstContent;
-      console.log('OpenAI raw output (first):', firstContent);
-
+      const first = await callOpenAITimeout([systemMsg, userMsg], 8000, 350, 0.0);
+      rawOutput = first.choices?.[0]?.message?.content || '';
+      console.log('OpenAI raw output (single):', rawOutput);
       try {
-        parsed = JSON.parse(firstContent.trim());
-      } catch (e1) {
-        const candidate = extractBalancedJSON(firstContent.trim());
+        parsed = JSON.parse(rawOutput.trim());
+      } catch (e) {
+        const candidate = extractBalancedJSON(rawOutput.trim());
         if (candidate) {
           try { parsed = JSON.parse(candidate); } catch (e2) { parsed = null; }
         }
       }
     } catch (err) {
-      console.warn('First OpenAI call failed or timed out:', err.message || err);
+      console.warn('OpenAI call failed/timeout:', err.message || err);
     }
 
-    // Retry once if parse failed
-    if (!parsed) {
-      try {
-        console.log('First parse failed or timed out, retrying with stricter prompt and 15s timeout...');
-        const retryMsg = {
-          role: 'user',
-          content: `The previous response was not valid JSON. Please return ONLY the JSON object matching the schema (no commentary, no code fences). Here is the same input again:\n\n${prompt}`
-        };
-        const retryOpenai = await callOpenAIWithTimeout([systemMsg, retryMsg], 0.0, 15000, 500);
-        const retryContent = retryOpenai.choices?.[0]?.message?.content || '';
-        modelOutputs.retry = retryContent;
-        console.log('OpenAI raw output (retry):', retryContent);
-
-        try {
-          parsed = JSON.parse(retryContent.trim());
-        } catch (e3) {
-          const candidate2 = extractBalancedJSON(retryContent.trim());
-          if (candidate2) {
-            try { parsed = JSON.parse(candidate2); } catch (e4) { parsed = null; }
+    // If parsing succeeded, ensure headlines have URLs & return
+    if (parsed) {
+      if (Array.isArray(parsed.headlines) && parsed.headlines.length) {
+        parsed.headlines = parsed.headlines.map(h => {
+          if (!h.url) {
+            const found = articles.find(a => a.title && h.title && a.title.includes(h.title.slice(0, 20)));
+            if (found) h.url = found.url;
           }
-        }
-      } catch (retryErr) {
-        console.warn('Retry OpenAI call failed or timed out:', retryErr.message || retryErr);
+          return h;
+        });
+      } else {
+        parsed.headlines = articles.slice(0, 6);
       }
+      console.log('Returning parsed morning brief (fast path).');
+      return { statusCode: 200, body: JSON.stringify(parsed) };
     }
 
-    // If still not parsed, return fast fallback (headlines) so UI doesn't block
-    if (!parsed) {
-      const fallback = {
-        tldr: articles.slice(0, 3).map(a => a.title || '').filter(Boolean),
-        summaryHtml: `<p>Markets - brief unavailable from AI. See top headlines below.</p>`,
-        movers: [],
-        watchList: [],
-        headlines: articles.slice(0, 6),
-        modelOutputFirst: modelOutputs.first,
-        modelOutputRetry: modelOutputs.retry
-      };
-      console.log('Returning fallback morning brief (AI failed or timed out).');
-      console.log('Fallback preview:', JSON.stringify({ tldr: fallback.tldr, headlines: fallback.headlines.length }, null, 2));
-      return { statusCode: 200, body: JSON.stringify(fallback) };
-    }
-
-    // Ensure headlines include URLs where possible
-    if (Array.isArray(parsed.headlines) && parsed.headlines.length) {
-      parsed.headlines = parsed.headlines.map(h => {
-        if (!h.url) {
-          const found = articles.find(a => a.title && h.title && a.title.includes(h.title.slice(0, 20)));
-          if (found) h.url = found.url;
-        }
-        return h;
-      });
-    } else {
-      parsed.headlines = articles.slice(0, 6);
-    }
-
-    // Log a short preview of the outgoing payload and return
-    try {
-      const preview = {
-        tldrCount: Array.isArray(parsed.tldr) ? parsed.tldr.length : 0,
-        headlinesCount: Array.isArray(parsed.headlines) ? parsed.headlines.length : 0
-      };
-      console.log('Returning parsed morning brief preview:', preview);
-    } catch (e) {
-      // ignore logging errors
-    }
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(parsed)
+    // Fast fallback: return headlines-only brief immediately (so UI isn't blocked)
+    const fallback = {
+      tldr: articles.slice(0, 3).map(a => a.title || '').filter(Boolean),
+      summaryHtml: `<p>Markets - brief unavailable from AI. See top headlines below.</p>`,
+      movers: [],
+      watchList: [],
+      headlines: articles.slice(0, 6),
+      debugRaw: rawOutput // dev visibility if you want
     };
+    console.log('Returning fast fallback morning brief.');
+    return { statusCode: 200, body: JSON.stringify(fallback) };
 
   } catch (err) {
     console.error('morning-brief error', err);
