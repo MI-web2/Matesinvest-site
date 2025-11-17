@@ -1,279 +1,156 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <title>MatesFeed – Plain-English market summaries | MatesInvest</title>
-  <meta name="description" content="MatesFeed delivers live market headlines and plain-English AI summaries built for Australian retail investors.">
-
-  <link rel="icon" type="image/png" href="/assets/img/favicon.png">
-  <link rel="apple-touch-icon" href="/assets/img/favicon.png">
-
-  <style>
-    :root{
-      --bg: #050814;
-      --card: linear-gradient(180deg, rgba(20,24,40,0.9), rgba(15,18,32,0.85));
-      --muted: rgba(255,255,255,0.66);
-      --muted-2: rgba(255,255,255,0.44);
-      --accent: #3fbf7f;
-      --accent-strong: #2ea668;
-      --accent-soft: rgba(63,191,127,0.12);
-      --border: rgba(255,255,255,0.06);
-      --card-border: rgba(255,255,255,0.03);
-      --glass: rgba(255,255,255,0.03);
-      --radius: 14px;
-      --gap: 1rem;
-    }
-
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      background: radial-gradient(circle at top left, #20274a 0, #050814 45%);
-      color:#fff;
-      -webkit-font-smoothing:antialiased;
-      -moz-osx-font-smoothing:grayscale;
-      line-height:1.4;
-      padding-bottom:3rem;
-    }
-
-    .page-shell{
-      max-width:1080px;
-      margin:0 auto;
-      padding:1rem 1.25rem 3rem;
-    }
-
-    /* NAV */
-    .nav{
-      position:sticky;
-      top:0;
-      z-index:30;
-      backdrop-filter: blur(12px);
-      background: linear-gradient(180deg, rgba(5,8,20,0.92), rgba(5,8,20,0.78));
-      border-bottom: 1px solid var(--border);
-    }
-    .nav-inner{
-      max-width:1080px;
-      margin:0 auto;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:1rem;
-      padding:0.9rem 1.25rem;
-    }
-    .nav-left{display:flex;align-items:center;gap:0.75rem}
-    .nav-logo{height:44px;width:44px;border-radius:8px;object-fit:cover}
-    .nav-title{font-weight:600;font-size:1.05rem}
-    .nav-pill{padding:0.2rem 0.6rem;border-radius:999px;font-size:0.75rem;background:var(--accent-soft);color:var(--accent);border:1px solid rgba(63,191,127,0.26)}
-    .nav-right{font-size:0.82rem;color:var(--muted);display:flex;gap:0.75rem;align-items:center}
-    .nav-home-link{padding:0.35rem 0.8rem;border-radius:999px;border:1px solid var(--border);text-decoration:none;color:#fff;background:rgba(255,255,255,0.03)}
-    .nav-home-link:hover{background:rgba(255,255,255,0.06)}
-
-    /* Hero */
-    .card { background: var(--card); border-radius: var(--radius); padding:1.25rem; margin-bottom:1rem; border:1px solid var(--card-border) }
-    .card-hero h1{margin:0;font-size:1.4rem}
-    .card-hero p{margin:0.35rem 0 0;color:var(--muted)}
-
-    /* Controls */
-    .controls { display:flex; gap:var(--gap); align-items:center; flex-wrap:wrap; margin-top:0.6rem; }
-    .segmented {
-      display:inline-flex;
-      background:var(--glass);
-      border-radius:999px;
-      padding:3px;
-      gap:4px;
-      border:1px solid var(--border);
-    }
-    .segmented button{
-      background:transparent;
-      border:0;
-      padding:0.45rem 0.85rem;
-      color:var(--muted);
-      border-radius:999px;
-      cursor:pointer;
-      font-size:0.88rem;
-      transition: all .16s ease;
-    }
-    .segmented button.active{
-      background: linear-gradient(180deg,var(--accent), var(--accent-strong));
-      color:#00110a;
-      box-shadow: 0 6px 18px rgba(47,143,95,0.12), inset 0 -1px 0 rgba(0,0,0,0.06);
-    }
-
-    .chip-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem}
-    .chip{
-      padding:0.32rem 0.7rem;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem;
-      transition: all .14s ease;
-    }
-    .chip:hover{background:rgba(255,255,255,0.02)}
-    .chip-active{background:var(--accent-soft);color:#fff;border-color:var(--accent)}
-
-    /* Sport filter row (for MatesMode) */
-    .sport-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem}
-    .sport-chip{
-      padding:0.28rem 0.6rem;border-radius:999px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem;
-    }
-    .sport-chip.active{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:#fff;box-shadow:inset 0 -1px 0 rgba(0,0,0,0.05)}
-    .sport-tag{display:inline-block;padding:0.12rem 0.5rem;border-radius:999px;background:rgba(255,255,255,0.03);font-size:0.78rem;color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
-
-    /* News list */
-    #newsList{margin-top:0.85rem; display:flex;flex-direction:column; gap:0.85rem}
-    .headline{
-      display:block;
-      padding:0.95rem;
-      border-radius:12px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-      border:1px solid var(--card-border);
-      transition: transform .12s ease, box-shadow .12s ease;
-    }
-    .headline:hover{ transform: translateY(-3px); box-shadow: 0 10px 30px rgba(2,6,23,0.55) }
-
-    .meta-row{ display:flex; align-items:center; gap:0.6rem; justify-content:space-between }
-    .meta-left{ display:flex; align-items:center; gap:0.65rem; min-width:0 }
-    .headline h3{ margin:0 0 0.25rem 0; font-size:1rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-    .headline small{ color:var(--muted-2); font-size:0.82rem; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-    .headline .actions{ display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem }
-
-    .btn{
-      background:var(--accent); border:none; padding:0.5rem 0.95rem; border-radius:999px; cursor:pointer; color:#00110a; font-weight:700; font-size:0.86rem;
-      transition: transform .08s ease, opacity .12s ease;
-    }
-    .btn:active{ transform: translateY(1px) }
-    .btn:disabled{ opacity:0.6; cursor:default }
-
-    .link-min{ background:transparent; border:1px solid var(--border); color:var(--muted); padding:0.42rem 0.7rem; border-radius:999px; text-decoration:none; font-size:0.83rem }
-    .link-min:hover{ background:rgba(255,255,255,0.02) }
-
-    .summary-output{ margin-top:0.65rem }
-
-    .summary-block{
-      margin-top:0.45rem;
-      border-top:1px dashed rgba(255,255,255,0.04);
-      padding-top:0.6rem;
-      font-size:0.95rem;
-      color: #fff;
-    }
-    .summary-block p{margin:0.45rem 0}
-    .tldr-list{ margin:0.35rem 0 0 0.85rem; padding:0; list-style:none; color:var(--muted) }
-    .tldr-list li{ margin:0.25rem 0; position:relative; padding-left:1.05rem }
-    .tldr-list li::before{
-      content:"";
-      width:8px;height:8px;border-radius:2px;background:var(--accent);position:absolute;left:0.15rem;top:0.55rem;box-shadow:0 1px 0 rgba(0,0,0,0.2)
-    }
-
-    .summary-meta{ color:var(--muted-2); font-size:0.82rem; margin-top:0.45rem }
-
-    /* Skeleton */
-    .skeleton{ background:linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06), rgba(255,255,255,0.03)); border-radius:8px; height:68px; animation: shimmer 1.2s linear infinite; }
-    @keyframes shimmer{ 0%{ background-position:-120px 0 } 100%{ background-position:220px 0 } }
-
-    /* small screens */
-    @media (max-width:640px){
-      .meta-row{ flex-direction:column; align-items:flex-start; gap:0.5rem }
-      .headline h3{ white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
-    }
-  </style>
-</head>
-
-<body>
-  <div class="nav">
-    <div class="nav-inner">
-      <div class="nav-left">
-        <img src="/assets/img/logo-placeholder.png" class="nav-logo" alt="MatesInvest logo">
-        <div>
-          <div class="nav-title">MatesInvest</div>
-          <div class="nav-pill">MatesFeed · Prototype</div>
-        </div>
-      </div>
-      <div class="nav-right">
-        <span>Live AI summaries · Not financial advice</span>
-        <a href="/" class="nav-home-link">Home</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="page-shell">
-
-    <section class="card card-hero">
-      <h1>MatesFeed</h1>
-      <p>Your daily, plain-English investing brief — now with MatesMode.</p>
-    </section>
-
-    <section id="news" class="card" aria-labelledby="latest-headlines">
-      <h2 id="latest-headlines">Latest Headlines</h2>
-
-      <div class="controls">
-        <div class="segmented" role="tablist" aria-label="View mode">
-          <button id="toggleMarket" class="active" role="tab" aria-selected="true">Market Mode</button>
-          <button id="toggleMates" role="tab" aria-selected="false">MatesMode</button>
-        </div>
-
-        <div style="flex:1"></div>
-
-        <div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);font-size:0.88rem">
-          <span id="feedStatus">Live</span>
-        </div>
-      </div>
-
-      <div class="chip-row" id="categoryRow" aria-label="Categories">
-        <button class="chip chip-active" data-category="all">All</button>
-        <button class="chip" data-category="energy">Energy</button>
-        <button class="chip" data-category="tech">Tech</button>
-        <button class="chip" data-category="macro">Macro</button>
-        <button class="chip" data-category="other">Other</button>
-      </div>
-
-      <!-- Sport filter row: shown when MatesMode is active and sports exist -->
-      <div id="sportFilterRow" class="sport-row" style="display:none; margin-top:0.6rem;" aria-label="Filter sports">
-        <!-- dynamically populated -->
-      </div>
-
-      <div id="newsList" style="margin-top:0.9rem;">Loading…</div>
-    </section>
-  </div>
+<!--
+Only the relevant script & small CSS snippets are shown below — insert them into your existing mates-summaries.html script section.
+This block replaces/augments the renderEventStats and related UI bits from earlier.
+-->
+<style>
+  /* Add timeline styling (insert into your page CSS) */
+  .event-timeline { display:flex; flex-direction:column; gap:0.45rem; margin-top:0.4rem; }
+  .timeline-item { display:flex; gap:0.6rem; align-items:flex-start; font-size:0.92rem; color:var(--muted-2) }
+  .timeline-bullet { width:10px; height:10px; border-radius:999px; background:var(--accent); margin-top:4px; flex-shrink:0 }
+  .timeline-min { width:36px; color:var(--muted); font-weight:600 }
+  .lineup-block { background:rgba(255,255,255,0.02); padding:0.6rem; border-radius:8px; margin-top:0.5rem; color:var(--muted-2) }
+  .stat-row { display:flex; gap:1rem; flex-wrap:wrap; color:var(--muted-2); font-size:0.92rem; margin-top:0.45rem }
+  .stat-pill { padding:0.18rem 0.6rem; border-radius:999px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.02) }
+</style>
 
 <script>
-  const newsList = document.getElementById("newsList");
-  const toggleMarket = document.getElementById("toggleMarket");
-  const toggleMates = document.getElementById("toggleMates");
-  const categoryRow = document.getElementById("categoryRow");
-  const feedStatus = document.getElementById("feedStatus");
-  const sportFilterRow = document.getElementById("sportFilterRow");
+  // Add these helper functions and replace the previous renderEventStats() with this richer one.
 
-  let allArticles = [];
-  let currentCategory = "all";
-  // Set of selected sports for filtering in MatesMode. Empty = no sport filter (show all).
-  const selectedSports = new Set();
-
-  function categoryFromArticle(article) {
-    const title = (article.title || "").toLowerCase();
-    if (title.match(/energy|oil|coal|gas|mining/)) return "energy";
-    if (title.match(/tech|software|ai|chip|cloud/)) return "tech";
-    if (title.match(/inflation|rate|central bank|macro/)) return "macro";
-    return "other";
+  function parseGoalDetails(raw) {
+    // TheSportsDB often returns semicolon-separated events like "45' John Smith; 67' Joe Bloggs"
+    if (!raw || !raw.trim()) return [];
+    // normalize separators
+    const parts = raw.split(/;|\n/).map(p => p.trim()).filter(Boolean);
+    const events = parts.map(p => {
+      // try to extract minute and the rest
+      // examples: "45' John Smith (pen.)" or "90+2' Player Name"
+      const m = p.match(/^(\d+\+?\d*)'?[\s-–:]?\s*(.+)$/);
+      if (m) {
+        return { minute: m[1] + "'", text: m[2] };
+      }
+      // fallback - return the whole string
+      return { minute: '', text: p };
+    });
+    return events;
   }
 
-  async function getMarketFeed() {
-    try {
-      const res = await fetch("/.netlify/functions/newsFeed");
-      const data = await res.json();
-      return data.articles || [];
-    } catch (e) {
-      console.warn("Market feed failed", e);
-      return [];
-    }
+  function renderLineupSection(title, lineupStr) {
+    if (!lineupStr || !lineupStr.trim()) return '';
+    // lineup strings often are comma separated: "Player1, Player2, Player3"
+    const players = lineupStr.split(/, ?/).map(s => s.trim()).filter(Boolean);
+    return `<div class="lineup-block" role="group" aria-label="${escapeHtml(title)}">
+      <strong style="color:var(--muted)">${escapeHtml(title)}</strong>
+      <div style="margin-top:0.35rem">${players.map(p => `<div>${escapeHtml(p)}</div>`).join('')}</div>
+    </div>`;
   }
 
-  async function getSportsFeed() {
-    try {
-      const res = await fetch("/.netlify/functions/sports-test");
-      return await res.json();
-    } catch (e) {
-      console.warn("Sports feed failed", e);
-      return [];
+  function renderEventStats(ev = {}) {
+    // fields from sports-test mapping
+    const home = ev.home || ev.homeTeam || '';
+    const away = ev.away || ev.awayTeam || '';
+    const homeScore = (ev.homeScore !== undefined && ev.homeScore !== null) ? ev.homeScore : (ev.scoreHome || null);
+    const awayScore = (ev.awayScore !== undefined && ev.awayScore !== null) ? ev.awayScore : (ev.scoreAway || null);
+    const status = ev.status || ev.state || '';
+    const venue = ev.venue || ev.location || '';
+    const time = formatTime(ev.localTime || ev.utcTime || ev.time);
+    const season = ev.season || '';
+    const description = ev.description || '';
+
+    const homeGoalsRaw = ev.homeGoalDetails || ev.homeGoalDetails === '' ? ev.homeGoalDetails : ev.raw?.strHomeGoalDetails || '';
+    const awayGoalsRaw = ev.awayGoalDetails || ev.raw?.strAwayGoalDetails || '';
+    const homeShots = (ev.homeShots !== undefined && ev.homeShots !== null) ? ev.homeShots : ev.raw?.intHomeShots || null;
+    const awayShots = (ev.awayShots !== undefined && ev.awayShots !== null) ? ev.awayShots : ev.raw?.intAwayShots || null;
+
+    const timeline = [];
+    parseGoalDetails(homeGoalsRaw).forEach(it => timeline.push({side: 'home', ...it}));
+    parseGoalDetails(awayGoalsRaw).forEach(it => timeline.push({side: 'away', ...it}));
+    // sort timeline by minute numeric value if possible
+    const minuteToNumber = m => {
+      if (!m) return 9999;
+      const clean = m.replace("'", "");
+      if (clean.includes('+')) {
+        const [base, extra] = clean.split('+').map(Number);
+        return base * 100 + (extra || 0);
+      }
+      return Number(clean);
+    };
+    timeline.sort((a,b) => minuteToNumber(a.minute) - minuteToNumber(b.minute));
+
+    // build HTML
+    const rows = [];
+    rows.push(`<div class="stat-row">
+      <div class="stat-pill"><strong>${escapeHtml(String(home || ''))}</strong> ${homeScore !== null ? `<span style="opacity:0.9"> ${escapeHtml(String(homeScore))}</span>` : ''}</div>
+      <div style="align-self:center;color:var(--muted)">vs</div>
+      <div class="stat-pill"><strong>${escapeHtml(String(away || ''))}</strong> ${awayScore !== null ? `<span style="opacity:0.9"> ${escapeHtml(String(awayScore))}</span>` : ''}</div>
+      <div style="margin-left:auto;color:var(--muted)">${escapeHtml(status)}</div>
+    </div>`);
+
+    if (venue || season || time) {
+      rows.push(`<div class="stat-row">
+        ${venue ? `<div class="stat-pill">📍 ${escapeHtml(venue)}</div>` : ''}
+        ${season ? `<div class="stat-pill">Season: ${escapeHtml(season)}</div>` : ''}
+        ${time ? `<div class="stat-pill">⏱ ${escapeHtml(time)}</div>` : ''}
+      </div>`);
     }
+
+    // Shots row (if available)
+    if (homeShots !== null || awayShots !== null) {
+      rows.push(`<div class="stat-row">
+        <div class="stat-pill">Shots: ${homeShots !== null ? escapeHtml(String(homeShots)) : '—' } — ${awayShots !== null ? escapeHtml(String(awayShots)) : '—'}</div>
+      </div>`);
+    }
+
+    // Timeline
+    if (timeline.length) {
+      rows.push(`<div style="margin-top:0.45rem"><strong style="color:var(--muted-2)">Timeline</strong>
+        <div class="event-timeline">
+          ${timeline.map(evItem => `
+            <div class="timeline-item">
+              <div class="timeline-bullet" aria-hidden="true" style="background:${evItem.side === 'home' ? 'var(--accent)' : 'rgba(255,255,255,0.16)'}"></div>
+              <div style="display:flex;gap:0.5rem;align-items:flex-start">
+                <div class="timeline-min">${escapeHtml(evItem.minute || '')}</div>
+                <div style="max-width:680px;color:var(--muted)">${escapeHtml(evItem.text || '')}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>`);
+    }
+
+    // Lineups and formations (collapsible)
+    const homeLineup = renderLineupSection('Home goalkeeper & lineups', ev.homeLineupGoalkeeper + (ev.homeLineupDefense ? ', ' + ev.homeLineupDefense : '') + (ev.homeLineupMidfield ? ', ' + ev.homeLineupMidfield : '') + (ev.homeLineupForward ? ', ' + ev.homeLineupForward : ''));
+    const awayLineup = renderLineupSection('Away goalkeeper & lineups', ev.awayLineupGoalkeeper + (ev.awayLineupDefense ? ', ' + ev.awayLineupDefense : '') + (ev.awayLineupMidfield ? ', ' + ev.awayLineupMidfield : '') + (ev.awayLineupForward ? ', ' + ev.awayLineupForward : ''));
+
+    if (homeLineup || awayLineup) {
+      rows.push(`<details style="margin-top:0.6rem">
+        <summary style="cursor:pointer;color:var(--muted-2)"><strong>Lineups & formations</strong></summary>
+        <div style="margin-top:0.45rem">
+          ${ev.homeFormation ? `<div style="margin-bottom:0.4rem"><strong style="color:var(--muted-2)">Home formation:</strong> ${escapeHtml(ev.homeFormation)}</div>` : ''}
+          ${homeLineup || ''}
+          ${ev.awayFormation ? `<div style="margin-top:0.45rem;margin-bottom:0.4rem"><strong style="color:var(--muted-2)">Away formation:</strong> ${escapeHtml(ev.awayFormation)}</div>` : ''}
+          ${awayLineup || ''}
+        </div>
+      </details>`);
+    }
+
+    // Description / notes
+    if (description) {
+      rows.push(`<details style="margin-top:0.6rem">
+        <summary style="cursor:pointer;color:var(--muted-2)"><strong>Match notes</strong></summary>
+        <div style="margin-top:0.45rem;color:var(--muted-2)">${escapeHtml(description)}</div>
+      </details>`);
+    }
+
+    return rows.join('');
+  }
+
+  // Keep escapeHtml and formatTime helpers that already exist in your page
+  function escapeHtml(str = "") {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function formatTime(iso) {
@@ -283,507 +160,4 @@
       return new Intl.DateTimeFormat(undefined, { dateStyle:'short', timeStyle:'short' }).format(d);
     } catch { return iso || ""; }
   }
-
-  function showSkeleton(count = 4) {
-    newsList.innerHTML = "";
-    for (let i=0;i<count;i++){
-      const div = document.createElement("div");
-      div.className = "headline";
-      div.innerHTML = `<div style="display:flex;align-items:center;gap:0.75rem">
-        <div style="flex:1">
-          <div class="skeleton" style="height:14px;width:60%"></div>
-          <div style="height:8px"></div>
-          <div class="skeleton" style="height:12px;width:30%"></div>
-        </div>
-      </div>`;
-      newsList.appendChild(div);
-    }
-  }
-
-  function renderSummary(s) {
-    if (!s) return `<div class="summary-block">No summary available.</div>`;
-    const bullets = (s.tldrBullets || []).map(b => `<li>${escapeHtml(b)}</li>`).join("");
-    return `
-      <div class="summary-block">
-        ${bullets ? `<strong>TL;DR</strong><ul class="tldr-list">${bullets}</ul>` : ""}
-        <details open>
-          <summary style="cursor:pointer;color:var(--muted-2)">Full summary</summary>
-          <div style="margin-top:0.5rem">
-            <p><strong>What's Happening:</strong><br>${escapeHtml(s.whatsHappening || "")}</p>
-            <p><strong>Why It Matters:</strong><br>${escapeHtml(s.whyItMatters || "")}</p>
-            <p><strong>Risks / Watch Outs:</strong><br>${escapeHtml(s.riskNote || "")}</p>
-            <p class="summary-meta" style="opacity:0.7">${escapeHtml(s.disclaimer || "")}</p>
-          </div>
-        </details>
-      </div>
-    `;
-  }
-
-  function renderSportsSummary(s, icon) {
-    return `
-      <div class="summary-block">
-        <strong>${escapeHtml(s.oneLiner || "")}</strong>
-        <p><strong>What Actually Happened:</strong><br>${escapeHtml(s.whatsHappening || "")}</p>
-      </div>
-    `;
-  }
-
-  function escapeHtml(str = "") {
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  async function callMatesSummary(payload) {
-    const res = await fetch("/.netlify/functions/matesSummary", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error("Summary request failed");
-    return res.json();
-  }
-
-  /* render market list (original mode) */
-  function renderMarketMode() {
-    sportFilterRow.style.display = "none"; // hide sport filters in market mode
-    newsList.innerHTML = "";
-    const filtered = allArticles.filter(a =>
-      currentCategory === "all" || categoryFromArticle(a) === currentCategory
-    );
-
-    if (!filtered.length) {
-      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">No market headlines yet.</small></div>`;
-      return;
-    }
-
-    filtered.forEach(a => {
-      const item = document.createElement("div");
-      item.className = "headline";
-
-      const published = formatTime(a.publishedAt || a.published || "");
-
-      item.innerHTML = `
-        <div class="meta-row">
-          <div class="meta-left">
-            <div style="min-width:0">
-              <h3 title="${escapeHtml(a.title || '')}">${escapeHtml(a.title || '')}</h3>
-              <small>${escapeHtml(a.source || "")} · ${escapeHtml(published)}</small>
-            </div>
-          </div>
-          <div style="display:flex;gap:0.5rem;align-items:center">
-            <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">Read original</a>
-          </div>
-        </div>
-
-        <div class="actions">
-          <button class="btn" aria-label="Generate summary for article">MatesInvest summary</button>
-        </div>
-        <div class="summary-output"></div>
-      `;
-
-      const btn = item.querySelector("button");
-      const output = item.querySelector(".summary-output");
-      let busy = false;
-
-      btn.addEventListener("click", async () => {
-        if (busy) return;
-        busy = true;
-        btn.disabled = true;
-        const origText = btn.textContent;
-        btn.textContent = "Summarising…";
-
-        try {
-          const summary = await callMatesSummary({
-            text: `${a.title}\n\n${a.description || ""}`,
-            sourceType: "news_article",
-            headline: a.title,
-          });
-
-          output.innerHTML = renderSummary(summary);
-        } catch (err) {
-          console.error(err);
-          output.textContent = "Summary failed.";
-        } finally {
-          btn.disabled = false;
-          btn.textContent = origText;
-          busy = false;
-        }
-      });
-
-      newsList.appendChild(item);
-    });
-  }
-
-  function getSportIcon(ev) {
-    const league = (ev.league || "").toLowerCase();
-    const sport = (ev.sport || "").toLowerCase();
-
-    if (league.includes("nrl") || sport.includes("league")) return "🏉";
-    if (league.includes("afl")) return "🏉";
-    if (league.includes("nba") || sport.includes("basketball")) return "🏀";
-    if (league.includes("epl") || league.includes("premier") || sport.includes("soccer")) return "⚽";
-    if (sport.includes("cricket") || league.includes("bbl")) return "🏏";
-    if (league.includes("mlb") || sport.includes("baseball")) return "⚾";
-    if (league.includes("nfl") || sport.includes("football")) return "🏈";
-    if (league.includes("nhl") || sport.includes("hockey")) return "🏒";
-    if (sport.includes("f1") || sport.includes("formula")) return "🏎️";
-    if (sport.includes("tennis")) return "🎾";
-    if (sport.includes("golf")) return "⛳";
-    return "🎯";
-  }
-
-  // Build and show sport filter chips (multi-select). Accepts an array of sport labels (strings).
-  function renderSportFilters(sportLabels = []) {
-    sportFilterRow.innerHTML = "";
-    if (!sportLabels || !sportLabels.length) {
-      sportFilterRow.style.display = "none";
-      return;
-    }
-    sportFilterRow.style.display = "flex";
-
-    // Add "All sports" chip
-    const allBtn = document.createElement("button");
-    allBtn.className = "sport-chip" + (selectedSports.size === 0 ? " active" : "");
-    allBtn.textContent = "All sports";
-    allBtn.dataset.sport = "all";
-    allBtn.onclick = () => {
-      selectedSports.clear();
-      // toggle visuals
-      [...sportFilterRow.children].forEach(c => c.classList.remove("active"));
-      allBtn.classList.add("active");
-      // re-render MatesMode content to apply filter
-      renderMatesMode();
-    };
-    sportFilterRow.appendChild(allBtn);
-
-    sportLabels.forEach(label => {
-      const btn = document.createElement("button");
-      btn.className = "sport-chip" + (selectedSports.has(label.toLowerCase()) ? " active" : "");
-      btn.textContent = label;
-      btn.dataset.sport = label.toLowerCase();
-      btn.title = `Toggle ${label}`;
-      btn.onclick = () => {
-        // if "All sports" is active, deselect it
-        const allChip = sportFilterRow.querySelector('button[data-sport="all"]');
-        if (allChip) allChip.classList.remove("active");
-
-        const key = label.toLowerCase();
-        if (selectedSports.has(key)) {
-          selectedSports.delete(key);
-          btn.classList.remove("active");
-          // if no sports selected, revert to "All sports"
-          if (selectedSports.size === 0) {
-            if (allChip) allChip.classList.add("active");
-          }
-        } else {
-          selectedSports.add(key);
-          btn.classList.add("active");
-        }
-        renderMatesMode();
-      };
-      sportFilterRow.appendChild(btn);
-    });
-  }
-
-  // When rendering MatesMode we will compute available sports and show the sport filter row.
-  async function renderMatesMode() {
-    showSkeleton(5);
-    try {
-      const market = await getMarketFeed();
-      const sports = await getSportsFeed() || [];
-
-      // Build sport label set from sports feed
-      const sportSet = new Set();
-      (sports || []).forEach(ev => {
-        const s = (ev.sport || ev.league || "").toString().trim();
-        if (s) {
-          // normalize label (capitalize first letter)
-          const key = ev.sport ? ev.sport.toString().trim() : (ev.league || "").toString().trim();
-          const label = key.split(" ").map(w => w && (w[0].toUpperCase() + w.slice(1).toLowerCase())).join(" ");
-          sportSet.add(label);
-        }
-      });
-
-      // Render sport filters
-      renderSportFilters(Array.from(sportSet));
-
-      const sportsCards = (sports || []).map(ev => ({
-        type: "sport",
-        title: `${ev.home} vs ${ev.away}`,
-        subtitle: ev.league || "",
-        sportLabel: (ev.sport || ev.league || "").toString().trim(),
-        time: ev.localTime || ev.utcTime || ev.time,
-        raw: ev
-      }));
-
-      const marketCards = (market || []).map(a => ({
-        type: "market",
-        title: a.title,
-        subtitle: a.source || "",
-        url: a.url,
-        description: a.description || "",
-        time: a.publishedAt || a.published || new Date().toISOString(),
-        raw: a
-      }));
-
-      let combined = [...marketCards, ...sportsCards]
-        .sort((a,b) => new Date(b.time) - new Date(a.time));
-
-      // Apply sport filters: if selectedSports has entries, filter sport items to only those sports.
-      if (selectedSports.size > 0) {
-        combined = combined.filter(item => {
-          if (item.type !== "sport") return true; // keep market cards
-          const sportVal = (item.sportLabel || "").toLowerCase();
-          return selectedSports.has(sportVal);
-        });
-      }
-
-      // Apply category filter for market articles only (sports unaffected by category)
-      combined = combined.filter(item => {
-        if (item.type === "market") {
-          return currentCategory === "all" || categoryFromArticle(item.raw) === currentCategory;
-        }
-        return true;
-      });
-
-      newsList.innerHTML = "";
-
-      combined.forEach(item => {
-        const div = document.createElement("div");
-        div.className = "headline";
-
-        if (item.type === "sport") {
-          const icon = getSportIcon(item.raw);
-          const ev = item.raw;
-          const when = formatTime(item.time);
-          const sportBadge = escapeHtml((item.sportLabel || "").toString());
-
-          div.innerHTML = `
-            <div class="meta-row">
-              <div class="meta-left" style="min-width:0">
-                <div>
-                  <h3>${escapeHtml(item.title || "")}</h3>
-                  <small>${icon} ${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
-                </div>
-              </div>
-              <div style="display:flex;gap:0.5rem;align-items:center">
-                <span class="sport-tag">${sportBadge}</span>
-              </div>
-            </div>
-
-            <div class="actions">
-              <button class="btn">MatesInvest summary</button>
-              <button class="link-min" data-toggle-stats>Stats</button>
-            </div>
-
-            <div class="summary-output"></div>
-            <div class="sports-stats" style="margin-top:0.6rem; display:none;"></div>
-          `;
-
-          const btn = div.querySelector("button.btn");
-          const output = div.querySelector(".summary-output");
-          const statsBtn = div.querySelector('button[data-toggle-stats]');
-          const statsArea = div.querySelector(".sports-stats");
-          let busy = false;
-
-          // Summary generation
-          btn.onclick = async () => {
-            if (busy) return;
-            busy = true;
-            btn.disabled = true;
-            const prev = btn.textContent;
-            btn.textContent = "Summarising…";
-
-            try {
-              const summary = await callMatesSummary({
-                sourceType: "sports_event",
-                headline: `${ev.home} vs ${ev.away}`,
-                text: `
-League: ${ev.league}
-Sport: ${ev.sport}
-Score: ${ev.home} ${ev.homeScore} - ${ev.awayScore} ${ev.away}
-Status: ${ev.status}
-`,
-              });
-
-              output.innerHTML = renderSportsSummary(summary, icon);
-            } catch (err) {
-              console.error(err);
-              output.textContent = "Summary failed.";
-            } finally {
-              btn.disabled = false;
-              btn.textContent = prev;
-              busy = false;
-            }
-          };
-
-          // Toggle stats area (collapsed by default)
-          statsBtn.onclick = () => {
-            if (statsArea.style.display === "none" || statsArea.style.display === "") {
-              // populate some key stats from the raw event if available
-              statsArea.innerHTML = renderEventStats(ev);
-              statsArea.style.display = "block";
-              statsBtn.textContent = "Hide";
-            } else {
-              statsArea.style.display = "none";
-              statsBtn.textContent = "Stats";
-            }
-          };
-
-          newsList.appendChild(div);
-        } else { // market item
-          const when = formatTime(item.time);
-          div.innerHTML = `
-            <div class="meta-row">
-              <div class="meta-left">
-                <div style="min-width:0">
-                  <h3>${escapeHtml(item.title || "")}</h3>
-                  <small>${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
-                </div>
-              </div>
-              <div style="display:flex;gap:0.5rem;align-items:center">
-                <a class="link-min" href="${item.url || "#"}" target="_blank" rel="noopener">Read original</a>
-              </div>
-            </div>
-
-            <div class="actions">
-              <button class="btn">MatesInvest summary</button>
-            </div>
-            <div class="summary-output"></div>
-          `;
-
-          const btn = div.querySelector("button");
-          const output = div.querySelector(".summary-output");
-          let busy = false;
-
-          btn.onclick = async () => {
-            if (busy) return;
-            busy = true;
-            btn.disabled = true;
-            const prev = btn.textContent;
-            btn.textContent = "Summarising…";
-
-            try {
-              const summary = await callMatesSummary({
-                text: `${item.title}\n\n${item.description}`,
-                sourceType: "news_article",
-                headline: item.title,
-              });
-
-              output.innerHTML = renderSummary(summary);
-            } catch (err) {
-              console.error(err);
-              output.textContent = "Summary failed.";
-            } finally {
-              btn.disabled = false;
-              btn.textContent = prev;
-              busy = false;
-            }
-          };
-
-          newsList.appendChild(div);
-        }
-      });
-
-      if (!combined.length) {
-        newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">No items found.</small></div>`;
-      }
-
-    } catch (err) {
-      console.error("Error rendering MatesMode", err);
-      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
-    }
-  }
-
-  // Return a simple HTML block of key stats from the sports event raw object.
-  function renderEventStats(ev = {}) {
-    // attempt to pick out useful fields; this is defensive — some feeds will have different keys
-    const home = ev.home || ev.homeTeam || "";
-    const away = ev.away || ev.awayTeam || "";
-    const homeScore = (ev.homeScore !== undefined) ? ev.homeScore : (ev.scoreHome || "");
-    const awayScore = (ev.awayScore !== undefined) ? ev.awayScore : (ev.scoreAway || "");
-    const status = ev.status || ev.state || "";
-    const venue = ev.venue || ev.location || "";
-    const time = formatTime(ev.localTime || ev.utcTime || ev.time);
-
-    // Compose list of available stats
-    const rows = [];
-    if (home || away) rows.push(`<strong>Fixture:</strong> ${escapeHtml(home)} vs ${escapeHtml(away)}`);
-    if (homeScore !== "" || awayScore !== "") rows.push(`<strong>Score:</strong> ${escapeHtml(String(homeScore))} — ${escapeHtml(String(awayScore))}`);
-    if (status) rows.push(`<strong>Status:</strong> ${escapeHtml(status)}`);
-    if (venue) rows.push(`<strong>Venue:</strong> ${escapeHtml(venue)}`);
-    if (time) rows.push(`<strong>Time:</strong> ${escapeHtml(time)}`);
-    // include any extra keys like possession, overs, quarter if present (best-effort)
-    if (ev.period) rows.push(`<strong>Period:</strong> ${escapeHtml(ev.period)}`);
-    if (ev.overs) rows.push(`<strong>Overs:</strong> ${escapeHtml(ev.overs)}`);
-    if (ev.journey) rows.push(`<strong>Notes:</strong> ${escapeHtml(ev.journey)}`);
-
-    if (!rows.length) return `<div style="color:var(--muted)">No stats available.</div>`;
-
-    return `<div style="color:var(--muted-2);font-size:0.92rem">${rows.map(r => `<p style="margin:0.25rem 0">${r}</p>`).join("")}</div>`;
-  }
-
-  /* Toggles & categories */
-  function setActiveToggle(isMarket) {
-    if (isMarket) {
-      toggleMarket.classList.add("active");
-      toggleMarket.setAttribute("aria-selected","true");
-      toggleMates.classList.remove("active");
-      toggleMates.setAttribute("aria-selected","false");
-    } else {
-      toggleMates.classList.add("active");
-      toggleMates.setAttribute("aria-selected","true");
-      toggleMarket.classList.remove("active");
-      toggleMarket.setAttribute("aria-selected","false");
-    }
-  }
-
-  toggleMarket.onclick = async () => {
-    setActiveToggle(true);
-    feedStatus.textContent = "Market mode";
-    showSkeleton(4);
-    allArticles = await getMarketFeed();
-    renderMarketMode();
-  };
-
-  toggleMates.onclick = () => {
-    setActiveToggle(false);
-    feedStatus.textContent = "MatesMode";
-    renderMatesMode();
-  };
-
-  categoryRow.onclick = (e) => {
-    const btn = e.target.closest(".chip");
-    if (!btn) return;
-    currentCategory = btn.dataset.category;
-
-    [...categoryRow.children].forEach(b => b.classList.remove("chip-active"));
-    btn.classList.add("chip-active");
-
-    if (toggleMates.classList.contains("active")) {
-      renderMatesMode();
-    } else {
-      renderMarketMode();
-    }
-  };
-
-  (async function init(){
-    try {
-      feedStatus.textContent = "Loading…";
-      showSkeleton(4);
-      allArticles = await getMarketFeed();
-      renderMarketMode();
-      feedStatus.textContent = "Live";
-    } catch (err) {
-      console.error(err);
-      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">Failed to load initial feed.</small></div>`;
-      feedStatus.textContent = "Offline";
-    }
-  })();
 </script>
-
-</body>
-</html>

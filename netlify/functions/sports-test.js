@@ -23,7 +23,7 @@ export async function handler() {
     allowedLeagues.includes(event.strLeague)
   );
 
-  // Step 3: MAP to simple MatesFeed card format
+  // Step 3: MAP to simple MatesFeed card format, include richer fields if available
   const mapped = filtered.map(event => ({
     id: event.idEvent,
     league: event.strLeague,
@@ -34,7 +34,28 @@ export async function handler() {
     awayScore: event.intAwayScore ? Number(event.intAwayScore) : null,
     status: event.strStatus || "Scheduled",
     utcTime: event.dateEvent + "T" + (event.strTime || "00:00:00") + "Z",
-    localTime: event.strTimestamp || null
+    localTime: event.strTimestamp || null,
+
+    // extra fields pulled from TheSportsDB event object when present
+    venue: event.strVenue || "",
+    season: event.strSeason || "",
+    description: event.strDescriptionEN || "",
+    homeFormation: event.strHomeFormation || "",
+    awayFormation: event.strAwayFormation || "",
+    homeGoalDetails: event.strHomeGoalDetails || "",
+    awayGoalDetails: event.strAwayGoalDetails || "",
+    homeLineupGoalkeeper: event.strHomeLineupGoalkeeper || "",
+    awayLineupGoalkeeper: event.strAwayLineupGoalkeeper || "",
+    homeLineupDefense: event.strHomeLineupDefense || "",
+    awayLineupDefense: event.strAwayLineupDefense || "",
+    homeLineupMidfield: event.strHomeLineupMidfield || "",
+    awayLineupMidfield: event.strAwayLineupMidfield || "",
+    homeLineupForward: event.strHomeLineupForward || "",
+    awayLineupForward: event.strAwayLineupForward || "",
+    homeShots: event.intHomeShots ? Number(event.intHomeShots) : null,
+    awayShots: event.intAwayShots ? Number(event.intAwayShots) : null,
+    // keep the raw object for future use
+    raw: event
   }));
 
   return {
