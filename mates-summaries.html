@@ -107,73 +107,6 @@
 
     .summary-output { margin-top:0.85rem; }
     .summary-block { margin-top:0.6rem; border-top:1px solid var(--border-subtle); padding-top:0.6rem; font-size:0.9rem; }
-/* Headline variants for market vs sport */
-.headline {
-  margin-bottom: 1.2rem;
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 1.2rem;
-}
-.headline:last-child {
-  border-bottom: none;
-}
-
-.headline-sport {
-  border-left: 3px solid var(--accent);
-  padding-left: 0.9rem;
-  background: radial-gradient(circle at top left, rgba(63,191,127,0.08), transparent 55%);
-}
-
-.headline-market {
-  border-left: 3px solid rgba(255,255,255,0.08);
-  padding-left: 0.9rem;
-}
-
-/* Tiny pill labels */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  border: 1px solid var(--border-subtle);
-  background: rgba(255,255,255,0.03);
-  color: var(--text-muted);
-}
-
-.badge-sport {
-  border-color: rgba(63,191,127,0.6);
-  background: rgba(63,191,127,0.08);
-  color: #e4fff4;
-}
-
-/* Make summary blocks feel more like cards */
-.summary-block {
-  margin-top: 0.6rem;
-  border-radius: 0.75rem;
-  background: rgba(0,0,0,0.18);
-  padding: 0.7rem 0.9rem;
-  border: 1px solid var(--border-subtle);
-  font-size: 0.9rem;
-}
-
-.summary-block-sport {
-  border-color: rgba(63,191,127,0.6);
-  background: rgba(63,191,127,0.08);
-}
-
-.summary-block p {
-  margin: 0.3rem 0;
-}
-
-/* Small label inside summaries */
-.summary-label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  opacity: 0.7;
-}
-
   </style>
 </head>
 
@@ -355,104 +288,94 @@
 
     newsList.innerHTML = "";
 
-combined.forEach(item => {
-  const div = document.createElement("div");
-  // base class; we’ll add a more specific one per type
-  div.className = "headline";
+    combined.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "headline";
 
-  /* ------------------ SPORTS CARD ------------------ */
-  if (item.type === "sport") {
-    const icon = getSportIcon(item.raw);
-    div.className = "headline headline-sport";
+      /* ------------------ SPORTS CARD ------------------ */
+      if (item.type === "sport") {
+        const icon = getSportIcon(item.raw);
 
-    div.innerHTML = `
-      <h3>${icon} ${item.title}</h3>
-      <div style="margin-top:0.15rem;">
-        <span class="badge badge-sport">Sport · ${item.subtitle || "Fixture"}</span>
-        ${item.time ? `<span style="font-size:0.75rem; opacity:0.7; margin-left:0.35rem;">${item.time}</span>` : ""}
-      </div>
-      <br>
-      <button class="btn">MatesInvest summary</button>
-      <div class="summary-output"></div>
-    `;
+        div.innerHTML = `
+          <h3>${item.title}</h3>
+          <small>${icon} ${item.subtitle}</small>
+          <br><br>
+          <button class="btn">MatesInvest summary</button>
+          <div class="summary-output"></div>
+        `;
 
-    const btn = div.querySelector("button");
-    const output = div.querySelector(".summary-output");
+        const btn = div.querySelector("button");
+        const output = div.querySelector(".summary-output");
 
-    btn.onclick = async () => {
-      btn.disabled = true;
-      btn.textContent = "Summarising…";
+        btn.onclick = async () => {
+          btn.disabled = true;
+          btn.textContent = "Summarising…";
 
-      try {
-        const ev = item.raw;
+          try {
+            const ev = item.raw;
 
-        const summary = await callMatesSummary({
-          sourceType: "sports_event",
-          headline: `${ev.home} vs ${ev.away}`,
-          text: `
+            const summary = await callMatesSummary({
+              sourceType: "sports_event",
+              headline: `${ev.home} vs ${ev.away}`,
+              text: `
 League: ${ev.league}
 Sport: ${ev.sport}
 Score: ${ev.home} ${ev.homeScore} - ${ev.awayScore} ${ev.away}
 Status: ${ev.status}
 `,
-        });
+            });
 
-        output.innerHTML = renderSportsSummary(summary, icon);
+            output.innerHTML = renderSportsSummary(summary, icon);
 
-      } catch {
-        output.textContent = "Summary failed.";
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "MatesInvest summary";
+          } catch {
+            output.textContent = "Summary failed.";
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "MatesInvest summary";
+          }
+        };
+
+        newsList.appendChild(div);
       }
-    };
 
-    newsList.appendChild(div);
-  }
+      /* ------------------ MARKET CARD IN MATESMODE ------------------ */
+      if (item.type === "market") {
+        div.innerHTML = `
+          <h3>${item.title}</h3>
+          <small>${item.subtitle}</small><br>
+          <a href="${item.url}" target="_blank">Read original</a>
+          <br><br>
+          <button class="btn">MatesInvest summary</button>
+          <div class="summary-output"></div>
+        `;
 
-  /* ------------------ MARKET CARD IN MATESMODE ------------------ */
-  if (item.type === "market") {
-    div.className = "headline headline-market";
+        const btn = div.querySelector("button");
+        const output = div.querySelector(".summary-output");
 
-    div.innerHTML = `
-      <h3>${item.title}</h3>
-      <div style="margin-top:0.15rem;">
-        <span class="badge">Market · ${item.subtitle || "News"}</span>
-      </div>
-      <br>
-      <a href="${item.url}" target="_blank">Read original</a>
-      <br><br>
-      <button class="btn">MatesInvest summary</button>
-      <div class="summary-output"></div>
-    `;
+        btn.onclick = async () => {
+          btn.disabled = true;
+          btn.textContent = "Summarising…";
 
-    const btn = div.querySelector("button");
-    const output = div.querySelector(".summary-output");
+          try {
+            const summary = await callMatesSummary({
+              text: `${item.title}\n\n${item.description}`,
+              sourceType: "news_article",
+              headline: item.title,
+            });
 
-    btn.onclick = async () => {
-      btn.disabled = true;
-      btn.textContent = "Summarising…";
+            output.innerHTML = renderSummary(summary); // <-- ORIGINAL full market summary
+          } catch {
+            output.textContent = "Summary failed.";
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "MatesInvest summary";
+          }
+        };
 
-      try {
-        const summary = await callMatesSummary({
-          text: `${item.title}\n\n${item.description}`,
-          sourceType: "news_article",
-          headline: item.title,
-        });
-
-        output.innerHTML = renderSummary(summary);
-      } catch {
-        output.textContent = "Summary failed.";
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "MatesInvest summary";
+        newsList.appendChild(div);
       }
-    };
-
-    newsList.appendChild(div);
+    });
   }
-});
-
 
   /* ------------------ ORIGINAL MARKET SUMMARY BLOCK ------------------ */
 
@@ -487,18 +410,14 @@ Status: ${ev.status}
 
   /* ------------------ SPORTS SUMMARY (NO TLDR, NO DISCLAIMER) ------------------ */
 
-function renderSportsSummary(s, icon) {
-  return `
-    <div class="summary-block summary-block-sport">
-      <strong>${s.oneLiner || ""}</strong>
-      <p>
-        <span class="summary-label">What Actually Happened</span><br>
-        ${s.whatsHappening || ""}
-      </p>
-    </div>
-  `;
-}
-
+  function renderSportsSummary(s, icon) {
+    return `
+      <div class="summary-block">
+        <strong>${s.oneLiner || ""}</strong>
+        <p><strong>What Actually Happened:</strong><br>${s.whatsHappening || ""}</p>
+      </div>
+    `;
+  }
 
   /* ------------------ CALL SUMMARY FUNCTION ------------------ */
 
