@@ -1,7 +1,5 @@
 // netlify/functions/morning-brief.js
-// Hardened morning-brief function: extracts balanced JSON from model output,
-// retries once with a stricter prompt if parsing fails, and returns debug output when needed.
-//
+// Morning brief with OpenAI timeout and quick fallback
 // Requires env vars: NEWSAPI_KEY and OPENAI_API_KEY
 export async function handler(event) {
   try {
@@ -42,7 +40,6 @@ export async function handler(event) {
       description: a.description || ''
     }));
 
-    // Build the user prompt
     const prompt = `
 You are a market briefing assistant writing "Morning Briefing" for Australian retail investors.
 Produce a concise briefing using the input headlines below. Output JSON only with these fields:
@@ -65,35 +62,45 @@ Requirements:
 Return ONLY the JSON object (no commentary).
 `.trim();
 
-    // Helper: call OpenAI chat completion
-    async function callOpenAI(messages, temperature = 0.2) {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages,
-          max_tokens: 700,
-          temperature
-        })
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        const err = new Error('OpenAI error: ' + txt);
-        err.status = res.status;
+    // Helper: call OpenAI with AbortController timeout
+    async function callOpenAIWithTimeout(messages, temperature = 0.2, timeoutMs = 15000, maxTokens = 500) {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${OPENAI_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages,
+            max_tokens: maxTokens,
+            temperature
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(id);
+        if (!res.ok) {
+          const txt = await res.text();
+          const err = new Error('OpenAI error: ' + txt);
+          err.status = res.status;
+          throw err;
+        }
+        return res.json();
+      } catch (err) {
+        clearTimeout(id);
+        if (err.name === 'AbortError') {
+          throw new Error('OpenAI request timeout');
+        }
         throw err;
       }
-      return res.json();
     }
 
-    // Robust JSON extraction: find a balanced JSON object substring.
-    // Handles quoted strings and escape sequences.
+    // Balanced JSON extractor (same robust approach)
     function extractBalancedJSON(text) {
       if (!text || typeof text !== 'string') return null;
-      // find first '{'
       const first = text.indexOf('{');
       if (first === -1) return null;
 
@@ -112,7 +119,6 @@ Return ONLY the JSON object (no commentary).
           } else if (ch === '}') {
             depth--;
             if (depth === 0 && start !== -1) {
-              // return substring start..i
               return text.slice(start, i + 1);
             }
           }
@@ -137,67 +143,58 @@ Return ONLY the JSON object (no commentary).
       return null;
     }
 
-    // Try first request
     const systemMsg = { role: 'system', content: 'You are a JSON generator. Output ONLY valid JSON matching the schema requested. Do not include any explanation, commentary, or code fences.' };
     const userMsg = { role: 'user', content: prompt };
 
-    const firstOpenai = await callOpenAI([systemMsg, userMsg], 0.2);
-    const firstContent = firstOpenai.choices?.[0]?.message?.content || '';
-    console.log('OpenAI raw output (first):', firstContent);
-
-    // Attempt direct parse
+    // Try first with timeout
     let parsed = null;
-    let modelOutputs = { first: firstContent, retry: null };
-
-    // Trim BOM and whitespace
-    const cleanedFirst = (firstContent || '').trim();
+    let modelOutputs = { first: null, retry: null };
 
     try {
-      parsed = JSON.parse(cleanedFirst);
-    } catch (e1) {
-      // Try to extract balanced JSON substring
-      const candidate = extractBalancedJSON(cleanedFirst);
-      if (candidate) {
-        try {
-          parsed = JSON.parse(candidate);
-        } catch (e2) {
-          parsed = null;
+      const firstOpenai = await callOpenAIWithTimeout([systemMsg, userMsg], 0.2, 15000, 500);
+      const firstContent = firstOpenai.choices?.[0]?.message?.content || '';
+      modelOutputs.first = firstContent;
+      console.log('OpenAI raw output (first):', firstContent);
+
+      try {
+        parsed = JSON.parse(firstContent.trim());
+      } catch (e1) {
+        const candidate = extractBalancedJSON(firstContent.trim());
+        if (candidate) {
+          try { parsed = JSON.parse(candidate); } catch (e2) { parsed = null; }
         }
       }
+    } catch (err) {
+      console.warn('First OpenAI call failed or timed out:', err.message || err);
     }
 
-    // If parsed still null, retry once (clarifying prompt, temperature 0.0)
+    // Retry once if parse failed
     if (!parsed) {
-      console.log('First parse failed, retrying with clarifying prompt...');
-      const retryMsg = {
-        role: 'user',
-        content: `The previous response was not valid JSON. Please return ONLY the JSON object matching the schema (no commentary, no code fences). Here is the same input again:\n\n${prompt}`
-      };
       try {
-        const retryOpenai = await callOpenAI([systemMsg, retryMsg], 0.0);
+        console.log('First parse failed or timed out, retrying with stricter prompt and 15s timeout...');
+        const retryMsg = {
+          role: 'user',
+          content: `The previous response was not valid JSON. Please return ONLY the JSON object matching the schema (no commentary, no code fences). Here is the same input again:\n\n${prompt}`
+        };
+        const retryOpenai = await callOpenAIWithTimeout([systemMsg, retryMsg], 0.0, 15000, 500);
         const retryContent = retryOpenai.choices?.[0]?.message?.content || '';
         modelOutputs.retry = retryContent;
         console.log('OpenAI raw output (retry):', retryContent);
 
-        const cleanedRetry = retryContent.trim();
         try {
-          parsed = JSON.parse(cleanedRetry);
+          parsed = JSON.parse(retryContent.trim());
         } catch (e3) {
-          const candidate2 = extractBalancedJSON(cleanedRetry);
+          const candidate2 = extractBalancedJSON(retryContent.trim());
           if (candidate2) {
-            try {
-              parsed = JSON.parse(candidate2);
-            } catch (e4) {
-              parsed = null;
-            }
+            try { parsed = JSON.parse(candidate2); } catch (e4) { parsed = null; }
           }
         }
       } catch (retryErr) {
-        console.error('Retry OpenAI call failed', retryErr);
+        console.warn('Retry OpenAI call failed or timed out:', retryErr.message || retryErr);
       }
     }
 
-    // If still not parsed, return fallback with raw outputs for debugging
+    // If still not parsed, return fast fallback (headlines) so UI doesn't block
     if (!parsed) {
       const fallback = {
         tldr: articles.slice(0, 3).map(a => a.title || '').filter(Boolean),
@@ -205,10 +202,11 @@ Return ONLY the JSON object (no commentary).
         movers: [],
         watchList: [],
         headlines: articles.slice(0, 6),
-        // Provide raw model outputs so we can see what the model returned (remove in production)
         modelOutputFirst: modelOutputs.first,
         modelOutputRetry: modelOutputs.retry
       };
+      console.log('Returning fallback morning brief (AI failed or timed out).');
+      console.log('Fallback preview:', JSON.stringify({ tldr: fallback.tldr, headlines: fallback.headlines.length }, null, 2));
       return { statusCode: 200, body: JSON.stringify(fallback) };
     }
 
@@ -223,6 +221,17 @@ Return ONLY the JSON object (no commentary).
       });
     } else {
       parsed.headlines = articles.slice(0, 6);
+    }
+
+    // Log a short preview of the outgoing payload and return
+    try {
+      const preview = {
+        tldrCount: Array.isArray(parsed.tldr) ? parsed.tldr.length : 0,
+        headlinesCount: Array.isArray(parsed.headlines) ? parsed.headlines.length : 0
+      };
+      console.log('Returning parsed morning brief preview:', preview);
+    } catch (e) {
+      // ignore logging errors
     }
 
     return {
