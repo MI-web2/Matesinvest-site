@@ -71,63 +71,42 @@
     .nav-home-link{padding:0.35rem 0.8rem;border-radius:999px;border:1px solid var(--border);text-decoration:none;color:#fff;background:rgba(255,255,255,0.03)}
     .nav-home-link:hover{background:rgba(255,255,255,0.06)}
 
-    /* Hero */
+    /* Card */
     .card { background: var(--card); border-radius: var(--radius); padding:1.25rem; margin-bottom:1rem; border:1px solid var(--card-border) }
     .card-hero h1{margin:0;font-size:1.4rem}
     .card-hero p{margin:0.35rem 0 0;color:var(--muted)}
 
-    /* Controls */
+    /* Morning brief */
+    .brief-header { display:flex; align-items:center; gap:0.75rem; justify-content:space-between; }
+    .brief-controls { display:flex; gap:0.5rem; align-items:center; }
+    .brief-toggle { padding:0.36rem 0.7rem; border-radius:999px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer }
+    .brief-toggle.primary { background:var(--accent); color:#00110a; font-weight:700; border:1px solid rgba(0,0,0,0.06) }
+
+    .brief-content { margin-top:0.9rem; display:none; }
+    .brief-loading { color:var(--muted); font-size:0.95rem }
+
+    .brief-tldr { display:flex; gap:0.6rem; flex-direction:column; margin-top:0.5rem }
+    .brief-bullet { background:rgba(255,255,255,0.02); padding:0.45rem; border-radius:8px; border:1px solid rgba(255,255,255,0.03) }
+
+    /* Controls & chips (existing) */
     .controls { display:flex; gap:var(--gap); align-items:center; flex-wrap:wrap; margin-top:0.6rem; }
-    .segmented {
-      display:inline-flex;
-      background:var(--glass);
-      border-radius:999px;
-      padding:3px;
-      gap:4px;
-      border:1px solid var(--border);
-    }
-    .segmented button{
-      background:transparent;
-      border:0;
-      padding:0.45rem 0.85rem;
-      color:var(--muted);
-      border-radius:999px;
-      cursor:pointer;
-      font-size:0.88rem;
-      transition: all .16s ease;
-    }
-    .segmented button.active{
-      background: linear-gradient(180deg,var(--accent), var(--accent-strong));
-      color:#00110a;
-      box-shadow: 0 6px 18px rgba(47,143,95,0.12), inset 0 -1px 0 rgba(0,0,0,0.06);
-    }
+    .segmented { display:inline-flex; background:var(--glass); border-radius:999px; padding:3px; gap:4px; border:1px solid var(--border); }
+    .segmented button{ background:transparent; border:0; padding:0.45rem 0.85rem; color:var(--muted); border-radius:999px; cursor:pointer; font-size:0.88rem; transition: all .16s ease; }
+    .segmented button.active{ background: linear-gradient(180deg,var(--accent), var(--accent-strong)); color:#00110a; box-shadow: 0 6px 18px rgba(47,143,95,0.12), inset 0 -1px 0 rgba(0,0,0,0.06); }
 
     .chip-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem}
-    .chip{
-      padding:0.32rem 0.7rem;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem;
-      transition: all .14s ease;
-    }
+    .chip{ padding:0.32rem 0.7rem;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem; transition: all .14s ease; }
     .chip:hover{background:rgba(255,255,255,0.02)}
     .chip-active{background:var(--accent-soft);color:#fff;border-color:var(--accent)}
 
-    /* Sport filter row (for MatesMode) */
     .sport-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem}
-    .sport-chip{
-      padding:0.28rem 0.6rem;border-radius:999px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem;
-    }
+    .sport-chip{ padding:0.28rem 0.6rem;border-radius:999px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem; }
     .sport-chip.active{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:#fff;box-shadow:inset 0 -1px 0 rgba(0,0,0,0.05)}
     .sport-tag{display:inline-block;padding:0.12rem 0.5rem;border-radius:999px;background:rgba(255,255,255,0.03);font-size:0.78rem;color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
 
     /* News list */
     #newsList{margin-top:0.85rem; display:flex;flex-direction:column; gap:0.85rem}
-    .headline{
-      display:block;
-      padding:0.95rem;
-      border-radius:12px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-      border:1px solid var(--card-border);
-      transition: transform .12s ease, box-shadow .12s ease;
-    }
+    .headline{ display:block; padding:0.95rem; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid var(--card-border); transition: transform .12s ease, box-shadow .12s ease; }
     .headline:hover{ transform: translateY(-3px); box-shadow: 0 10px 30px rgba(2,6,23,0.55) }
 
     .meta-row{ display:flex; align-items:center; gap:0.6rem; justify-content:space-between }
@@ -136,10 +115,7 @@
     .headline small{ color:var(--muted-2); font-size:0.82rem; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
     .headline .actions{ display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem }
 
-    .btn{
-      background:var(--accent); border:none; padding:0.5rem 0.95rem; border-radius:999px; cursor:pointer; color:#00110a; font-weight:700; font-size:0.86rem;
-      transition: transform .08s ease, opacity .12s ease;
-    }
+    .btn{ background:var(--accent); border:none; padding:0.5rem 0.95rem; border-radius:999px; cursor:pointer; color:#00110a; font-weight:700; font-size:0.86rem; transition: transform .08s ease, opacity .12s ease; }
     .btn:active{ transform: translateY(1px) }
     .btn:disabled{ opacity:0.6; cursor:default }
 
@@ -148,20 +124,11 @@
 
     .summary-output{ margin-top:0.65rem }
 
-    .summary-block{
-      margin-top:0.45rem;
-      border-top:1px dashed rgba(255,255,255,0.04);
-      padding-top:0.6rem;
-      font-size:0.95rem;
-      color: #fff;
-    }
+    .summary-block{ margin-top:0.45rem; border-top:1px dashed rgba(255,255,255,0.04); padding-top:0.6rem; font-size:0.95rem; color: #fff; }
     .summary-block p{margin:0.45rem 0}
     .tldr-list{ margin:0.35rem 0 0 0.85rem; padding:0; list-style:none; color:var(--muted) }
     .tldr-list li{ margin:0.25rem 0; position:relative; padding-left:1.05rem }
-    .tldr-list li::before{
-      content:"";
-      width:8px;height:8px;border-radius:2px;background:var(--accent);position:absolute;left:0.15rem;top:0.55rem;box-shadow:0 1px 0 rgba(0,0,0,0.2)
-    }
+    .tldr-list li::before{ content:""; width:8px;height:8px;border-radius:2px;background:var(--accent);position:absolute;left:0.15rem;top:0.55rem;box-shadow:0 1px 0 rgba(0,0,0,0.2) }
 
     .summary-meta{ color:var(--muted-2); font-size:0.82rem; margin-top:0.45rem }
 
@@ -174,11 +141,9 @@
     .stat-row { display:flex; gap:1rem; flex-wrap:wrap; color:var(--muted-2); font-size:0.92rem; margin-top:0.45rem }
     .stat-pill { padding:0.18rem 0.6rem; border-radius:999px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.02) }
 
-    /* Skeleton */
     .skeleton{ background:linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06), rgba(255,255,255,0.03)); border-radius:8px; height:68px; animation: shimmer 1.2s linear infinite; }
     @keyframes shimmer{ 0%{ background-position:-120px 0 } 100%{ background-position:220px 0 } }
 
-    /* small screens */
     @media (max-width:640px){
       .meta-row{ flex-direction:column; align-items:flex-start; gap:0.5rem }
       .headline h3{ white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
@@ -205,11 +170,38 @@
 
   <div class="page-shell">
 
+    <!-- HERO -->
     <section class="card card-hero">
       <h1>MatesFeed</h1>
       <p>Your daily, plain-English investing brief — now with MatesMode.</p>
     </section>
 
+    <!-- MORNING BRIEF -->
+    <section id="morningBrief" class="card">
+      <div class="brief-header">
+        <div>
+          <h2 style="margin:0">Morning Briefing</h2>
+          <div style="color:var(--muted);font-size:0.92rem;margin-top:0.35rem">A short note on what could move markets in Australia today.</div>
+        </div>
+
+        <div class="brief-controls">
+          <select id="briefRegion" class="brief-toggle" aria-label="Region">
+            <option value="au" selected>Australia (ASX)</option>
+            <option value="us">US</option>
+            <option value="global">Global</option>
+          </select>
+
+          <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
+          <button id="refreshBrief" class="brief-toggle" title="Refresh">Refresh</button>
+        </div>
+      </div>
+
+      <div id="briefContent" class="brief-content" aria-live="polite">
+        <!-- injected by JS -->
+      </div>
+    </section>
+
+    <!-- LATEST HEADLINES -->
     <section id="news" class="card" aria-labelledby="latest-headlines">
       <h2 id="latest-headlines">Latest Headlines</h2>
 
@@ -234,16 +226,14 @@
         <button class="chip" data-category="other">Other</button>
       </div>
 
-      <!-- Sport filter row: shown when MatesMode is active and sports exist -->
-      <div id="sportFilterRow" class="sport-row" style="display:none; margin-top:0.6rem;" aria-label="Filter sports">
-        <!-- dynamically populated -->
-      </div>
+      <div id="sportFilterRow" class="sport-row" style="display:none; margin-top:0.6rem;" aria-label="Filter sports"></div>
 
       <div id="newsList" style="margin-top:0.9rem;">Loading…</div>
     </section>
   </div>
 
 <script>
+  /* ---------- Globals & helpers ---------- */
   const newsList = document.getElementById("newsList");
   const toggleMarket = document.getElementById("toggleMarket");
   const toggleMates = document.getElementById("toggleMates");
@@ -251,18 +241,33 @@
   const feedStatus = document.getElementById("feedStatus");
   const sportFilterRow = document.getElementById("sportFilterRow");
 
+  const openBriefBtn = document.getElementById("openBrief");
+  const briefContent = document.getElementById("briefContent");
+  const refreshBriefBtn = document.getElementById("refreshBrief");
+  const briefRegionSelect = document.getElementById("briefRegion");
+
   let allArticles = [];
   let currentCategory = "all";
   const selectedSports = new Set();
+  let briefLoadedFor = null; // tracks which region the brief was loaded for
 
-  function categoryFromArticle(article) {
-    const title = (article.title || "").toLowerCase();
-    if (title.match(/energy|oil|coal|gas|mining/)) return "energy";
-    if (title.match(/tech|software|ai|chip|cloud/)) return "tech";
-    if (title.match(/inflation|rate|central bank|macro/)) return "macro";
-    return "other";
+  function escapeHtml(str = "") {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
+  function formatTime(iso) {
+    try {
+      const d = new Date(iso);
+      if (isNaN(d)) return "";
+      return new Intl.DateTimeFormat(undefined, { dateStyle:'short', timeStyle:'short' }).format(d);
+    } catch { return iso || ""; }
+  }
+
+  /* ---------- Feeds ---------- */
   async function getMarketFeed() {
     try {
       const res = await fetch("/.netlify/functions/newsFeed");
@@ -284,14 +289,6 @@
     }
   }
 
-  function formatTime(iso) {
-    try {
-      const d = new Date(iso);
-      if (isNaN(d)) return "";
-      return new Intl.DateTimeFormat(undefined, { dateStyle:'short', timeStyle:'short' }).format(d);
-    } catch { return iso || ""; }
-  }
-
   function showSkeleton(count = 4) {
     newsList.innerHTML = "";
     for (let i=0;i<count;i++){
@@ -307,6 +304,28 @@
       newsList.appendChild(div);
     }
   }
+
+  /* ---------- Mates/OpenAI summary helper ---------- */
+  async function callMatesSummary(payload) {
+    const res = await fetch("/.netlify/functions/matesSummary", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Summary request failed");
+    return res.json();
+  }
+
+  /* ---------- Category detection ---------- */
+  function categoryFromArticle(article) {
+    const title = (article.title || "").toLowerCase();
+    if (title.match(/energy|oil|coal|gas|mining/)) return "energy";
+    if (title.match(/tech|software|ai|chip|cloud/)) return "tech";
+    if (title.match(/inflation|rate|central bank|macro/)) return "macro";
+    return "other";
+  }
+
+  /* ---------- Rendering market & mates mode (full) ---------- */
 
   function renderSummary(s) {
     if (!s) return `<div class="summary-block">No summary available.</div>`;
@@ -336,27 +355,73 @@
     `;
   }
 
-  function escapeHtml(str = "") {
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+  function getSportIcon(ev) {
+    const league = (ev.league || "").toLowerCase();
+    const sport = (ev.sport || "").toLowerCase();
+
+    if (league.includes("nrl") || sport.includes("league")) return "🏉";
+    if (league.includes("afl")) return "🏉";
+    if (league.includes("nba") || sport.includes("basketball")) return "🏀";
+    if (league.includes("epl") || league.includes("premier") || sport.includes("soccer")) return "⚽";
+    if (sport.includes("cricket") || league.includes("bbl")) return "🏏";
+    if (league.includes("mlb") || sport.includes("baseball")) return "⚾";
+    if (league.includes("nfl") || sport.includes("football")) return "🏈";
+    if (league.includes("nhl") || sport.includes("hockey")) return "🏒";
+    if (sport.includes("f1") || sport.includes("formula")) return "🏎️";
+    if (sport.includes("tennis")) return "🎾";
+    if (sport.includes("golf")) return "⛳";
+    return "🎯";
   }
 
-  async function callMatesSummary(payload) {
-    const res = await fetch("/.netlify/functions/matesSummary", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload),
+  function renderSportFilters(sportLabels = []) {
+    sportFilterRow.innerHTML = "";
+    if (!sportLabels || !sportLabels.length) {
+      sportFilterRow.style.display = "none";
+      return;
+    }
+    sportFilterRow.style.display = "flex";
+
+    const allBtn = document.createElement("button");
+    allBtn.className = "sport-chip" + (selectedSports.size === 0 ? " active" : "");
+    allBtn.textContent = "All sports";
+    allBtn.dataset.sport = "all";
+    allBtn.onclick = () => {
+      selectedSports.clear();
+      [...sportFilterRow.children].forEach(c => c.classList.remove("active"));
+      allBtn.classList.add("active");
+      renderMatesMode();
+    };
+    sportFilterRow.appendChild(allBtn);
+
+    sportLabels.forEach(label => {
+      const btn = document.createElement("button");
+      btn.className = "sport-chip" + (selectedSports.has(label.toLowerCase()) ? " active" : "");
+      btn.textContent = label;
+      btn.dataset.sport = label.toLowerCase();
+      btn.title = `Toggle ${label}`;
+      btn.onclick = () => {
+        const allChip = sportFilterRow.querySelector('button[data-sport="all"]');
+        if (allChip) allChip.classList.remove("active");
+
+        const key = label.toLowerCase();
+        if (selectedSports.has(key)) {
+          selectedSports.delete(key);
+          btn.classList.remove("active");
+          if (selectedSports.size === 0) {
+            if (allChip) allChip.classList.add("active");
+          }
+        } else {
+          selectedSports.add(key);
+          btn.classList.add("active");
+        }
+        renderMatesMode();
+      };
+      sportFilterRow.appendChild(btn);
     });
-    if (!res.ok) throw new Error("Summary request failed");
-    return res.json();
   }
 
-  /* render market list (original mode) */
-  function renderMarketMode() {
-    sportFilterRow.style.display = "none"; // hide sport filters in market mode
+  async function renderMarketMode() {
+    sportFilterRow.style.display = "none";
     newsList.innerHTML = "";
     const filtered = allArticles.filter(a =>
       currentCategory === "all" || categoryFromArticle(a) === currentCategory
@@ -422,71 +487,6 @@
       });
 
       newsList.appendChild(item);
-    });
-  }
-
-  function getSportIcon(ev) {
-    const league = (ev.league || "").toLowerCase();
-    const sport = (ev.sport || "").toLowerCase();
-
-    if (league.includes("nrl") || sport.includes("league")) return "🏉";
-    if (league.includes("afl")) return "🏉";
-    if (league.includes("nba") || sport.includes("basketball")) return "🏀";
-    if (league.includes("epl") || league.includes("premier") || sport.includes("soccer")) return "⚽";
-    if (sport.includes("cricket") || league.includes("bbl")) return "🏏";
-    if (league.includes("mlb") || sport.includes("baseball")) return "⚾";
-    if (league.includes("nfl") || sport.includes("football")) return "🏈";
-    if (league.includes("nhl") || sport.includes("hockey")) return "🏒";
-    if (sport.includes("f1") || sport.includes("formula")) return "🏎️";
-    if (sport.includes("tennis")) return "🎾";
-    if (sport.includes("golf")) return "⛳";
-    return "🎯";
-  }
-
-  function renderSportFilters(sportLabels = []) {
-    sportFilterRow.innerHTML = "";
-    if (!sportLabels || !sportLabels.length) {
-      sportFilterRow.style.display = "none";
-      return;
-    }
-    sportFilterRow.style.display = "flex";
-
-    const allBtn = document.createElement("button");
-    allBtn.className = "sport-chip" + (selectedSports.size === 0 ? " active" : "");
-    allBtn.textContent = "All sports";
-    allBtn.dataset.sport = "all";
-    allBtn.onclick = () => {
-      selectedSports.clear();
-      [...sportFilterRow.children].forEach(c => c.classList.remove("active"));
-      allBtn.classList.add("active");
-      renderMatesMode();
-    };
-    sportFilterRow.appendChild(allBtn);
-
-    sportLabels.forEach(label => {
-      const btn = document.createElement("button");
-      btn.className = "sport-chip" + (selectedSports.has(label.toLowerCase()) ? " active" : "");
-      btn.textContent = label;
-      btn.dataset.sport = label.toLowerCase();
-      btn.title = `Toggle ${label}`;
-      btn.onclick = () => {
-        const allChip = sportFilterRow.querySelector('button[data-sport="all"]');
-        if (allChip) allChip.classList.remove("active");
-
-        const key = label.toLowerCase();
-        if (selectedSports.has(key)) {
-          selectedSports.delete(key);
-          btn.classList.remove("active");
-          if (selectedSports.size === 0) {
-            if (allChip) allChip.classList.add("active");
-          }
-        } else {
-          selectedSports.add(key);
-          btn.classList.add("active");
-        }
-        renderMatesMode();
-      };
-      sportFilterRow.appendChild(btn);
     });
   }
 
@@ -615,7 +615,7 @@ Status: ${ev.status}
             }
           };
 
-          // Attach our on-demand Stats handler (calls event-details function)
+          // Attach stats handler (on-demand event-details)
           attachStatsHandler(statsBtn, statsArea, ev);
 
           newsList.appendChild(div);
@@ -683,7 +683,7 @@ Status: ${ev.status}
     }
   }
 
-  // RICH STATS HELPERS: fetch event details from your Netlify function, parse goal strings, render box/lineups
+  /* ---------- RICH STATS HELPERS (event-details client) ---------- */
 
   async function fetchEventDetails(eventId) {
     const res = await fetch(`/.netlify/functions/event-details?id=${encodeURIComponent(eventId)}`);
@@ -795,7 +795,6 @@ Status: ${ev.status}
     `;
   }
 
-  // Attach a stats handler to the Stats button (call inside your card creation for each sport)
   async function attachStatsHandler(statsBtn, statsArea, ev) {
     statsBtn.onclick = async () => {
       try {
@@ -813,7 +812,6 @@ Status: ${ev.status}
         if (!eventId) throw new Error('Event id not available.');
 
         const details = await fetchEventDetails(eventId);
-        // attach the raw object into details.raw if missing (some netlify function versions return raw)
         statsArea.innerHTML = renderBoxScoreAndPlayers(details);
         statsArea.style.display = 'block';
         statsBtn.textContent = 'Hide';
@@ -827,7 +825,71 @@ Status: ${ev.status}
     };
   }
 
-  /* Toggles & categories */
+  /* ---------- Morning brief handlers ---------- */
+
+  function renderMorningBrief(payload) {
+    if (!payload) {
+      briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
+      return;
+    }
+
+    const tldrHtml = (payload.tldr || []).map(b => `<div class="brief-bullet">• ${escapeHtml(b)}</div>`).join("");
+    const moversHtml = (payload.movers || []).map(m => `<div style="display:flex;gap:0.5rem;align-items:center"><div class="stat-pill">${escapeHtml(m.name)}</div><div style="color:var(--muted)">${escapeHtml(m.move)}</div></div>`).join("");
+    const headlinesHtml = (payload.headlines || []).map(h => `<div style="margin-top:0.4rem"><a href="${escapeHtml(h.url)}" target="_blank" style="color:var(--accent)">${escapeHtml(h.title)}</a><div style="color:var(--muted);font-size:0.9rem">${escapeHtml(h.source)} · ${escapeHtml(h.publishedAt)}</div></div>`).join("");
+
+    briefContent.innerHTML = `
+      <div>
+        ${payload.summaryHtml ? `<div>${payload.summaryHtml}</div>` : ''}
+        ${tldrHtml ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">TL;DR</strong>${tldrHtml}</div>` : ''}
+        ${moversHtml ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">Market movers</strong>${moversHtml}</div>` : ''}
+        ${payload.watchList && payload.watchList.length ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">What to watch</strong>${payload.watchList.map(w => `<div style="color:var(--muted);margin-top:0.25rem">• ${escapeHtml(w)}</div>`).join('')}</div>` : ''}
+        ${headlinesHtml ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">Top headlines</strong>${headlinesHtml}</div>` : ''}
+        <div style="margin-top:0.8rem;font-size:0.86rem;color:var(--muted)"><em>Generated with AI and news headlines (not financial advice).</em></div>
+      </div>
+    `;
+  }
+
+  openBriefBtn.addEventListener("click", async () => {
+    const region = briefRegionSelect.value || "au";
+    if (briefContent.style.display === "block") {
+      briefContent.style.display = "none";
+      openBriefBtn.textContent = "Open morning brief";
+      return;
+    }
+
+    briefContent.style.display = "block";
+    openBriefBtn.textContent = "Hide brief";
+
+    if (briefLoadedFor === region) return;
+    briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
+    try {
+      const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || 'Brief fetch failed');
+      }
+      const payload = await res.json();
+      renderMorningBrief(payload);
+      briefLoadedFor = region;
+    } catch (err) {
+      console.error('Morning brief failed', err);
+      briefContent.innerHTML = `<div class="brief-loading">Failed to load morning brief.</div>`;
+    }
+  });
+
+  refreshBriefBtn.addEventListener("click", async () => {
+    briefLoadedFor = null;
+    if (!(briefContent.style.display === "block")) {
+      openBriefBtn.click();
+    } else {
+      // force refresh by toggling
+      openBriefBtn.click();
+      openBriefBtn.click();
+    }
+  });
+
+  /* ---------- Toggles & category handling ---------- */
+
   function setActiveToggle(isMarket) {
     if (isMarket) {
       toggleMarket.classList.add("active");
@@ -871,7 +933,8 @@ Status: ${ev.status}
     }
   };
 
-  (async function init(){
+  /* ---------- Initial load ---------- */
+  (async function init() {
     try {
       feedStatus.textContent = "Loading…";
       showSkeleton(4);
