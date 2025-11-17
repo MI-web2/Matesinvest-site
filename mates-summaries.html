@@ -615,16 +615,8 @@ Status: ${ev.status}
             }
           };
 
-          statsBtn.onclick = () => {
-            if (statsArea.style.display === "none" || statsArea.style.display === "") {
-              statsArea.innerHTML = renderEventStats(ev);
-              statsArea.style.display = "block";
-              statsBtn.textContent = "Hide";
-            } else {
-              statsArea.style.display = "none";
-              statsBtn.textContent = "Stats";
-            }
-          };
+          // Attach our on-demand Stats handler (calls event-details function)
+          attachStatsHandler(statsBtn, statsArea, ev);
 
           newsList.appendChild(div);
         } else {
@@ -691,7 +683,16 @@ Status: ${ev.status}
     }
   }
 
-  // RICH STATS RENDERING HELPERS
+  // RICH STATS HELPERS: fetch event details from your Netlify function, parse goal strings, render box/lineups
+
+  async function fetchEventDetails(eventId) {
+    const res = await fetch(`/.netlify/functions/event-details?id=${encodeURIComponent(eventId)}`);
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Event details request failed: ${res.status} ${txt}`);
+    }
+    return res.json();
+  }
 
   function parseGoalDetails(raw) {
     if (!raw || !raw.trim()) return [];
@@ -715,25 +716,21 @@ Status: ${ev.status}
     </div>`;
   }
 
-  function renderEventStats(ev = {}) {
-    const home = ev.home || ev.homeTeam || '';
-    const away = ev.away || ev.awayTeam || '';
-    const homeScore = (ev.homeScore !== undefined && ev.homeScore !== null) ? ev.homeScore : (ev.scoreHome || null);
-    const awayScore = (ev.awayScore !== undefined && ev.awayScore !== null) ? ev.awayScore : (ev.scoreAway || null);
-    const status = ev.status || ev.state || '';
-    const venue = ev.venue || ev.location || '';
-    const time = formatTime(ev.localTime || ev.utcTime || ev.time);
-    const season = ev.season || '';
-    const description = ev.description || '';
+  function renderBoxScoreAndPlayers(ev) {
+    if (!ev) return `<div style="color:var(--muted)">No stats available.</div>`;
 
-    const homeGoalsRaw = ev.homeGoalDetails || ev.raw?.strHomeGoalDetails || '';
-    const awayGoalsRaw = ev.awayGoalDetails || ev.raw?.strAwayGoalDetails || '';
-    const homeShots = (ev.homeShots !== undefined && ev.homeShots !== null) ? ev.homeShots : ev.raw?.intHomeShots || null;
-    const awayShots = (ev.awayShots !== undefined && ev.awayShots !== null) ? ev.awayShots : ev.raw?.intAwayShots || null;
+    const home = escapeHtml(ev.home || '');
+    const away = escapeHtml(ev.away || '');
+    const homeScore = (ev.homeScore !== null && ev.homeScore !== undefined) ? escapeHtml(String(ev.homeScore)) : '—';
+    const awayScore = (ev.awayScore !== null && ev.awayScore !== undefined) ? escapeHtml(String(ev.awayScore)) : '—';
 
-    const timeline = [];
-    parseGoalDetails(homeGoalsRaw).forEach(it => timeline.push({side: 'home', ...it}));
-    parseGoalDetails(awayGoalsRaw).forEach(it => timeline.push({side: 'away', ...it}));
+    const shotsRow = (ev.homeShots !== null || ev.awayShots !== null)
+      ? `<div class="stat-row"><div class="stat-pill">Shots: ${ev.homeShots !== null ? escapeHtml(String(ev.homeShots)) : '—'} — ${ev.awayShots !== null ? escapeHtml(String(ev.awayShots)) : '—'}</div></div>`
+      : '';
+
+    const timelineItems = [];
+    (parseGoalDetails(ev.homeGoalDetails || ev.raw?.strHomeGoalDetails || '')).forEach(it => timelineItems.push({side:'home', ...it}));
+    (parseGoalDetails(ev.awayGoalDetails || ev.raw?.strAwayGoalDetails || '')).forEach(it => timelineItems.push({side:'away', ...it}));
 
     const minuteToNumber = m => {
       if (!m) return 9999;
@@ -744,69 +741,90 @@ Status: ${ev.status}
       }
       return Number(clean);
     };
-    timeline.sort((a,b) => minuteToNumber(a.minute) - minuteToNumber(b.minute));
+    timelineItems.sort((a,b) => minuteToNumber(a.minute) - minuteToNumber(b.minute));
 
-    const rows = [];
-    rows.push(`<div class="stat-row">
-      <div class="stat-pill"><strong>${escapeHtml(String(home || ''))}</strong> ${homeScore !== null ? `<span style="opacity:0.9"> ${escapeHtml(String(homeScore))}</span>` : ''}</div>
-      <div style="align-self:center;color:var(--muted)">vs</div>
-      <div class="stat-pill"><strong>${escapeHtml(String(away || ''))}</strong> ${awayScore !== null ? `<span style="opacity:0.9"> ${escapeHtml(String(awayScore))}</span>` : ''}</div>
-      <div style="margin-left:auto;color:var(--muted)">${escapeHtml(status)}</div>
-    </div>`);
-
-    if (venue || season || time) {
-      rows.push(`<div class="stat-row">
-        ${venue ? `<div class="stat-pill">📍 ${escapeHtml(venue)}</div>` : ''}
-        ${season ? `<div class="stat-pill">Season: ${escapeHtml(season)}</div>` : ''}
-        ${time ? `<div class="stat-pill">⏱ ${escapeHtml(time)}</div>` : ''}
-      </div>`);
-    }
-
-    if (homeShots !== null || awayShots !== null) {
-      rows.push(`<div class="stat-row">
-        <div class="stat-pill">Shots: ${homeShots !== null ? escapeHtml(String(homeShots)) : '—' } — ${awayShots !== null ? escapeHtml(String(awayShots)) : '—'}</div>
-      </div>`);
-    }
-
-    if (timeline.length) {
-      rows.push(`<div style="margin-top:0.45rem"><strong style="color:var(--muted-2)">Timeline</strong>
+    const timelineHtml = timelineItems.length ? `
+      <div style="margin-top:0.45rem"><strong style="color:var(--muted-2)">Timeline</strong>
         <div class="event-timeline">
-          ${timeline.map(evItem => `
+          ${timelineItems.map(it => `
             <div class="timeline-item">
-              <div class="timeline-bullet" aria-hidden="true" style="background:${evItem.side === 'home' ? 'var(--accent)' : 'rgba(255,255,255,0.16)'}"></div>
+              <div class="timeline-bullet" aria-hidden="true" style="background:${it.side === 'home' ? 'var(--accent)' : 'rgba(255,255,255,0.16)'}"></div>
               <div style="display:flex;gap:0.5rem;align-items:flex-start">
-                <div class="timeline-min">${escapeHtml(evItem.minute || '')}</div>
-                <div style="max-width:680px;color:var(--muted)">${escapeHtml(evItem.text || '')}</div>
+                <div class="timeline-min">${escapeHtml(it.minute || '')}</div>
+                <div style="max-width:680px;color:var(--muted)">${escapeHtml(it.text || '')}</div>
               </div>
-            </div>
-          `).join('')}
+            </div>`).join('')}
         </div>
-      </div>`);
+      </div>` : '';
+
+    const homeLineupHtml = ev.homeLineupGoalkeeper || ev.homeLineupDefense || ev.homeLineupMidfield || ev.homeLineupForward
+      ? renderLineupSection('Home lineups', (ev.homeLineupGoalkeeper || '') + (ev.homeLineupDefense ? ', ' + ev.homeLineupDefense : '') + (ev.homeLineupMidfield ? ', ' + ev.homeLineupMidfield : '') + (ev.homeLineupForward ? ', ' + ev.homeLineupForward : ''))
+      : '';
+    const awayLineupHtml = ev.awayLineupGoalkeeper || ev.awayLineupDefense || ev.awayLineupMidfield || ev.awayLineupForward
+      ? renderLineupSection('Away lineups', (ev.awayLineupGoalkeeper || '') + (ev.awayLineupDefense ? ', ' + ev.awayLineupDefense : '') + (ev.awayLineupMidfield ? ', ' + ev.awayLineupMidfield : '') + (ev.awayLineupForward ? ', ' + ev.awayLineupForward : ''))
+      : '';
+
+    let playersHtml = '';
+    if (Array.isArray(ev.raw?.player) && ev.raw.player.length) {
+      playersHtml = `<div style="margin-top:0.5rem"><strong style="color:var(--muted-2)">Players</strong>
+        <div style="margin-top:0.4rem">
+          ${ev.raw.player.map(p => `<div style="display:flex;gap:0.8rem;align-items:center"><div style="width:36px">${escapeHtml(p.number || '')}</div><div><strong>${escapeHtml(p.name)}</strong> <div style="color:var(--muted-2);font-size:0.9rem">${escapeHtml(p.position || '')} ${p.goals ? `• Goals: ${escapeHtml(String(p.goals))}` : ''}</div></div></div>`).join('')}
+        </div></div>`;
+    } else {
+      playersHtml = `<div style="margin-top:0.35rem;color:var(--muted)">Per-player box stats not available from TheSportsDB for this event. Use a sport-specific provider (e.g. balldontlie for NBA) for full box scores.</div>`;
     }
 
-    const homeLineup = renderLineupSection('Home goalkeeper & lineups', (ev.homeLineupGoalkeeper || '') + (ev.homeLineupDefense ? ', ' + ev.homeLineupDefense : '') + (ev.homeLineupMidfield ? ', ' + ev.homeLineupMidfield : '') + (ev.homeLineupForward ? ', ' + ev.homeLineupForward : ''));
-    const awayLineup = renderLineupSection('Away goalkeeper & lineups', (ev.awayLineupGoalkeeper || '') + (ev.awayLineupDefense ? ', ' + ev.awayLineupDefense : '') + (ev.awayLineupMidfield ? ', ' + ev.awayLineupMidfield : '') + (ev.awayLineupForward ? ', ' + ev.awayLineupForward : ''));
+    const notesHtml = ev.description ? `<details style="margin-top:0.5rem"><summary style="cursor:pointer;color:var(--muted-2)">Match notes</summary><div style="margin-top:0.4rem;color:var(--muted-2)">${escapeHtml(ev.description)}</div></details>` : '';
 
-    if (homeLineup || awayLineup) {
-      rows.push(`<details style="margin-top:0.6rem">
-        <summary style="cursor:pointer;color:var(--muted-2)"><strong>Lineups & formations</strong></summary>
-        <div style="margin-top:0.45rem">
-          ${ev.homeFormation ? `<div style="margin-bottom:0.4rem"><strong style="color:var(--muted-2)">Home formation:</strong> ${escapeHtml(ev.homeFormation)}</div>` : ''}
-          ${homeLineup || ''}
-          ${ev.awayFormation ? `<div style="margin-top:0.45rem;margin-bottom:0.4rem"><strong style="color:var(--muted-2)">Away formation:</strong> ${escapeHtml(ev.awayFormation)}</div>` : ''}
-          ${awayLineup || ''}
+    return `
+      <div class="summary-block">
+        <div class="stat-row">
+          <div class="stat-pill"><strong>${home}</strong> ${homeScore}</div>
+          <div style="align-self:center;color:var(--muted)">vs</div>
+          <div class="stat-pill"><strong>${away}</strong> ${awayScore}</div>
+          <div style="margin-left:auto;color:var(--muted)">${escapeHtml(ev.status || '')}</div>
         </div>
-      </details>`);
-    }
 
-    if (description) {
-      rows.push(`<details style="margin-top:0.6rem">
-        <summary style="cursor:pointer;color:var(--muted-2)"><strong>Match notes</strong></summary>
-        <div style="margin-top:0.45rem;color:var(--muted-2)">${escapeHtml(description)}</div>
-      </details>`);
-    }
+        ${shotsRow}
+        ${timelineHtml}
+        ${homeLineupHtml}
+        ${awayLineupHtml}
+        ${playersHtml}
+        ${notesHtml}
+      </div>
+    `;
+  }
 
-    return rows.join('');
+  // Attach a stats handler to the Stats button (call inside your card creation for each sport)
+  async function attachStatsHandler(statsBtn, statsArea, ev) {
+    statsBtn.onclick = async () => {
+      try {
+        if (statsArea.style.display === 'block' && statsArea.innerHTML.trim()) {
+          statsArea.style.display = 'none';
+          statsBtn.textContent = 'Stats';
+          return;
+        }
+
+        statsBtn.disabled = true;
+        const prev = statsBtn.textContent;
+        statsBtn.textContent = 'Loading…';
+
+        const eventId = (ev && (ev.idEvent || ev.id || ev.eventId)) || (ev.raw && (ev.raw.idEvent || ev.raw.id));
+        if (!eventId) throw new Error('Event id not available.');
+
+        const details = await fetchEventDetails(eventId);
+        // attach the raw object into details.raw if missing (some netlify function versions return raw)
+        statsArea.innerHTML = renderBoxScoreAndPlayers(details);
+        statsArea.style.display = 'block';
+        statsBtn.textContent = 'Hide';
+      } catch (err) {
+        console.error('Stats load failed', err);
+        statsArea.innerHTML = `<div style="color:var(--muted)">Failed to load stats.</div>`;
+        statsArea.style.display = 'block';
+      } finally {
+        statsBtn.disabled = false;
+      }
+    };
   }
 
   /* Toggles & categories */
