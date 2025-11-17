@@ -827,27 +827,37 @@ Status: ${ev.status}
 
   /* ---------- Morning brief handlers ---------- */
 
-  function renderMorningBrief(payload) {
-    if (!payload) {
-      briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
-      return;
-    }
+function renderMorningBrief(payload) {
+  if (!payload) {
+    briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
+    return;
+  }
 
-    const tldrHtml = (payload.tldr || []).map(b => `<div class="brief-bullet">• ${escapeHtml(b)}</div>`).join("");
-    const moversHtml = (payload.movers || []).map(m => `<div style="display:flex;gap:0.5rem;align-items:center"><div class="stat-pill">${escapeHtml(m.name)}</div><div style="color:var(--muted)">${escapeHtml(m.move)}</div></div>`).join("");
-    const headlinesHtml = (payload.headlines || []).map(h => `<div style="margin-top:0.4rem"><a href="${escapeHtml(h.url)}" target="_blank" style="color:var(--accent)">${escapeHtml(h.title)}</a><div style="color:var(--muted);font-size:0.9rem">${escapeHtml(h.source)} · ${escapeHtml(h.publishedAt)}</div></div>`).join("");
+  const tldrHtml = (payload.tldr || []).map(b => `<div class="brief-bullet">• ${escapeHtml(b)}</div>`).join("");
+  const moversHtml = (payload.movers || []).map(m => `<div style="display:flex;gap:0.5rem;align-items:center"><div class="stat-pill">${escapeHtml(m.name)}</div><div style="color:var(--muted)">${escapeHtml(m.move)}</div></div>`).join("");
+  const headlinesHtml = (payload.headlines || []).map(h => `<div style="margin-top:0.4rem"><a href="${escapeHtml(h.url || '#')}" target="_blank" style="color:var(--accent)">${escapeHtml(h.title)}</a><div style="color:var(--muted);font-size:0.9rem">${escapeHtml(h.source || '')} · ${escapeHtml(h.publishedAt || '')}</div></div>`).join("");
 
-    briefContent.innerHTML = `
-      <div>
-        ${payload.summaryHtml ? `<div>${payload.summaryHtml}</div>` : ''}
-        ${tldrHtml ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">TL;DR</strong>${tldrHtml}</div>` : ''}
-        ${moversHtml ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">Market movers</strong>${moversHtml}</div>` : ''}
-        ${payload.watchList && payload.watchList.length ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">What to watch</strong>${payload.watchList.map(w => `<div style="color:var(--muted);margin-top:0.25rem">• ${escapeHtml(w)}</div>`).join('')}</div>` : ''}
-        ${headlinesHtml ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">Top headlines</strong>${headlinesHtml}</div>` : ''}
-        <div style="margin-top:0.8rem;font-size:0.86rem;color:var(--muted)"><em>Generated with AI and news headlines (not financial advice).</em></div>
-      </div>
+  briefContent.innerHTML = `
+    <div>
+      ${payload.summaryHtml ? `<div>${payload.summaryHtml}</div>` : ''}
+      ${tldrHtml ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">TL;DR</strong>${tldrHtml}</div>` : ''}
+      ${moversHtml ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">Market movers</strong>${moversHtml}</div>` : ''}
+      ${payload.watchList && payload.watchList.length ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">What to watch</strong>${payload.watchList.map(w => `<div style="color:var(--muted);margin-top:0.25rem">• ${escapeHtml(w)}</div>`).join('')}</div>` : ''}
+      ${headlinesHtml ? `<div style="margin-top:0.6rem"><strong style="color:var(--muted)">Top headlines</strong>${headlinesHtml}</div>` : ''}
+      <div style="margin-top:0.8rem;font-size:0.86rem;color:var(--muted)"><em>Generated with AI and news headlines (not financial advice).</em></div>
+    </div>
+  `;
+
+  // DEV: if modelOutput is present (parse failed), show it for debugging (collapsible)
+  if (payload.modelOutput) {
+    briefContent.innerHTML += `
+      <details style="margin-top:0.8rem;color:var(--muted-2)">
+        <summary>Debug: raw model output</summary>
+        <pre style="white-space:pre-wrap;padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:8px;margin-top:0.5rem;color:var(--muted)">${escapeHtml(payload.modelOutput)}</pre>
+      </details>
     `;
   }
+}
 
   openBriefBtn.addEventListener("click", async () => {
     const region = briefRegionSelect.value || "au";

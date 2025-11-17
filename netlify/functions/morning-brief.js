@@ -14,7 +14,6 @@ export async function handler(event) {
     const region = (params.region || 'au').toLowerCase();
 
     // Build a NewsAPI query tailored to the region
-    // For AU we give preference to ASX/Wall St linkage; for US/global adjust queries.
     let q = 'market OR stocks OR ASX OR S&P OR NASDAQ OR futures OR inflation OR rates';
     if (region === 'au') {
       q = 'ASX OR Australia OR ASX200 OR "Australian share" OR market OR stocks';
@@ -65,7 +64,7 @@ Requirements:
 Return only the JSON object.
 `;
 
-    // Call OpenAI Chat Completion
+    // Call OpenAI Chat Completion - system message added and temperature lowered to reduce formatting noise
     const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -74,9 +73,12 @@ Return only the JSON object.
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 500,
-        temperature: 0.7
+        messages: [
+          { role: 'system', content: 'You are a JSON generator. Output ONLY valid JSON matching the schema requested. Do not include any explanation, commentary, or code fences.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 700,
+        temperature: 0.2
       })
     });
 
@@ -86,28 +88,33 @@ Return only the JSON object.
     }
 
     const openaiData = await openaiRes.json();
-    const content = openaiData.choices?.[0]?.message?.content;
+    const content = openaiData.choices?.[0]?.message?.content || "";
+
+    // Log the raw model output to Netlify logs for debugging
+    console.log('OpenAI raw output:', content);
 
     // Try to parse JSON from the model output
-    let parsed;
+    let parsed = null;
     try {
       parsed = JSON.parse(content);
     } catch (e) {
-      // If parsing fails, try to extract JSON substring
+      // attempt to extract JSON substring
       const m = content && content.match(/\{[\s\S]*\}/);
       if (m) {
         try { parsed = JSON.parse(m[0]); } catch (e2) { parsed = null; }
       }
     }
 
-    // Fallback minimal structure if parsing fails
+    // If parsing fails, return fallback plus the raw model output for debugging (do not expose in production)
     if (!parsed) {
       const fallback = {
         tldr: articles.slice(0,3).map(a => a.title || '').filter(Boolean),
         summaryHtml: `<p>Markets - brief unavailable from AI. See top headlines below.</p>`,
         movers: [],
         watchList: [],
-        headlines: articles.slice(0,6)
+        headlines: articles.slice(0,6),
+        // DEBUG: include the raw model output so client can show it while debugging
+        modelOutput: content
       };
       return { statusCode: 200, body: JSON.stringify(fallback) };
     }
@@ -116,7 +123,6 @@ Return only the JSON object.
     if (Array.isArray(parsed.headlines) && parsed.headlines.length) {
       parsed.headlines = parsed.headlines.map(h => {
         if (!h.url) {
-          // try to find matching article by title
           const found = articles.find(a => a.title && h.title && a.title.includes(h.title.slice(0,20)));
           if (found) h.url = found.url;
         }
