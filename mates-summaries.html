@@ -11,112 +11,170 @@
   <link rel="apple-touch-icon" href="/assets/img/favicon.png">
 
   <style>
-    :root {
+    :root{
       --bg: #050814;
-      --card: #151a2b;
+      --card: linear-gradient(180deg, rgba(20,24,40,0.9), rgba(15,18,32,0.85));
+      --muted: rgba(255,255,255,0.66);
+      --muted-2: rgba(255,255,255,0.44);
       --accent: #3fbf7f;
+      --accent-strong: #2ea668;
       --accent-soft: rgba(63,191,127,0.12);
-      --border-subtle: rgba(255,255,255,0.08);
-      --text-muted: rgba(255,255,255,0.7);
+      --border: rgba(255,255,255,0.06);
+      --card-border: rgba(255,255,255,0.03);
+      --glass: rgba(255,255,255,0.03);
+      --radius: 14px;
+      --gap: 1rem;
+      font-synthesis: none;
     }
-    * { box-sizing: border-box; }
 
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      margin: 0;
-      min-height: 100vh;
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
       background: radial-gradient(circle at top left, #20274a 0, #050814 45%);
-      color: #ffffff;
+      color:#fff;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      line-height:1.4;
+      padding-bottom:3rem;
     }
 
-    .page-shell {
-      max-width: 1080px;
-      margin: 0 auto;
-      padding: 0 1.5rem 2rem;
+    .page-shell{
+      max-width:1080px;
+      margin:0 auto;
+      padding:1rem 1.25rem 3rem;
     }
 
-    .nav {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      backdrop-filter: blur(16px);
-      background: linear-gradient(to bottom, rgba(5,8,20,0.9), rgba(5,8,20,0.7));
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+    /* NAV */
+    .nav{
+      position:sticky;
+      top:0;
+      z-index:30;
+      backdrop-filter: blur(12px);
+      background: linear-gradient(180deg, rgba(5,8,20,0.92), rgba(5,8,20,0.78));
+      border-bottom: 1px solid var(--border);
     }
-    .nav-inner {
-      max-width: 1080px;
-      margin: 0 auto;
-      padding: 0.75rem 1.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
+    .nav-inner{
+      max-width:1080px;
+      margin:0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:1rem;
+      padding:0.9rem 1.25rem;
     }
+    .nav-left{display:flex;align-items:center;gap:0.75rem}
+    .nav-logo{height:44px;width:44px;border-radius:8px;object-fit:cover}
+    .nav-title{font-weight:600;font-size:1.05rem}
+    .nav-pill{padding:0.2rem 0.6rem;border-radius:999px;font-size:0.75rem;background:var(--accent-soft);color:var(--accent);border:1px solid rgba(63,191,127,0.26)}
+    .nav-right{font-size:0.82rem;color:var(--muted);display:flex;gap:0.75rem;align-items:center}
+    .nav-home-link{padding:0.35rem 0.8rem;border-radius:999px;border:1px solid var(--border);text-decoration:none;color:#fff;background:rgba(255,255,255,0.03)}
+    .nav-home-link:hover{background:rgba(255,255,255,0.06)}
 
-    .nav-left { display: flex; align-items: center; gap: 0.65rem; }
-    .nav-logo { height:48px; border-radius:10px; }
-    .nav-title { font-weight:600; font-size:1.1rem; }
-    .nav-pill { padding:0.2rem 0.7rem; border-radius:999px; font-size:0.72rem; background:rgba(63,191,127,0.16); color:var(--accent); border:1px solid rgba(63,191,127,0.4); }
-    .nav-right { font-size:0.78rem; color:var(--text-muted); display:flex; align-items:center; gap:0.75rem; }
-    .nav-home-link { padding:0.25rem 0.9rem; border-radius:999px; border:1px solid var(--border-subtle); text-decoration:none; color:#fff; background:rgba(255,255,255,0.04); }
-    .nav-home-link:hover { background:rgba(255,255,255,0.12); }
+    /* Hero */
+    .card { background: var(--card); border-radius: var(--radius); padding:1.25rem; margin-bottom:1rem; border:1px solid var(--card-border) }
+    .card-hero h1{margin:0;font-size:1.4rem}
+    .card-hero p{margin:0.35rem 0 0;color:var(--muted)}
 
-    .card {
-      background: var(--card);
-      border-radius: 18px;
-      padding: 1.4rem 1.6rem;
-      margin-bottom: 1.4rem;
-      border: 1px solid rgba(255,255,255,0.03);
-    }
-
-    .headline { margin-bottom:1.2rem; border-bottom:1px solid var(--border-subtle); padding-bottom:1.2rem; }
-    .headline:last-child { border-bottom:none; }
-
-    .chip-row { display:flex; gap:0.5rem; margin-top:0.4rem; }
-    .chip { padding:0.25rem 0.75rem; border-radius:999px; border:1px solid var(--border-subtle); background:transparent; color:var(--text-muted); cursor:pointer; }
-    .chip-active { background:var(--accent-soft); color:#fff; border-color:var(--accent); }
-
-    .toggle-row { display:flex; gap:0.7rem; margin-top:0.8rem; }
-    .toggle-btn {
-      padding:0.4rem 0.9rem;
+    /* Controls */
+    .controls { display:flex; gap:var(--gap); align-items:center; flex-wrap:wrap; margin-top:0.6rem; }
+    .segmented {
+      display:inline-flex;
+      background:var(--glass);
       border-radius:999px;
-      border:1px solid var(--border-subtle);
-      background:rgba(255,255,255,0.05);
-      color:#fff;
-      cursor:pointer;
-      font-size:0.8rem;
+      padding:3px;
+      gap:4px;
+      border:1px solid var(--border);
     }
-    .toggle-btn.active {
-      background:var(--accent-soft);
-      color:#fff;
-      border-color:var(--accent);
-    }
-
-    .btn {
-      background: var(--accent);
-      border:none;
-      padding:0.55rem 1.2rem;
+    .segmented button{
+      background:transparent;
+      border:0;
+      padding:0.45rem 0.85rem;
+      color:var(--muted);
       border-radius:999px;
       cursor:pointer;
-      color:#000;
-      font-weight:600;
-      margin-top:0.6rem;
-      font-size:0.85rem;
+      font-size:0.88rem;
+      transition: all .16s ease;
     }
-    .btn:disabled { opacity:0.45; cursor:default; }
+    .segmented button.active{
+      background: linear-gradient(180deg,var(--accent), var(--accent-strong));
+      color:#00110a;
+      box-shadow: 0 6px 18px rgba(47,143,95,0.12), inset 0 -1px 0 rgba(0,0,0,0.06);
+    }
 
-    .summary-output { margin-top:0.85rem; }
-    .summary-block { margin-top:0.6rem; border-top:1px solid var(--border-subtle); padding-top:0.6rem; font-size:0.9rem; }
+    .chip-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem}
+    .chip{
+      padding:0.32rem 0.7rem;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem;
+      transition: all .14s ease;
+    }
+    .chip:hover{background:rgba(255,255,255,0.02)}
+    .chip-active{background:var(--accent-soft);color:#fff;border-color:var(--accent)}
+
+    /* News list */
+    #newsList{margin-top:0.85rem; display:flex;flex-direction:column; gap:0.85rem}
+    .headline{
+      display:block;
+      padding:0.95rem;
+      border-radius:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid var(--card-border);
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .headline:hover{ transform: translateY(-3px); box-shadow: 0 10px 30px rgba(2,6,23,0.55) }
+
+    .meta-row{ display:flex; align-items:center; gap:0.6rem; justify-content:space-between }
+    .meta-left{ display:flex; align-items:center; gap:0.65rem; min-width:0 }
+    .headline h3{ margin:0 0 0.25rem 0; font-size:1rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+    .headline small{ color:var(--muted-2); font-size:0.82rem; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+    .headline .actions{ display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem }
+
+    .btn{
+      background:var(--accent); border:none; padding:0.5rem 0.95rem; border-radius:999px; cursor:pointer; color:#00110a; font-weight:700; font-size:0.86rem;
+      transition: transform .08s ease, opacity .12s ease;
+    }
+    .btn:active{ transform: translateY(1px) }
+    .btn:disabled{ opacity:0.6; cursor:default }
+
+    .link-min{ background:transparent; border:1px solid var(--border); color:var(--muted); padding:0.42rem 0.7rem; border-radius:999px; text-decoration:none; font-size:0.83rem }
+    .link-min:hover{ background:rgba(255,255,255,0.02) }
+
+    .summary-output{ margin-top:0.65rem }
+
+    .summary-block{
+      margin-top:0.45rem;
+      border-top:1px dashed rgba(255,255,255,0.04);
+      padding-top:0.6rem;
+      font-size:0.95rem;
+      color: #fff;
+    }
+    .summary-block p{margin:0.45rem 0}
+    .tldr-list{ margin:0.35rem 0 0 0.85rem; padding:0; list-style:none; color:var(--muted) }
+    .tldr-list li{ margin:0.25rem 0; position:relative; padding-left:1.05rem }
+    .tldr-list li::before{
+      content:"";
+      width:8px;height:8px;border-radius:2px;background:var(--accent);position:absolute;left:0.15rem;top:0.55rem;box-shadow:0 1px 0 rgba(0,0,0,0.2)
+    }
+
+    .summary-meta{ color:var(--muted-2); font-size:0.82rem; margin-top:0.45rem }
+
+    /* Skeleton */
+    .skeleton{ background:linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06), rgba(255,255,255,0.03)); border-radius:8px; height:68px; animation: shimmer 1.2s linear infinite; }
+    @keyframes shimmer{ 0%{ background-position:-120px 0 } 100%{ background-position:220px 0 } }
+
+    /* small screens */
+    @media (max-width:640px){
+      .meta-row{ flex-direction:column; align-items:flex-start; gap:0.5rem }
+      .headline h3{ white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
+    }
   </style>
 </head>
 
 <body>
-
-  <!-- NAV -->
   <div class="nav">
     <div class="nav-inner">
       <div class="nav-left">
-        <img src="/assets/img/logo-placeholder.png" class="nav-logo">
+        <img src="/assets/img/logo-placeholder.png" class="nav-logo" alt="MatesInvest logo">
         <div>
           <div class="nav-title">MatesInvest</div>
           <div class="nav-pill">MatesFeed · Prototype</div>
@@ -136,17 +194,23 @@
       <p>Your daily, plain-English investing brief — now with MatesMode.</p>
     </section>
 
-    <section id="news" class="card">
+    <section id="news" class="card" aria-labelledby="latest-headlines">
+      <h2 id="latest-headlines">Latest Headlines</h2>
 
-      <h2>Latest Headlines</h2>
+      <div class="controls">
+        <div class="segmented" role="tablist" aria-label="View mode">
+          <button id="toggleMarket" class="active" role="tab" aria-selected="true">Market Mode</button>
+          <button id="toggleMates" role="tab" aria-selected="false">MatesMode</button>
+        </div>
 
-      <!-- Toggle -->
-      <div class="toggle-row">
-        <button id="toggleMarket" class="toggle-btn active">Market Mode</button>
-        <button id="toggleMates" class="toggle-btn">MatesMode</button>
+        <div style="flex:1"></div>
+
+        <div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);font-size:0.88rem">
+          <span id="feedStatus">Live</span>
+        </div>
       </div>
 
-      <div class="chip-row" id="categoryRow">
+      <div class="chip-row" id="categoryRow" aria-label="Categories">
         <button class="chip chip-active" data-category="all">All</button>
         <button class="chip" data-category="energy">Energy</button>
         <button class="chip" data-category="tech">Tech</button>
@@ -156,18 +220,18 @@
 
       <div id="newsList" style="margin-top:0.9rem;">Loading…</div>
     </section>
-
   </div>
+
 <script>
   const newsList = document.getElementById("newsList");
   const toggleMarket = document.getElementById("toggleMarket");
   const toggleMates = document.getElementById("toggleMates");
   const categoryRow = document.getElementById("categoryRow");
+  const feedStatus = document.getElementById("feedStatus");
 
   let allArticles = [];
   let currentCategory = "all";
 
-  /* ---------- CATEGORY DETECTION FOR MARKET ARTICLES ---------- */
   function categoryFromArticle(article) {
     const title = (article.title || "").toLowerCase();
     if (title.match(/energy|oil|coal|gas|mining/)) return "energy";
@@ -176,20 +240,167 @@
     return "other";
   }
 
-  /* ------------------ FETCH FUNCTIONS ------------------ */
-
   async function getMarketFeed() {
-    const res = await fetch("/.netlify/functions/newsFeed");
-    const data = await res.json();
-    return data.articles || [];
+    try {
+      const res = await fetch("/.netlify/functions/newsFeed");
+      const data = await res.json();
+      return data.articles || [];
+    } catch (e) {
+      console.warn("Market feed failed", e);
+      return [];
+    }
   }
 
   async function getSportsFeed() {
-    const res = await fetch("/.netlify/functions/sports-test");
-    return await res.json();
+    try {
+      const res = await fetch("/.netlify/functions/sports-test");
+      return await res.json();
+    } catch (e) {
+      console.warn("Sports feed failed", e);
+      return [];
+    }
   }
 
-  /* ---------- SPORT ICON DETECTION ---------- */
+  function formatTime(iso) {
+    try {
+      const d = new Date(iso);
+      if (isNaN(d)) return "";
+      return new Intl.DateTimeFormat(undefined, { dateStyle:'short', timeStyle:'short' }).format(d);
+    } catch { return iso || ""; }
+  }
+
+  function showSkeleton(count = 4) {
+    newsList.innerHTML = "";
+    for (let i=0;i<count;i++){
+      const div = document.createElement("div");
+      div.className = "headline";
+      div.innerHTML = `<div style="display:flex;align-items:center;gap:0.75rem">
+        <div style="flex:1">
+          <div class="skeleton" style="height:14px;width:60%"></div>
+          <div style="height:8px"></div>
+          <div class="skeleton" style="height:12px;width:30%"></div>
+        </div>
+      </div>`;
+      newsList.appendChild(div);
+    }
+  }
+
+  function renderSummary(s) {
+    if (!s) return `<div class="summary-block">No summary available.</div>`;
+    const bullets = (s.tldrBullets || []).map(b => `<li>${escapeHtml(b)}</li>`).join("");
+    return `
+      <div class="summary-block">
+        ${bullets ? `<strong>TL;DR</strong><ul class="tldr-list">${bullets}</ul>` : ""}
+        <details open>
+          <summary style="cursor:pointer;color:var(--muted-2)">Full summary</summary>
+          <div style="margin-top:0.5rem">
+            <p><strong>What's Happening:</strong><br>${escapeHtml(s.whatsHappening || "")}</p>
+            <p><strong>Why It Matters:</strong><br>${escapeHtml(s.whyItMatters || "")}</p>
+            <p><strong>Risks / Watch Outs:</strong><br>${escapeHtml(s.riskNote || "")}</p>
+            <p class="summary-meta" style="opacity:0.7">${escapeHtml(s.disclaimer || "")}</p>
+          </div>
+        </details>
+      </div>
+    `;
+  }
+
+  function renderSportsSummary(s, icon) {
+    return `
+      <div class="summary-block">
+        <strong>${escapeHtml(s.oneLiner || "")}</strong>
+        <p><strong>What Actually Happened:</strong><br>${escapeHtml(s.whatsHappening || "")}</p>
+      </div>
+    `;
+  }
+
+  function escapeHtml(str = "") {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  async function callMatesSummary(payload) {
+    const res = await fetch("/.netlify/functions/matesSummary", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Summary request failed");
+    return res.json();
+  }
+
+  /* render market list (original mode) */
+  function renderMarketMode() {
+    newsList.innerHTML = "";
+    const filtered = allArticles.filter(a =>
+      currentCategory === "all" || categoryFromArticle(a) === currentCategory
+    );
+
+    if (!filtered.length) {
+      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">No market headlines yet.</small></div>`;
+      return;
+    }
+
+    filtered.forEach(a => {
+      const item = document.createElement("div");
+      item.className = "headline";
+
+      const published = formatTime(a.publishedAt || a.published || "");
+
+      item.innerHTML = `
+        <div class="meta-row">
+          <div class="meta-left">
+            <div style="min-width:0">
+              <h3 title="${escapeHtml(a.title || '')}">${escapeHtml(a.title || '')}</h3>
+              <small>${escapeHtml(a.source || "")} · ${escapeHtml(published)}</small>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">Read original</a>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" aria-label="Generate summary for article">MatesInvest summary</button>
+        </div>
+        <div class="summary-output"></div>
+      `;
+
+      const btn = item.querySelector("button");
+      const output = item.querySelector(".summary-output");
+      let busy = false;
+
+      btn.addEventListener("click", async () => {
+        if (busy) return;
+        busy = true;
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.textContent = "Summarising…";
+
+        try {
+          const summary = await callMatesSummary({
+            text: `${a.title}\n\n${a.description || ""}`,
+            sourceType: "news_article",
+            headline: a.title,
+          });
+
+          output.innerHTML = renderSummary(summary);
+        } catch (err) {
+          console.error(err);
+          output.textContent = "Summary failed.";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = origText;
+          busy = false;
+        }
+      });
+
+      newsList.appendChild(item);
+    });
+  }
+
   function getSportIcon(ev) {
     const league = (ev.league || "").toLowerCase();
     const sport = (ev.sport || "").toLowerCase();
@@ -205,243 +416,186 @@
     if (sport.includes("f1") || sport.includes("formula")) return "🏎️";
     if (sport.includes("tennis")) return "🎾";
     if (sport.includes("golf")) return "⛳";
-
     return "🎯";
   }
 
-  /* ------------------ MARKET MODE (FULL RESTORE) ------------------ */
-
-  function renderMarketMode() {
-    newsList.innerHTML = "";
-    const filtered = allArticles.filter(a =>
-      currentCategory === "all" || categoryFromArticle(a) === currentCategory
-    );
-
-    filtered.forEach(a => {
-      const item = document.createElement("div");
-      item.className = "headline";
-
-      item.innerHTML = `
-        <h3>${a.title}</h3>
-        <small>${a.source || ""}</small><br>
-        <a href="${a.url}" target="_blank">Read original</a>
-        <br><br>
-        <button class="btn">MatesInvest summary</button>
-        <div class="summary-output"></div>
-      `;
-
-      const btn = item.querySelector("button");
-      const output = item.querySelector(".summary-output");
-
-      btn.onclick = async () => {
-        btn.disabled = true;
-        btn.textContent = "Summarising…";
-
-        try {
-          const summary = await callMatesSummary({
-            text: `${a.title}\n\n${a.description || ""}`,
-            sourceType: "news_article",
-            headline: a.title,
-          });
-
-          output.innerHTML = renderSummary(summary); // <-- ORIGINAL market summary block
-        } catch (err) {
-          output.textContent = "Summary failed.";
-        } finally {
-          btn.disabled = false;
-          btn.textContent = "MatesInvest summary";
-        }
-      };
-
-      newsList.appendChild(item);
-    });
-  }
-
-  /* ------------------ MATESMODE ------------------ */
-
   async function renderMatesMode() {
-    newsList.innerHTML = "Loading…";
+    showSkeleton(5);
+    try {
+      const market = await getMarketFeed();
+      const sports = await getSportsFeed();
 
-    const market = await getMarketFeed();
-    const sports = await getSportsFeed();
+      const sportsCards = (sports || []).map(ev => ({
+        type: "sport",
+        title: `${ev.home} vs ${ev.away}`,
+        subtitle: ev.league,
+        time: ev.localTime || ev.utcTime || ev.time,
+        raw: ev
+      }));
 
-    const sportsCards = sports.map(ev => ({
-      type: "sport",
-      title: `${ev.home} vs ${ev.away}`,
-      subtitle: ev.league,
-      time: ev.localTime || ev.utcTime,
-      raw: ev
-    }));
+      const marketCards = (market || []).map(a => ({
+        type: "market",
+        title: a.title,
+        subtitle: a.source || "",
+        url: a.url,
+        description: a.description || "",
+        time: a.publishedAt || a.published || new Date().toISOString(),
+        raw: a
+      }));
 
-    const marketCards = market.map(a => ({
-      type: "market",
-      title: a.title,
-      subtitle: a.source || "",
-      url: a.url,
-      description: a.description || "",
-      time: a.publishedAt || new Date().toISOString(),
-      raw: a
-    }));
+      const combined = [...marketCards, ...sportsCards]
+        .sort((a,b) => new Date(b.time) - new Date(a.time));
 
-    const combined = [...marketCards, ...sportsCards]
-      .sort((a,b) => new Date(b.time) - new Date(a.time));
+      newsList.innerHTML = "";
 
-    newsList.innerHTML = "";
+      combined.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "headline";
 
-    combined.forEach(item => {
-      const div = document.createElement("div");
-      div.className = "headline";
+        if (item.type === "sport") {
+          const icon = getSportIcon(item.raw);
+          const ev = item.raw;
+          const when = formatTime(item.time);
 
-      /* ------------------ SPORTS CARD ------------------ */
-      if (item.type === "sport") {
-        const icon = getSportIcon(item.raw);
+          div.innerHTML = `
+            <div class="meta-row">
+              <div class="meta-left">
+                <div style="min-width:0">
+                  <h3>${escapeHtml(item.title || "")}</h3>
+                  <small>${icon} ${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
+                </div>
+              </div>
+            </div>
 
-        div.innerHTML = `
-          <h3>${item.title}</h3>
-          <small>${icon} ${item.subtitle}</small>
-          <br><br>
-          <button class="btn">MatesInvest summary</button>
-          <div class="summary-output"></div>
-        `;
+            <div class="actions">
+              <button class="btn">MatesInvest summary</button>
+            </div>
+            <div class="summary-output"></div>
+          `;
 
-        const btn = div.querySelector("button");
-        const output = div.querySelector(".summary-output");
+          const btn = div.querySelector("button");
+          const output = div.querySelector(".summary-output");
+          let busy = false;
 
-        btn.onclick = async () => {
-          btn.disabled = true;
-          btn.textContent = "Summarising…";
+          btn.onclick = async () => {
+            if (busy) return;
+            busy = true;
+            btn.disabled = true;
+            const prev = btn.textContent;
+            btn.textContent = "Summarising…";
 
-          try {
-            const ev = item.raw;
-
-            const summary = await callMatesSummary({
-              sourceType: "sports_event",
-              headline: `${ev.home} vs ${ev.away}`,
-              text: `
+            try {
+              const summary = await callMatesSummary({
+                sourceType: "sports_event",
+                headline: `${ev.home} vs ${ev.away}`,
+                text: `
 League: ${ev.league}
 Sport: ${ev.sport}
 Score: ${ev.home} ${ev.homeScore} - ${ev.awayScore} ${ev.away}
 Status: ${ev.status}
 `,
-            });
+              });
 
-            output.innerHTML = renderSportsSummary(summary, icon);
+              output.innerHTML = renderSportsSummary(summary, icon);
+            } catch {
+              output.textContent = "Summary failed.";
+            } finally {
+              btn.disabled = false;
+              btn.textContent = prev;
+              busy = false;
+            }
+          };
 
-          } catch {
-            output.textContent = "Summary failed.";
-          } finally {
-            btn.disabled = false;
-            btn.textContent = "MatesInvest summary";
-          }
-        };
+          newsList.appendChild(div);
+        } else {
+          const when = formatTime(item.time);
+          div.innerHTML = `
+            <div class="meta-row">
+              <div class="meta-left">
+                <div style="min-width:0">
+                  <h3>${escapeHtml(item.title || "")}</h3>
+                  <small>${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
+                </div>
+              </div>
+              <div style="display:flex;gap:0.5rem;align-items:center">
+                <a class="link-min" href="${item.url || "#"}" target="_blank" rel="noopener">Read original</a>
+              </div>
+            </div>
 
-        newsList.appendChild(div);
+            <div class="actions">
+              <button class="btn">MatesInvest summary</button>
+            </div>
+            <div class="summary-output"></div>
+          `;
+
+          const btn = div.querySelector("button");
+          const output = div.querySelector(".summary-output");
+          let busy = false;
+
+          btn.onclick = async () => {
+            if (busy) return;
+            busy = true;
+            btn.disabled = true;
+            const prev = btn.textContent;
+            btn.textContent = "Summarising…";
+
+            try {
+              const summary = await callMatesSummary({
+                text: `${item.title}\n\n${item.description}`,
+                sourceType: "news_article",
+                headline: item.title,
+              });
+
+              output.innerHTML = renderSummary(summary);
+            } catch {
+              output.textContent = "Summary failed.";
+            } finally {
+              btn.disabled = false;
+              btn.textContent = prev;
+              busy = false;
+            }
+          };
+
+          newsList.appendChild(div);
+        }
+      });
+
+      if (!combined.length) {
+        newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">No items found.</small></div>`;
       }
 
-      /* ------------------ MARKET CARD IN MATESMODE ------------------ */
-      if (item.type === "market") {
-        div.innerHTML = `
-          <h3>${item.title}</h3>
-          <small>${item.subtitle}</small><br>
-          <a href="${item.url}" target="_blank">Read original</a>
-          <br><br>
-          <button class="btn">MatesInvest summary</button>
-          <div class="summary-output"></div>
-        `;
-
-        const btn = div.querySelector("button");
-        const output = div.querySelector(".summary-output");
-
-        btn.onclick = async () => {
-          btn.disabled = true;
-          btn.textContent = "Summarising…";
-
-          try {
-            const summary = await callMatesSummary({
-              text: `${item.title}\n\n${item.description}`,
-              sourceType: "news_article",
-              headline: item.title,
-            });
-
-            output.innerHTML = renderSummary(summary); // <-- ORIGINAL full market summary
-          } catch {
-            output.textContent = "Summary failed.";
-          } finally {
-            btn.disabled = false;
-            btn.textContent = "MatesInvest summary";
-          }
-        };
-
-        newsList.appendChild(div);
-      }
-    });
+    } catch (err) {
+      console.error("Error rendering MatesMode", err);
+      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
+    }
   }
 
-  /* ------------------ ORIGINAL MARKET SUMMARY BLOCK ------------------ */
-
- function renderSummary(s) {
-  return `
-    <div class="summary-block">
-
-      <p><strong>TLDR:</strong><br>
-        ${s.tldrBullets.map(b => `• ${b}`).join("<br>")}
-      </p>
-
-      <p><strong>What's Happening:</strong><br>
-        ${s.whatsHappening}
-      </p>
-
-      <p><strong>Why It Matters:</strong><br>
-        ${s.whyItMatters}
-      </p>
-
-      <p><strong>Risks / Watch Outs:</strong><br>
-        ${s.riskNote}
-      </p>
-
-      <p style="opacity:0.6;">
-        ${s.disclaimer}
-      </p>
-
-    </div>
-  `;
-}
-
-
-  /* ------------------ SPORTS SUMMARY (NO TLDR, NO DISCLAIMER) ------------------ */
-
-  function renderSportsSummary(s, icon) {
-    return `
-      <div class="summary-block">
-        <strong>${s.oneLiner || ""}</strong>
-        <p><strong>What Actually Happened:</strong><br>${s.whatsHappening || ""}</p>
-      </div>
-    `;
+  /* Toggles & categories */
+  function setActiveToggle(isMarket) {
+    if (isMarket) {
+      toggleMarket.classList.add("active");
+      toggleMarket.setAttribute("aria-selected","true");
+      toggleMates.classList.remove("active");
+      toggleMates.setAttribute("aria-selected","false");
+    } else {
+      toggleMates.classList.add("active");
+      toggleMates.setAttribute("aria-selected","true");
+      toggleMarket.classList.remove("active");
+      toggleMarket.setAttribute("aria-selected","false");
+    }
   }
-
-  /* ------------------ CALL SUMMARY FUNCTION ------------------ */
-
-  async function callMatesSummary(payload) {
-    const res = await fetch("/.netlify/functions/matesSummary", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload),
-    });
-    return res.json();
-  }
-
-  /* ------------------ TOGGLES & CATEGORY HANDLING ------------------ */
 
   toggleMarket.onclick = async () => {
-    toggleMarket.classList.add("active");
-    toggleMates.classList.remove("active");
+    setActiveToggle(true);
+    feedStatus.textContent = "Market mode";
+    showSkeleton(4);
     allArticles = await getMarketFeed();
     renderMarketMode();
   };
 
   toggleMates.onclick = () => {
-    toggleMates.classList.add("active");
-    toggleMarket.classList.remove("active");
+    setActiveToggle(false);
+    feedStatus.textContent = "MatesMode";
     renderMatesMode();
   };
 
@@ -453,7 +607,6 @@ Status: ${ev.status}
     [...categoryRow.children].forEach(b => b.classList.remove("chip-active"));
     btn.classList.add("chip-active");
 
-    /* Category filters market articles only, sports always included */
     if (toggleMates.classList.contains("active")) {
       renderMatesMode();
     } else {
@@ -461,14 +614,20 @@ Status: ${ev.status}
     }
   };
 
-  /* ------------------ INITIAL LOAD ------------------ */
-
-  (async function init() {
-    allArticles = await getMarketFeed();
-    renderMarketMode();
+  (async function init(){
+    try {
+      feedStatus.textContent = "Loading…";
+      showSkeleton(4);
+      allArticles = await getMarketFeed();
+      renderMarketMode();
+      feedStatus.textContent = "Live";
+    } catch (err) {
+      console.error(err);
+      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">Failed to load initial feed.</small></div>`;
+      feedStatus.textContent = "Offline";
+    }
   })();
 </script>
 
 </body>
 </html>
-
