@@ -829,9 +829,24 @@ Status: ${ev.status}
 
 function formatMoney(n) {
   try {
-    if (n === null || typeof n === 'undefined') return '—';
+    if (n === null || typeof n === 'undefined') return null;
     return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   } catch { return String(n); }
+}
+
+function relativeTime(iso) {
+  try {
+    const date = new Date(iso);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMin = Math.round(diffMs / 60000);
+    if (Math.abs(diffMin) < 1) return 'just now';
+    if (Math.abs(diffMin) < 60) return `${diffMin}m`;
+    const diffHours = Math.round(diffMin / 60);
+    if (Math.abs(diffHours) < 24) return `${diffHours}h`;
+    const diffDays = Math.round(diffHours / 24);
+    return `${diffDays}d`;
+  } catch { return iso || ''; }
 }
 
 function renderMorningBrief(payload) {
@@ -840,76 +855,95 @@ function renderMorningBrief(payload) {
     return;
   }
 
-  // If payload.metals exists, render a per-metal mini-dashboard.
+  // Use either snapshot.snappedAt, payload.generatedAt, or priceTimestamp from first metal
+  let asOf = null;
+  if (payload.usdToAud && payload._debug && payload._debug.cached) {
+    // if debug.cached was used, prefer payload.generatedAt
+    asOf = payload.generatedAt || (payload.metals && Object.values(payload.metals)[0] && payload.metals[Object.keys(payload.metals)[0]].priceTimestamp) || null;
+  } else {
+    asOf = payload.generatedAt || (payload.metals && Object.values(payload.metals)[0] && payload.metals[Object.keys(payload.metals)[0]].priceTimestamp) || null;
+  }
+
+  // top meta: As of + data source & cache hint
+  const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
+  const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
+  const asOfText = asOf ? `As of: ${formatTime(asOf)} (${relativeTime(asOf)} ago)` : '';
+
+  // If incoming payload uses the "metals" object (new shape)
   if (payload.metals && typeof payload.metals === 'object') {
     const metals = payload.metals;
     const symbols = Object.keys(metals);
-    if (!symbols.length) {
-      briefContent.innerHTML = `<div class="brief-loading">No market data available.</div>`;
-      return;
-    }
 
-    // Map common symbols to friendly names (adjust as needed)
+    // Friendly name map
     const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
 
-    const itemsHtml = symbols.map(sym => {
+    // Build top meta row
+    const topMetaHtml = `<div class="brief-top-meta">
+      <div>${asOfText}</div>
+      <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
+    </div>`;
+
+    // Build card grid
+    const cards = symbols.map(sym => {
       const m = metals[sym] || {};
-      const priceAUD = (typeof m.priceAUD === 'number') ? formatMoney(m.priceAUD) : '—';
-      const priceUSD = (typeof m.priceUSD === 'number') ? formatMoney(m.priceUSD) : '—';
-      const yesterday = (typeof m.yesterdayPriceAUD === 'number') ? formatMoney(m.yesterdayPriceAUD) : null;
+      const priceAUD = (typeof m.priceAUD === 'number') ? formatMoney(m.priceAUD) : null;
+      const priceUSD = (typeof m.priceUSD === 'number') ? formatMoney(m.priceUSD) : null;
       const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
-      const ts = m.priceTimestamp || payload.generatedAt || null;
 
       // pct badge
-      let pctHtml = '';
-      if (pct === null) {
-        pctHtml = `<span class="muted" style="font-size:0.9rem;margin-left:8px">no change data</span>`;
-      } else if (pct > 0) {
-        pctHtml = `<span style="display:inline-block;padding:4px 8px;border-radius:8px;background:#ecfdf5;color:#064e3b;font-weight:700">▲ ${Math.abs(pct)}%</span>`;
-      } else if (pct < 0) {
-        pctHtml = `<span style="display:inline-block;padding:4px 8px;border-radius:8px;background:#fff1f2;color:#7f1d1d;font-weight:700">▼ ${Math.abs(pct)}%</span>`;
-      } else {
-        pctHtml = `<span style="display:inline-block;padding:4px 8px;border-radius:8px;background:#f3f4f6;color:#374151;font-weight:700">— 0%</span>`;
+      let pctHtml = `<span class="brief-badge no-data">no change</span>`;
+      if (pct !== null) {
+        if (pct > 0) pctHtml = `<span class="brief-badge up" aria-label="${pct}% up">▲ ${Math.abs(pct)}%</span>`;
+        else if (pct < 0) pctHtml = `<span class="brief-badge down" aria-label="${pct}% down">▼ ${Math.abs(pct)}%</span>`;
+        else pctHtml = `<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>`;
       }
 
-      // Narrative per metal (short)
-      const narrative = (priceAUD !== '—')
-        ? `${friendly[sym] || sym} is currently $${priceAUD} AUD` + (pct === null ? '' : (pct > 0 ? ` — up ${Math.abs(pct)}% vs yesterday` : pct < 0 ? ` — down ${Math.abs(pct)}% vs yesterday` : ' — unchanged vs yesterday'))
-        : `${friendly[sym] || sym} price is currently unavailable.`;
+      // small unit label (assume oz for precious metals)
+      const unit = (sym === 'XAU' || sym === 'XAG') ? '/oz' : '/unit';
+
+      // USD secondary string (hidden on mobile)
+      const usdHtml = priceUSD ? `<div class="metal-sub usd">$${priceUSD} USD</div>` : `<div class="metal-sub usd">—</div>`;
+
+      // main price display
+      const priceDisplay = priceAUD ? `$${priceAUD} AUD` : '<span style="color:#ffd166">Unavailable</span>';
 
       return `
-        <div style="display:flex;flex-direction:column;gap:6px;padding:0.6rem;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)">
-          <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
+          <div class="metal-head">
             <div>
-              <div style="font-size:0.9rem;color:var(--muted)"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted);font-weight:400">(${escapeHtml(sym)})</small></div>
-              <div style="margin-top:0.25rem;color:#fff;font-weight:700">${priceAUD !== '—' ? `$${priceAUD} AUD` : '<span style="color:#ffd166">Unavailable</span>'}</div>
+              <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
+              <div class="metal-price">${priceDisplay} <small style="color:var(--muted);font-weight:600">${unit}</small></div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:0.85rem;color:var(--muted)">${priceUSD !== '—' ? `$${priceUSD} USD` : '—'}</div>
-              <div style="margin-top:6px">${pctHtml}</div>
+              ${pctHtml}
+              ${usdHtml}
             </div>
           </div>
-          ${ts ? `<div style="color:var(--muted);font-size:0.82rem">As of: ${escapeHtml(ts)}</div>` : ''}
-          <div style="color:var(--muted);font-size:0.9rem">${escapeHtml(narrative)}</div>
+          ${/* Only show a compact narrative once or on hover; keep minimal */''}
+          <div class="metal-sub" style="color:var(--muted);font-size:0.92rem">${priceAUD ? `${escapeHtml(friendly[sym] || sym)} is $${priceAUD} AUD` : `${escapeHtml(friendly[sym] || sym)} price unavailable`}</div>
         </div>
       `;
     }).join("");
 
-    briefContent.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">${itemsHtml}</div>`;
+    briefContent.innerHTML = `${topMetaHtml}<div class="brief-grid">${cards}</div>`;
     return;
   }
 
-  // Fallback for older/single-metal payload
-  const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD per ounce.` : 'The spot gold price is currently unavailable.');
-  briefContent.innerHTML = `
+  // Fallback to old single-gold payload
+  const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
+  const fallbackHtml = `
+    <div class="brief-top-meta">
+      <div>${asOfText}</div>
+      <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
+    </div>
     <div style="padding:0.6rem;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)">
       <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
       <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
       ${payload.priceTimestamp ? `<div style="margin-top:0.35rem;color:var(--muted);font-size:0.85rem">As of: ${escapeHtml(payload.priceTimestamp)}</div>` : ''}
     </div>
   `;
+  briefContent.innerHTML = fallbackHtml;
 }
-
 openBriefBtn.addEventListener("click", async () => {
   const region = briefRegionSelect.value || "au";
   if (briefContent.style.display === "block") {
