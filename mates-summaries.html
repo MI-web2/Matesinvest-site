@@ -102,7 +102,7 @@
     .sport-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem}
     .sport-chip{ padding:0.28rem 0.6rem;border-radius:999px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem; }
     .sport-chip.active{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:#fff;box-shadow:inset 0 -1px 0 rgba(0,0,0,0.05)}
-    .sport-tag{display:inline-block;padding:0.12rem 0.5rem;border-radius:999px;background:rgba(255,255,255,0.03);font-size:0.78rem;color:var(--muted);border:1px solid rgba(255,255,255,0.03)}
+    .sport-tag{display:inline-block;padding:0.12rem 0.5rem;border-radius:999px;background:rgba(255,255,255,0.03);font-size:0.78rem;color:var(--muted);border:1px solid rgba(255,255,255,0.03) }
 
     /* News list */
     #newsList{margin-top:0.85rem; display:flex;flex-direction:column; gap:0.85rem}
@@ -799,7 +799,7 @@ Status: ${ev.status}
     statsBtn.onclick = async () => {
       try {
         if (statsArea.style.display === 'block' && statsArea.innerHTML.trim()) {
-          statsArea.style.display = 'none';
+          statsArea.style.display = "none";
           statsBtn.textContent = 'Stats';
           return;
         }
@@ -827,15 +827,80 @@ Status: ${ev.status}
 
   /* ---------- Morning brief handlers (updated to show quick one-liner) ---------- */
 
+function formatMoney(n) {
+  try {
+    if (n === null || typeof n === 'undefined') return '—';
+    return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch { return String(n); }
+}
+
 function renderMorningBrief(payload) {
   if (!payload) {
     briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
     return;
   }
 
-  // Main narrative (one line) — prefer OpenAI-crafted narrative (payload.narrative)
-  const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD per ounce.` : 'The spot gold price is currently unavailable.');
+  // If payload.metals exists, render a per-metal mini-dashboard.
+  if (payload.metals && typeof payload.metals === 'object') {
+    const metals = payload.metals;
+    const symbols = Object.keys(metals);
+    if (!symbols.length) {
+      briefContent.innerHTML = `<div class="brief-loading">No market data available.</div>`;
+      return;
+    }
 
+    // Map common symbols to friendly names (adjust as needed)
+    const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
+
+    const itemsHtml = symbols.map(sym => {
+      const m = metals[sym] || {};
+      const priceAUD = (typeof m.priceAUD === 'number') ? formatMoney(m.priceAUD) : '—';
+      const priceUSD = (typeof m.priceUSD === 'number') ? formatMoney(m.priceUSD) : '—';
+      const yesterday = (typeof m.yesterdayPriceAUD === 'number') ? formatMoney(m.yesterdayPriceAUD) : null;
+      const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
+      const ts = m.priceTimestamp || payload.generatedAt || null;
+
+      // pct badge
+      let pctHtml = '';
+      if (pct === null) {
+        pctHtml = `<span class="muted" style="font-size:0.9rem;margin-left:8px">no change data</span>`;
+      } else if (pct > 0) {
+        pctHtml = `<span style="display:inline-block;padding:4px 8px;border-radius:8px;background:#ecfdf5;color:#064e3b;font-weight:700">▲ ${Math.abs(pct)}%</span>`;
+      } else if (pct < 0) {
+        pctHtml = `<span style="display:inline-block;padding:4px 8px;border-radius:8px;background:#fff1f2;color:#7f1d1d;font-weight:700">▼ ${Math.abs(pct)}%</span>`;
+      } else {
+        pctHtml = `<span style="display:inline-block;padding:4px 8px;border-radius:8px;background:#f3f4f6;color:#374151;font-weight:700">— 0%</span>`;
+      }
+
+      // Narrative per metal (short)
+      const narrative = (priceAUD !== '—')
+        ? `${friendly[sym] || sym} is currently $${priceAUD} AUD` + (pct === null ? '' : (pct > 0 ? ` — up ${Math.abs(pct)}% vs yesterday` : pct < 0 ? ` — down ${Math.abs(pct)}% vs yesterday` : ' — unchanged vs yesterday'))
+        : `${friendly[sym] || sym} price is currently unavailable.`;
+
+      return `
+        <div style="display:flex;flex-direction:column;gap:6px;padding:0.6rem;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:0.9rem;color:var(--muted)"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted);font-weight:400">(${escapeHtml(sym)})</small></div>
+              <div style="margin-top:0.25rem;color:#fff;font-weight:700">${priceAUD !== '—' ? `$${priceAUD} AUD` : '<span style="color:#ffd166">Unavailable</span>'}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:0.85rem;color:var(--muted)">${priceUSD !== '—' ? `$${priceUSD} USD` : '—'}</div>
+              <div style="margin-top:6px">${pctHtml}</div>
+            </div>
+          </div>
+          ${ts ? `<div style="color:var(--muted);font-size:0.82rem">As of: ${escapeHtml(ts)}</div>` : ''}
+          <div style="color:var(--muted);font-size:0.9rem">${escapeHtml(narrative)}</div>
+        </div>
+      `;
+    }).join("");
+
+    briefContent.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">${itemsHtml}</div>`;
+    return;
+  }
+
+  // Fallback for older/single-metal payload
+  const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD per ounce.` : 'The spot gold price is currently unavailable.');
   briefContent.innerHTML = `
     <div style="padding:0.6rem;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)">
       <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
