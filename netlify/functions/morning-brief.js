@@ -1,14 +1,16 @@
 // netlify/functions/morning-brief.js
-// Morning brief (Metals-API + robust FX fallbacks + caching).
-// Requires METALS_API_KEY env var. Uses exchangerate.host and open.er-api.com as FX sources.
+// Morning brief: Metals-API for XAU/USD + robust FX sourcing (open.er-api.com primary),
+// with quick /tmp caching to smooth transient provider failures.
+// Requires: METALS_API_KEY env var
 // Returns: { narrative, priceUSD, usdToAud, priceAUD, priceTimestamp, generatedAt, _debug }
+
 exports.handler = async function (event) {
   const nowIso = new Date().toISOString();
-  const CACHE_TTL_MS = 60 * 1000; // 60s cache to smooth transient failures (adjust as needed)
+  const CACHE_TTL_MS = 60 * 1000; // 60s
   const CACHE_PATH = '/tmp/morning-brief-cache.json';
 
-  // helper: fetch with timeout and return { ok, status, text, json, error }
-  async function fetchDebug(url, opts = {}, timeout = 8000) {
+  // helper: fetch with timeout & simple parsed result
+  async function fetchDebug(url, opts = {}, timeout = 9000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
@@ -24,7 +26,7 @@ exports.handler = async function (event) {
     }
   }
 
-  // Write/read short cache in /tmp
+  // cache helpers (very small /tmp cache)
   function readCache() {
     try {
       const fs = require('fs');
@@ -48,75 +50,70 @@ exports.handler = async function (event) {
     }
   }
 
-  // Numeric formatter
   const fmt = (n) => (typeof n === 'number' && Number.isFinite(n)) ? Number(n.toFixed(2)) : null;
 
   try {
-    // If cached and fresh, return it
+    // Return cached if fresh
     const cached = readCache();
     if (cached) {
-      // indicate we returned cached value
-      const outCached = { ...cached, _debug: { cached: true } };
-      return { statusCode: 200, body: JSON.stringify(outCached) };
+      cached._debug = cached._debug || {};
+      cached._debug.cached = true;
+      return { statusCode: 200, body: JSON.stringify(cached) };
     }
 
     const METALS_API_KEY = process.env.METALS_API_KEY || null;
-    let priceUSD = null;
-    let priceTimestamp = null;
     const debug = { steps: [] };
 
-    // 1) Metals-API price
-    if (METALS_API_KEY) {
+    // 1) Fetch metals price (Metals-API)
+    let priceUSD = null;
+    let priceTimestamp = null;
+    if (!METALS_API_KEY) {
+      debug.steps.push({ source: 'metals-api', ok: false, note: 'METALS_API_KEY missing' });
+    } else {
       const metaUrl = `https://metals-api.com/api/latest?access_key=${encodeURIComponent(METALS_API_KEY)}&base=USD&symbols=XAU,USDXAU`;
-      const mres = await fetchDebug(metaUrl, {}, 9000);
-      debug.steps.push({ source: 'metals-api', result: mres.status || null, ok: !!mres.ok });
+      const mres = await fetchDebug(metaUrl, {}, 10000);
+      debug.steps.push({ source: 'metals-api', ok: !!mres.ok, status: mres.status });
       if (mres.ok && mres.json && mres.json.rates) {
         const rates = mres.json.rates;
-        // Two common shapes:
-        // - rates.XAU is XAU per USD (small fraction) => priceUSD = 1 / rates.XAU
-        // - rates.XAU is USD per XAU (large number) => priceUSD = rates.XAU
-        const v = rates.XAU;
-        if (typeof v === 'number' && v > 0) {
-          if (v < 1) priceUSD = 1 / v;
-          else priceUSD = v;
+        // common shapes: rates.XAU either small fraction (XAU per USD) or large (USD per XAU).
+        if (typeof rates.XAU === 'number') {
+          const v = rates.XAU;
+          if (v > 0 && v < 1) priceUSD = 1 / v;
+          else if (v >= 1) priceUSD = v;
         }
-        // Some accounts include explicit USDXAU or similar; prefer explicit if present and sensible
+        // explicit USDXAU (USD per XAU) if provided
         if ((!priceUSD || !isFinite(priceUSD)) && typeof rates.USDXAU === 'number' && rates.USDXAU > 0) {
-          priceUSD = rates.USDXAU;
+          priceUSD = Number(rates.USDXAU);
         }
         if (mres.json.timestamp) priceTimestamp = new Date(mres.json.timestamp * 1000).toISOString();
+        if (mres.json.rates) debug.ratesPreview = mres.json.rates;
       } else {
-        debug.steps.push({ note: 'metals-api-missing-or-nonok', status: mres.status, error: mres.error || null });
+        debug.steps.push({ source: 'metals-api-body', textPreview: mres.text ? mres.text.slice(0,300) : null, error: mres.error || null });
       }
-    } else {
-      debug.steps.push({ note: 'METALS_API_KEY_missing' });
     }
 
-    // 2) FX - try exchangerate.host, then open.er-api.com
+    // 2) FX: try primary open.er-api.com, then exchangerate.host, then exchangerate-api.com
     let usdToAud = null;
-    // First attempt
-    const fx1 = await fetchDebug('https://api.exchangerate.host/latest?base=USD&symbols=AUD', {}, 7000);
-    debug.steps.push({ source: 'exchangerate.host', ok: !!fx1.ok, status: fx1.status });
-    if (fx1.ok && fx1.json && fx1.json.rates && typeof fx1.json.rates.AUD === 'number') {
-      usdToAud = Number(fx1.json.rates.AUD);
-      debug.fxSource = 'exchangerate.host';
-    } else {
-      // fallback attempt
-      const fx2 = await fetchDebug('https://open.er-api.com/v6/latest/USD', {}, 7000);
-      debug.steps.push({ source: 'open.er-api.com', ok: !!fx2.ok, status: fx2.status });
-      if (fx2.ok && fx2.json && fx2.json.rates && typeof fx2.json.rates.AUD === 'number') {
-        usdToAud = Number(fx2.json.rates.AUD);
-        debug.fxSource = 'open.er-api.com';
-      } else {
-        // additional fallback: try exchangerate-api.com (public v4 endpoint)
-        const fx3 = await fetchDebug('https://api.exchangerate-api.com/v4/latest/USD', {}, 7000);
-        debug.steps.push({ source: 'exchangerate-api.com', ok: !!fx3.ok, status: fx3.status });
-        if (fx3.ok && fx3.json && fx3.json.rates && typeof fx3.json.rates.AUD === 'number') {
-          usdToAud = Number(fx3.json.rates.AUD);
-          debug.fxSource = 'exchangerate-api.com';
+    const fxCandidates = [
+      { name: 'open.er-api.com', url: 'https://open.er-api.com/v6/latest/USD' },
+      { name: 'exchangerate.host', url: 'https://api.exchangerate.host/latest?base=USD&symbols=AUD' },
+      { name: 'exchangerate-api.com', url: 'https://api.exchangerate-api.com/v4/latest/USD' }
+    ];
+
+    for (const c of fxCandidates) {
+      try {
+        const fres = await fetchDebug(c.url, {}, 8000);
+        debug.steps.push({ source: c.name, ok: !!fres.ok, status: fres.status });
+        if (fres.ok && fres.json && fres.json.rates && typeof fres.json.rates.AUD === 'number') {
+          usdToAud = Number(fres.json.rates.AUD);
+          debug.fxSource = c.name;
+          break;
         } else {
-          debug.fxSource = 'none';
+          // include body preview for diagnosis
+          debug.steps.push({ source: c.name + '-body-preview', preview: fres.text ? fres.text.slice(0,300) : null });
         }
+      } catch (e) {
+        debug.steps.push({ source: c.name + '-error', error: e && e.message ? e.message : String(e) });
       }
     }
 
@@ -124,10 +121,9 @@ exports.handler = async function (event) {
     const outFx = fmt(usdToAud);
     const outPriceAUD = (outPriceUSD !== null && outFx !== null) ? fmt(outPriceUSD * outFx) : null;
 
-    // Deterministic narrative
     const narrative = outPriceAUD !== null
       ? `The spot gold price is currently $${outPriceAUD} AUD per ounce.`
-      : `The spot gold price is currently unavailable.`;
+      : 'The spot gold price is currently unavailable.';
 
     const payload = {
       narrative,
@@ -136,24 +132,17 @@ exports.handler = async function (event) {
       priceAUD: outPriceAUD,
       priceTimestamp: priceTimestamp || null,
       generatedAt: nowIso,
-      _debug: {
-        steps: debug.steps,
-        fxSource: debug.fxSource || null
-      }
+      _debug: debug
     };
 
-    // If we successfully computed priceAUD, cache it briefly
-    if (outPriceAUD !== null) {
-      writeCache(payload);
-    }
+    // cache successful computed payload briefly
+    if (outPriceAUD !== null) writeCache(payload);
 
-    // Log short summary server-side
-    console.log('morning-brief:', { priceUSD: outPriceUSD, usdToAud: outFx, priceAUD: outPriceAUD, fxSource: payload._debug.fxSource });
-
+    console.log('morning-brief summary:', { priceUSD: outPriceUSD, usdToAud: outFx, priceAUD: outPriceAUD, fxSource: payload._debug.fxSource });
     return { statusCode: 200, body: JSON.stringify(payload) };
 
   } catch (err) {
-    console.error('morning-brief handler error', err && (err.stack || err.message || err));
+    console.error('morning-brief error', err && (err.stack || err.message || err));
     return { statusCode: 500, body: JSON.stringify({ error: err && (err.message || 'Server error') }) };
   }
 };
