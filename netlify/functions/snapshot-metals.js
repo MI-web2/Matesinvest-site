@@ -5,7 +5,7 @@
 // - UPSTASH_REDIS_REST_URL
 // - UPSTASH_REDIS_REST_TOKEN
 //
-// Symbols stored: XAU, XAG, IRON, LITHIUM, NI, URIANIUM
+// Symbols stored: XAU, XAG, IRON, LITHIUM, NI, URANIUM
 // (Assumes these symbols are supported in your Metals-API plan.)
 
 exports.handler = async function (event) {
@@ -50,7 +50,7 @@ exports.handler = async function (event) {
     if (!UPSTASH_URL || !UPSTASH_TOKEN) return { statusCode: 500, body: 'Missing Upstash env vars' };
 
     // symbols to snapshot
-    const symbols = ['XAU','XAG','IRON','LITHIUM','NI','URIANIUM'];
+    const symbols = ['XAU','XAG','IRON','LITHIUM','NI','URANIUM'];
     const metaUrl = `https://metals-api.com/api/latest?access_key=${encodeURIComponent(METALS_API_KEY)}&base=USD&symbols=${encodeURIComponent(symbols.join(','))}`;
 
     // 1) fetch metals rates
