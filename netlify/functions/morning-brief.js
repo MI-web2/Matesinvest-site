@@ -1,209 +1,148 @@
 // netlify/functions/morning-brief.js
-// Morning brief: fetch live gold (XAU) USD price and USD->AUD FX rate, then ask OpenAI
-// to return a short JSON payload (narrative + numeric fields) using the same pattern
-// as the working matesSummary function.
+// Morning brief (OpenAI-driven): ask OpenAI for the spot gold price in AUD and return strict JSON.
+// Pattern mirrors netlify/functions/matesSummary.js (system + user, same model family).
 //
-// This function is designed to be invoked via GET from the client (no method check).
-// It follows the matesSummary OpenAI usage style (system message + user prompt, model, etc).
+// NOTE: This asks OpenAI for a numeric market value. That can hallucinate — safer approach is to
+// fetch numeric data from market APIs and use OpenAI only to phrase results. But per your request
+// this will call OpenAI directly.
 //
-// Requires env var: OPENAI_API_KEY (and optional NEWSAPI_KEY if you later want headlines)
-// Returns JSON: { narrative, priceUSD, usdToAud, priceAUD, priceTimestamp, generatedAt }
-// If OpenAI fails or returns invalid JSON, a deterministic fallback is returned.
+// Requires env var: OPENAI_API_KEY
 
 exports.handler = async (event) => {
   try {
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || null;
-
-    // Helper: fetch with timeout
-    async function fetchWithTimeout(url, opts = {}, timeout = 8000) {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeout);
-      try {
-        const res = await fetch(url, { ...opts, signal: controller.signal });
-        clearTimeout(id);
-        return res;
-      } catch (err) {
-        clearTimeout(id);
-        throw err;
-      }
+    // Allow GET or POST (client uses GET)
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
+      console.error("Missing OPENAI_API_KEY");
+      return { statusCode: 500, body: "Missing OPENAI_API_KEY" };
     }
 
-    // 1) Get XAU -> USD price (spot) from Yahoo Finance (XAUUSD=X)
-    let priceUSD = null;
-    let priceTimestamp = null;
-    try {
-      const yf = await fetchWithTimeout('https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD=X', {}, 7000);
-      if (yf.ok) {
-        const j = await yf.json();
-        const r = j?.quoteResponse?.result?.[0];
-        if (r && typeof r.regularMarketPrice === 'number') {
-          priceUSD = Number(r.regularMarketPrice);
-          if (r.regularMarketTime) priceTimestamp = new Date(r.regularMarketTime * 1000).toISOString();
-        }
-      } else {
-        console.warn('Yahoo XAU request non-ok', yf.status);
-      }
-    } catch (e) {
-      console.warn('Yahoo XAU fetch error:', e && e.message);
-    }
+    // Build the prompt: ask OpenAI to return strict JSON with numeric price in AUD
+    const prompt = `
+You are a concise financial reporter. Using live market knowledge, return a JSON object ONLY (no commentary, no code fences) with exactly these keys:
+- "priceAUD": numeric (the current spot gold price in Australian dollars per troy ounce).
+- "narrative": a single short sentence in this exact form: "The spot gold price is currently $X AUD per ounce." where X is the priceAUD rounded to 2 decimals.
+- "priceTimestamp": ISO timestamp if you can provide it (otherwise null).
+- "generatedAt": ISO timestamp string for when this response is generated.
 
-    // 1b) Fallback: GC=F if XAUUSD didn't return a price
-    if (priceUSD === null) {
-      try {
-        const gc = await fetchWithTimeout('https://query1.finance.yahoo.com/v7/finance/quote?symbols=GC=F', {}, 7000);
-        if (gc.ok) {
-          const j = await gc.json();
-          const r = j?.quoteResponse?.result?.[0];
-          if (r && typeof r.regularMarketPrice === 'number') {
-            priceUSD = Number(r.regularMarketPrice);
-            if (r.regularMarketTime) priceTimestamp = new Date(r.regularMarketTime * 1000).toISOString();
-          }
-        } else {
-          console.warn('Yahoo GC=F request non-ok', gc.status);
-        }
-      } catch (e) {
-        console.warn('Yahoo GC=F fetch error:', e && e.message);
-      }
-    }
-
-    // 2) Get USD -> AUD rate using exchangerate.host (fallbacks possible)
-    let usdToAud = null;
-    try {
-      const fx = await fetchWithTimeout('https://api.exchangerate.host/latest?base=USD&symbols=AUD', {}, 6000);
-      if (fx.ok) {
-        const j = await fx.json();
-        if (j && j.rates && typeof j.rates.AUD === 'number') usdToAud = Number(j.rates.AUD);
-      } else {
-        console.warn('exchangerate.host non-ok', fx.status);
-      }
-    } catch (e) {
-      console.warn('exchangerate.host fetch error:', e && e.message);
-    }
-
-    // 2b) Fallback FX: open.er-api.com
-    if (usdToAud === null) {
-      try {
-        const fx2 = await fetchWithTimeout('https://open.er-api.com/v6/latest/USD', {}, 6000);
-        if (fx2.ok) {
-          const j = await fx2.json();
-          if (j && j.rates && typeof j.rates.AUD === 'number') usdToAud = Number(j.rates.AUD);
-        } else {
-          console.warn('er-api non-ok', fx2.status);
-        }
-      } catch (e) {
-        console.warn('er-api fetch error:', e && e.message);
-      }
-    }
-
-    // Compute AUD price if both numbers present
-    const fmtNumber = (n) => (typeof n === 'number' && !isNaN(n)) ? Number(n.toFixed(2)) : null;
-    const outPriceUSD = fmtNumber(priceUSD);
-    const outFx = fmtNumber(usdToAud);
-    const outPriceAUD = (outPriceUSD !== null && outFx !== null) ? fmtNumber(outPriceUSD * outFx) : null;
-    const nowIso = new Date().toISOString();
-
-    // If we have numeric data and OPENAI_API_KEY is present, call OpenAI using the same pattern as matesSummary
-    let openaiPayload = null;
-    if (OPENAI_API_KEY && outPriceAUD !== null) {
-      const prompt = `
-You are a concise financial reporter. Given the numeric values provided, return a single JSON object (no commentary, no surrounding text, no code fences) with exactly these keys:
-- "narrative": a single short sentence stating the spot gold price in AUD, matching this exact form: "The spot gold price is currently $X AUD per ounce." where X is the AUD price rounded to 2 decimals.
-- "priceUSD": numeric (the USD price used)
-- "usdToAud": numeric (the FX rate used)
-- "priceAUD": numeric (the AUD price used)
-- "priceTimestamp": ISO timestamp string if available or null
-- "generatedAt": ISO timestamp string for when the brief was generated
-
-Values to use (do not guess or change the numbers):
-priceUSD=${outPriceUSD}
-usdToAud=${outFx}
-priceAUD=${outPriceAUD}
-priceTimestamp=${priceTimestamp || nowIso}
-
-Return ONLY the JSON object.
+Answer with only the JSON object. Do not include any surrounding text.
+Question: What is the spot gold price in AUD terms right now?
 `.trim();
 
-      try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'gpt-4.1-mini',
-            messages: [
-              { role: 'system', content: 'You respond only with strict JSON. No extra commentary.' },
-              { role: 'user', content: prompt }
-            ],
-            temperature: 0.4,
-            max_tokens: 150
-          })
-        });
+    // Call OpenAI (same style as matesSummary)
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        messages: [
+          { role: "system", content: "You respond only with strict JSON. No extra commentary." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.0,
+        max_tokens: 120
+      })
+    });
 
-        if (!res.ok) {
-          const txt = await res.text().catch(() => '<no-body>');
-          console.error('OpenAI non-ok:', res.status, txt);
-        } else {
-          const data = await res.json().catch(() => null);
-          const content = data?.choices?.[0]?.message?.content || null;
-          if (content) {
-            try {
-              // Parse content; matesSummary pattern expects strict JSON so try JSON.parse
-              const parsed = JSON.parse(content);
-              openaiPayload = parsed;
-            } catch (e) {
-              console.error('OpenAI content parse error. Raw content:', content);
-            }
-          } else {
-            console.warn('OpenAI returned no content');
-          }
-        }
-      } catch (e) {
-        console.error('OpenAI call error:', e && e.message);
-      }
-    } else {
-      if (!OPENAI_API_KEY) console.warn('OPENAI_API_KEY missing; skipping OpenAI phrasing');
-      if (outPriceAUD === null) console.warn('Numeric price not available; skipping OpenAI phrasing');
-    }
-
-    // If OpenAI returned a valid payload, normalise it to expected shape; otherwise produce deterministic fallback
-    if (openaiPayload && typeof openaiPayload === 'object') {
-      // Ensure numeric fields are numbers (try to coerce)
-      const normalised = {
-        narrative: typeof openaiPayload.narrative === 'string' ? openaiPayload.narrative : (outPriceAUD !== null ? `The spot gold price is currently $${outPriceAUD} AUD per ounce.` : 'The spot gold price is currently unavailable.'),
-        priceUSD: Number(openaiPayload.priceUSD) || outPriceUSD,
-        usdToAud: Number(openaiPayload.usdToAud) || outFx,
-        priceAUD: Number(openaiPayload.priceAUD) || outPriceAUD,
-        priceTimestamp: openaiPayload.priceTimestamp || priceTimestamp || null,
-        generatedAt: openaiPayload.generatedAt || nowIso
-      };
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "<no-body>");
+      console.error("OpenAI error:", res.status, txt);
+      // Return graceful fallback so UI doesn't break
       return {
         statusCode: 200,
-        body: JSON.stringify(normalised)
+        body: JSON.stringify({
+          priceAUD: null,
+          narrative: "The spot gold price is currently unavailable.",
+          priceTimestamp: null,
+          generatedAt: new Date().toISOString(),
+          // debug: include OpenAI status/text in logs only (not exposing secret)
+          _debug: { openai_status: res.status, openai_body_preview: txt.slice(0, 1000) }
+        })
       };
     }
 
-    // Fallback deterministic payload (no OpenAI or OpenAI failed)
-    const fallback = {
-      narrative: outPriceAUD !== null ? `The spot gold price is currently $${outPriceAUD} AUD per ounce.` : `The spot gold price is currently unavailable.`,
-      priceUSD: outPriceUSD,
-      usdToAud: outFx,
-      priceAUD: outPriceAUD,
-      priceTimestamp: priceTimestamp || null,
-      generatedAt: nowIso
-    };
+    const data = await res.json().catch(() => null);
+    const rawContent = data?.choices?.[0]?.message?.content || "";
 
+    // Attempt to parse JSON robustly: try direct JSON.parse, then balanced-object extraction
+    function extractBalancedJSON(text) {
+      if (!text || typeof text !== 'string') return null;
+      const first = text.indexOf('{');
+      if (first === -1) return null;
+      let inString = false;
+      let escape = false;
+      let depth = 0;
+      let start = -1;
+      for (let i = first; i < text.length; i++) {
+        const ch = text[i];
+        if (!inString) {
+          if (ch === '{') { if (start === -1) start = i; depth++; }
+          else if (ch === '}') { depth--; if (depth === 0 && start !== -1) return text.slice(start, i + 1); }
+          if (ch === '"') { inString = true; escape = false; }
+        } else {
+          if (escape) { escape = false; continue; }
+          if (ch === '\\') { escape = true; continue; }
+          if (ch === '"') { inString = false; }
+        }
+      }
+      return null;
+    }
+
+    let parsed = null;
+    try {
+      parsed = JSON.parse(rawContent.trim());
+    } catch (e) {
+      const candidate = extractBalancedJSON(rawContent);
+      if (candidate) {
+        try { parsed = JSON.parse(candidate); } catch (e2) { parsed = null; }
+      }
+    }
+
+    // If we parsed a valid object, normalise and return
+    if (parsed && typeof parsed === 'object') {
+      // Ensure numeric coercion for priceAUD
+      const priceAUD = (() => {
+        const v = parsed.priceAUD;
+        if (v === null || v === undefined || v === '') return null;
+        const num = Number(v);
+        return Number.isFinite(num) ? Number(num.toFixed(2)) : null;
+      })();
+
+      const narrative = (typeof parsed.narrative === 'string' && parsed.narrative.trim()) ?
+        parsed.narrative.trim() :
+        (priceAUD !== null ? `The spot gold price is currently $${priceAUD} AUD per ounce.` : 'The spot gold price is currently unavailable.');
+
+      const out = {
+        priceAUD,
+        narrative,
+        priceTimestamp: parsed.priceTimestamp || null,
+        generatedAt: parsed.generatedAt || new Date().toISOString()
+      };
+
+      return { statusCode: 200, body: JSON.stringify(out) };
+    }
+
+    // If parsing failed, log raw and return fallback
+    console.error("OpenAI returned unparsable content for morning-brief. Raw:", rawContent.slice(0, 2000));
     return {
       statusCode: 200,
-      body: JSON.stringify(fallback)
+      body: JSON.stringify({
+        priceAUD: null,
+        narrative: "The spot gold price is currently unavailable.",
+        priceTimestamp: null,
+        generatedAt: new Date().toISOString(),
+        _debug: { rawOpenAI: rawContent.slice(0, 2000) }
+      })
     };
 
   } catch (err) {
-    console.error('morning-brief error:', err && (err.stack || err.message || err));
+    console.error("morning-brief error:", err && (err.stack || err.message || err));
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: err && (err.message || 'Server error') })
+      body: JSON.stringify({ error: err && (err.message || "Server error") })
     };
   }
 };
