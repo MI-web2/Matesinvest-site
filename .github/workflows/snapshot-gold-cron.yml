@@ -1,0 +1,25 @@
+on:
+  schedule:
+    - cron: '59 13 * * *' # daily at 23:59 AEST (UTC+10) -> 13:59 UTC
+  workflow_dispatch: {}   # allows manual run from Actions UI
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call snapshot-gold function
+        env:
+          BASE_URL: ${{ secrets.NETLIFY_BASE_URL }}
+        run: |
+          if [ -z "$BASE_URL" ]; then
+            echo "ERROR: NETLIFY_BASE_URL secret not set."
+            exit 1
+          fi
+          echo "Calling snapshot endpoint at ${BASE_URL}/.netlify/functions/snapshot-gold"
+          HTTP_STATUS=$(curl -s -o /tmp/snapshot_out.json -w "%{http_code}" "${BASE_URL}/.netlify/functions/snapshot-gold")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/snapshot_out.json
+          if [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "Snapshot call failed"
+            exit 1
+          fi
