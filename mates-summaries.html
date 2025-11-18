@@ -827,10 +827,6 @@ Status: ${ev.status}
 
   /* ---------- Morning brief handlers (updated to show quick one-liner) ---------- */
 
-<!-- Replace the Morning brief handlers in your <script> with this simplified version -->
-<script>
-/* ---------- Morning brief handlers (simple gold-price narrative) ---------- */
-
 function renderMorningBrief(payload) {
   if (!payload) {
     briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
@@ -895,7 +891,6 @@ refreshBriefBtn.addEventListener("click", async () => {
     briefContent.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
   }
 });
-</script>
   /* ---------- Toggles & category handling ---------- */
 
   function setActiveToggle(isMarket) {
