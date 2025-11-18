@@ -120,4 +120,131 @@ body {
   flex-direction: column;
   gap: 1.5rem;
 }
+/* === Morning brief: dark-card styles (paste at end of styles.css) === */
 
+/* Top meta (As of / source) */
+.brief-top-meta {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+  color:rgba(255,255,255,0.55); /* muted light on dark */
+  font-size:0.9rem;
+}
+
+/* Percent badges */
+.brief-badge {
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:8px;
+  font-weight:700;
+  font-size:0.9rem;
+}
+
+.brief-badge.up {
+  background:#052e1f;   /* very dark green background */
+  color:#6ee7b7;        /* green text */
+  border:1px solid rgba(110,231,183,0.14);
+}
+
+.brief-badge.down {
+  background:#2a0b0b;   /* very dark red */
+  color:#ffb4b4;        /* soft red text */
+  border:1px solid rgba(255,180,180,0.06);
+}
+
+.brief-badge.neutral {
+  background:rgba(255,255,255,0.03);
+  color:rgba(255,255,255,0.75);
+}
+
+.brief-badge.no-data {
+  background:transparent;
+  color:rgba(255,255,255,0.6);
+  font-weight:600;
+  border-radius:6px;
+  padding:3px 6px;
+  opacity:0.95;
+}
+
+/* Horizontal-friendly grid: encourage multiple columns on desktop */
+.brief-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+  align-items: start;
+}
+
+/* Card styling tuned for dark theme (clear border + soft shadow + hover lift) */
+.card-metal {
+  padding: 0.9rem;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));
+  border: 1px solid rgba(255,255,255,0.04); /* subtle light border on dark bg */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow:
+    0 12px 30px rgba(2,6,23,0.45), /* main drop */
+    0 1px 0 rgba(255,255,255,0.02) inset; /* tiny inset highlight */
+  min-height: 84px;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+/* Little hover lift for desktop */
+.card-metal:hover {
+  transform: translateY(-6px);
+  box-shadow:
+    0 18px 44px rgba(2,6,23,0.55),
+    0 2px 0 rgba(255,255,255,0.03) inset;
+}
+
+/* Head / price area inside card; align items center for neat horizontal layout */
+.metal-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center; /* center vertically */
+  gap:8px;
+}
+
+/* Left column: name */
+.metal-name {
+  font-size:0.92rem;
+  color:rgba(255,255,255,0.85); /* lighter heading */
+}
+
+/* Main price */
+.metal-price {
+  font-weight:800;
+  font-size:1.05rem;
+  color:#ffffff; /* main price white */
+  margin-top:6px;
+}
+
+/* Secondary text (units, USD) */
+.metal-sub {
+  font-size:0.85rem;
+  color:rgba(255,255,255,0.55); /* muted */
+}
+
+/* USD secondary text styling */
+.metal-sub.usd { color:rgba(255,255,255,0.46); font-weight:600; }
+
+/* Optional compact narrative (kept small) */
+.metal-note { color:rgba(255,255,255,0.6); font-size:0.92rem; }
+
+/* Responsive behaviour:
+   - Very wide screens: grid uses the min width so multiple cards in a row
+   - Medium screens: two columns for a horizontal feel
+   - Small screens: single column and hide USD
+*/
+@media (max-width: 1100px) and (min-width: 800px) {
+  .brief-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+}
+
+@media (max-width: 799px) {
+  .brief-grid { grid-template-columns: 1fr; }
+  .metal-sub.usd { display: none; } /* keep mobile tidy */
+}
