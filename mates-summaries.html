@@ -825,7 +825,7 @@ Status: ${ev.status}
     };
   }
 
-  /* ---------- Morning brief handlers (updated to show quick one-liner) ---------- */
+/* ---------- Morning brief handlers (compact cards, no timestamp, no per-card narrative) ---------- */
 
 function formatMoney(n) {
   try {
@@ -855,58 +855,37 @@ function renderMorningBrief(payload) {
     return;
   }
 
-  // Use either snapshot.snappedAt, payload.generatedAt, or priceTimestamp from first metal
-  let asOf = null;
-  if (payload.usdToAud && payload._debug && payload._debug.cached) {
-    // if debug.cached was used, prefer payload.generatedAt
-    asOf = payload.generatedAt || (payload.metals && Object.values(payload.metals)[0] && payload.metals[Object.keys(payload.metals)[0]].priceTimestamp) || null;
-  } else {
-    asOf = payload.generatedAt || (payload.metals && Object.values(payload.metals)[0] && payload.metals[Object.keys(payload.metals)[0]].priceTimestamp) || null;
-  }
-
-  // top meta: As of + data source & cache hint
+  // We intentionally do not show the "As of" timestamp here to keep the UI compact.
   const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
   const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
-  const asOfText = asOf ? `As of: ${formatTime(asOf)} (${relativeTime(asOf)} ago)` : '';
 
-  // If incoming payload uses the "metals" object (new shape)
   if (payload.metals && typeof payload.metals === 'object') {
     const metals = payload.metals;
     const symbols = Object.keys(metals);
-
-    // Friendly name map
     const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
 
-    // Build top meta row
-    const topMetaHtml = `<div class="brief-top-meta">
-      <div>${asOfText}</div>
-      <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
-    </div>`;
+    // Top meta: only show source / cached on the right (no As of on the left)
+    const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
 
-    // Build card grid
     const cards = symbols.map(sym => {
       const m = metals[sym] || {};
       const priceAUD = (typeof m.priceAUD === 'number') ? formatMoney(m.priceAUD) : null;
       const priceUSD = (typeof m.priceUSD === 'number') ? formatMoney(m.priceUSD) : null;
       const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
 
-      // pct badge
-      let pctHtml = `<span class="brief-badge no-data">no change</span>`;
+      // Compact pct badge: small "—" when no data
+      let pctHtml = `<span class="brief-badge no-data" aria-hidden="true">—</span>`;
       if (pct !== null) {
         if (pct > 0) pctHtml = `<span class="brief-badge up" aria-label="${pct}% up">▲ ${Math.abs(pct)}%</span>`;
         else if (pct < 0) pctHtml = `<span class="brief-badge down" aria-label="${pct}% down">▼ ${Math.abs(pct)}%</span>`;
         else pctHtml = `<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>`;
       }
 
-      // small unit label (assume oz for precious metals)
       const unit = (sym === 'XAU' || sym === 'XAG') ? '/oz' : '/unit';
-
-      // USD secondary string (hidden on mobile)
       const usdHtml = priceUSD ? `<div class="metal-sub usd">$${priceUSD} USD</div>` : `<div class="metal-sub usd">—</div>`;
-
-      // main price display
       const priceDisplay = priceAUD ? `$${priceAUD} AUD` : '<span style="color:#ffd166">Unavailable</span>';
 
+      // Compact card: no per-card narrative
       return `
         <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
           <div class="metal-head">
@@ -919,8 +898,6 @@ function renderMorningBrief(payload) {
               ${usdHtml}
             </div>
           </div>
-          ${/* Only show a compact narrative once or on hover; keep minimal */''}
-          <div class="metal-sub" style="color:var(--muted);font-size:0.92rem">${priceAUD ? `${escapeHtml(friendly[sym] || sym)} is $${priceAUD} AUD` : `${escapeHtml(friendly[sym] || sym)} price unavailable`}</div>
         </div>
       `;
     }).join("");
@@ -929,21 +906,22 @@ function renderMorningBrief(payload) {
     return;
   }
 
-  // Fallback to old single-gold payload
+  // Fallback for single-gold payload: compact and no top timestamp
   const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
   const fallbackHtml = `
     <div class="brief-top-meta">
-      <div>${asOfText}</div>
+      <div></div>
       <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
     </div>
-    <div style="padding:0.6rem;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)">
+    <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
       <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
       <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
-      ${payload.priceTimestamp ? `<div style="margin-top:0.35rem;color:var(--muted);font-size:0.85rem">As of: ${escapeHtml(payload.priceTimestamp)}</div>` : ''}
     </div>
   `;
   briefContent.innerHTML = fallbackHtml;
 }
+
+// open / refresh handlers remain the same
 openBriefBtn.addEventListener("click", async () => {
   const region = briefRegionSelect.value || "au";
   if (briefContent.style.display === "block") {
@@ -955,7 +933,6 @@ openBriefBtn.addEventListener("click", async () => {
   briefContent.style.display = "block";
   openBriefBtn.textContent = "Hide brief";
 
-  // Always fetch the simple gold narrative fresh (no caching in UI)
   briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
   try {
     const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
@@ -972,12 +949,10 @@ openBriefBtn.addEventListener("click", async () => {
 });
 
 refreshBriefBtn.addEventListener("click", async () => {
-  // Force a reload of the brief next time user opens it (or if already open, reload now)
   if (briefContent.style.display !== "block") {
     openBriefBtn.click();
     return;
   }
-  // currently open — re-fetch
   try {
     briefContent.innerHTML = `<div class="brief-loading">Refreshing briefing…</div>`;
     const region = briefRegionSelect.value || "au";
@@ -990,7 +965,6 @@ refreshBriefBtn.addEventListener("click", async () => {
     briefContent.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
   }
 });
-
   /* ---------- Toggles & category handling ---------- */
 
   function setActiveToggle(isMarket) {
