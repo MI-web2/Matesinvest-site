@@ -120,7 +120,7 @@ exports.handler = async function (event) {
     const snapshot = { snappedAt: nowIso, usdToAud: usdToAud, symbols: {} };
     const timestampFromMetals = (mJson && mJson.timestamp) ? new Date(mJson.timestamp * 1000).toISOString() : null;
     for (const s of symbols) {
-      // pUsdRaw will be the value we use as "apiPriceUSD" (before rounding)
+      // pUsdRawApi will be the value we use as "apiPriceUSD" (before rounding)
       const pUsdRawApi = (typeof priceUsdMap[`${s}_apiRaw`] === 'number') ? Number(priceUsdMap[`${s}_apiRaw`]) : null;
       // pUsdRaw is the (possibly normalised) USD price we will present as priceUSD
       const pUsdRaw = (typeof priceUsdMap[s] === 'number') ? Number(priceUsdMap[s]) : null;
@@ -141,6 +141,12 @@ exports.handler = async function (event) {
         unit // explicit unit so front-end knows what it represents
       };
     }
+
+    // ------------------ IMPORTANT: backwards compatibility ------------------
+    // Also expose the same object under snapshot.metals for older code that expects payload.metals
+    // This ensures morning-brief and front-end that read payload.metals will receive the normalized values.
+    snapshot.metals = snapshot.symbols;
+    // ------------------------------------------------------------------------
 
     // 4) persist under metals:YYYY-MM-DD and metals:latest (UTC date)
     const d = new Date();
