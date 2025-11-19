@@ -26,6 +26,7 @@ function buildPrompt(region, articles) {
   }).join("\n");
 
   return `
+return `
 You are writing a short pre-market note for everyday investors in ${regionLabel}.
 Use plain English, no jargon, and keep it to 2–3 sentences max.
 
@@ -34,10 +35,11 @@ Here are some of the latest headlines and market stories:
 ${topBits || "• No major headlines available."}
 
 Write a concise "Mates Morning Note" that:
-- mentions any big macro or market moves if visible from the headlines
-- calls out anything especially relevant to Australian investors (banks, miners, commodities) if possible
-- has a calm, factual tone (not hypey)
-- does NOT give trading advice; just context.
+- starts directly with the market context (no greeting, no heading)
+- does NOT include any markdown formatting (no **bold**, no bullet points)
+- does NOT say "Mates Morning Note" in the text
+- does NOT include a sign-off like "stay safe" or "take care"
+- uses an Australian tone when talking about Australia and the ASX.
 `;
 }
 
@@ -103,9 +105,18 @@ exports.handler = async function (event, context) {
       throw new Error(`OpenAI error: ${aiRes.status} ${text}`);
     }
 
-    const aiJson = await aiRes.json();
-    const note = aiJson.choices?.[0]?.message?.content?.trim() ||
-      "Markets are open with mixed signals across indices and commodities today.";
+   // 3) Parse OpenAI response
+let note = aiJson.choices?.[0]?.message?.content?.trim()
+  || "Markets are open with mixed signals across indices and commodities today.";
+
+// Cleanup formatting
+note = note.replace(/\*\*/g, ""); // remove markdown bold (**)
+note = note.replace(/^#+\s*/g, ""); // remove any markdown headings (# title)
+note = note.replace(/^Mates Morning Note[:\- ]*/i, ""); // remove headings if AI adds them
+note = note.replace(/^Good\s+morning[,!.]?\s*/i, ""); // remove greetings
+note = note.replace(/Take care\.?$/i, ""); // remove sign-offs
+note = note.trim();
+
 
     return {
       statusCode: 200,
