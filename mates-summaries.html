@@ -980,58 +980,78 @@ Status: ${ev.status}
     } catch { return iso || ''; }
   }
 
-  function renderMorningBrief(payload) {
-    if (!payload) {
-      briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
-      return;
-    }
+function renderMorningBrief(payload) {
+  if (!payload) {
+    briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
+    return;
+  }
 
-    // We intentionally do not show the "As of" timestamp here to keep the UI compact.
-    const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
-    const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
+  const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
+  const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
 
-    if (payload.metals && typeof payload.metals === 'object') {
-      const metals = payload.metals;
-      const symbols = Object.keys(metals);
-      const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
+  if (payload.metals && typeof payload.metals === 'object') {
+    const metals = payload.metals;
+    const symbols = Object.keys(metals);
+    const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
 
-      // Top meta: only show source / cached on the right (no As of on the left)
-      const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
+    const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
 
-      const cards = symbols.map(sym => {
-        const m = metals[sym] || {};
-        const priceAUD = (typeof m.priceAUD === 'number') ? formatMoney(m.priceAUD) : null;
-        const priceUSD = (typeof m.priceUSD === 'number') ? formatMoney(m.priceUSD) : null;
-        const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
+    const cards = symbols.map(sym => {
+      const m = metals[sym] || {};
+      const priceAUDraw = (typeof m.priceAUD === 'number') ? m.priceAUD : null;
+      const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
 
-        // Compact pct badge: small "—" when no data
-        let pctHtml = `<span class="brief-badge no-data" aria-hidden="true">—</span>`;
-        if (pct !== null) {
-          if (pct > 0) pctHtml = `<span class="brief-badge up" aria-label="${pct}% up">▲ ${Math.abs(pct)}%</span>`;
-          else if (pct < 0) pctHtml = `<span class="brief-badge down" aria-label="${pct}% down">▼ ${Math.abs(pct)}%</span>`;
-          else pctHtml = `<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>`;
-        }
+      // Prefer explicit unit from snapshot; fallback to heuristic
+      const unitFromSnapshot = (m.unit || '').toString().trim();
+      const unit = unitFromSnapshot || ((sym === 'XAU' || sym === 'XAG') ? 'oz' : (sym === 'IRON' ? 'tonne' : 'unit'));
 
-        const unit = (sym === 'XAU' || sym === 'XAG') ? '/oz' : '/unit';
-        const usdHtml = priceUSD ? `<div class="metal-sub usd">$${priceUSD} USD</div>` : `<div class="metal-sub usd">—</div>`;
-        const priceDisplay = priceAUD ? `$${priceAUD} AUD` : '<span style="color:#ffd166">Unavailable</span>';
+      const priceDisplay = priceAUDraw !== null ? `$${formatMoney(priceAUDraw)} AUD` : '<span style="color:#ffd166">Unavailable</span>';
 
-        // Compact card: no per-card narrative
-        return `
-          <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
-            <div class="metal-head">
-              <div>
-                <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
-                <div class="metal-price">${priceDisplay} <small style="color:var(--muted);font-weight:600">${unit}</small></div>
-              </div>
-              <div style="text-align:right">
-                ${pctHtml}
-                ${usdHtml}
-              </div>
+      // pct badge
+      let pctHtml = `<span class="brief-badge no-data" aria-hidden="true">—</span>`;
+      if (pct !== null) {
+        if (pct > 0) pctHtml = `<span class="brief-badge up" aria-label="${pct}% up">▲ ${Math.abs(pct)}%</span>`;
+        else if (pct < 0) pctHtml = `<span class="brief-badge down" aria-label="${pct}% down">▼ ${Math.abs(pct)}%</span>`;
+        else pctHtml = `<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>`;
+      }
+
+      // optional trace: show original API USD (apiPriceUSD) small hint if present
+      const apiHint = (typeof m.apiPriceUSD === 'number') ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:6px">api: $${formatMoney(m.apiPriceUSD)} USD</div>` : '';
+
+      return `
+        <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
+          <div class="metal-head">
+            <div>
+              <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
+              <div class="metal-price">${priceDisplay} <small class="metal-sub" style="color:var(--muted);font-weight:600">${escapeHtml('/' + unit)}</small></div>
+            </div>
+            <div style="text-align:right">
+              ${pctHtml}
             </div>
           </div>
-        `;
-      }).join("");
+          ${apiHint}
+        </div>
+      `;
+    }).join("");
+
+    briefContent.innerHTML = `${topMetaHtml}<div class="brief-grid">${cards}</div>`;
+    return;
+  }
+
+  // Fallback: old single-gold payload
+  const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
+  const fallbackHtml = `
+    <div class="brief-top-meta">
+      <div></div>
+      <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
+    </div>
+    <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
+      <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
+      <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
+    </div>
+  `;
+  briefContent.innerHTML = fallbackHtml;
+}
 
       briefContent.innerHTML = `${topMetaHtml}<div class="brief-grid">${cards}</div>`;
       return;
