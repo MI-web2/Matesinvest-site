@@ -11,7 +11,6 @@
   <link rel="apple-touch-icon" href="/assets/img/favicon.png">
 
   <style>
-<link rel="stylesheet" href="/styles.css">
     :root{
       --bg: #050814;
       --card: linear-gradient(180deg, rgba(20,24,40,0.9), rgba(15,18,32,0.85));
@@ -149,7 +148,138 @@
       .meta-row{ flex-direction:column; align-items:flex-start; gap:0.5rem }
       .headline h3{ white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
     }
+
+    /* === Morning brief: dark-card styles (inline so page doesn't depend on external stylesheet) === */
+
+    /* Top meta (As of / source) */
+    .brief-top-meta {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:10px;
+      color:rgba(255,255,255,0.55); /* muted light on dark */
+      font-size:0.9rem;
+    }
+
+    /* Percent badges */
+    .brief-badge {
+      display:inline-block;
+      padding:4px 8px;
+      border-radius:8px;
+      font-weight:700;
+      font-size:0.9rem;
+    }
+
+    .brief-badge.up {
+      background:#052e1f;   /* very dark green background */
+      color:#6ee7b7;        /* green text */
+      border:1px solid rgba(110,231,183,0.14);
+    }
+
+    .brief-badge.down {
+      background:#2a0b0b;   /* very dark red */
+      color:#ffb4b4;        /* soft red text */
+      border:1px solid rgba(255,180,180,0.06);
+    }
+
+    .brief-badge.neutral {
+      background:rgba(255,255,255,0.03);
+      color:rgba(255,255,255,0.75);
+    }
+
+    .brief-badge.no-data {
+      background:transparent;
+      color:rgba(255,255,255,0.6);
+      font-weight:600;
+      border-radius:6px;
+      padding:3px 6px;
+      opacity:0.95;
+    }
+
+    /* Horizontal-friendly grid: encourage multiple columns on desktop */
+    .brief-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+      align-items: start;
+    }
+
+    /* Card styling tuned for dark theme (clear border + soft shadow + hover lift) */
+    .card-metal {
+      padding: 0.9rem;
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));
+      border: 1px solid rgba(255,255,255,0.04); /* subtle light border on dark bg */
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow:
+        0 12px 30px rgba(2,6,23,0.45), /* main drop */
+        0 1px 0 rgba(255,255,255,0.02) inset; /* tiny inset highlight */
+      min-height: 84px;
+      transition: transform 160ms ease, box-shadow 160ms ease;
+    }
+
+    /* Little hover lift for desktop */
+    .card-metal:hover {
+      transform: translateY(-6px);
+      box-shadow:
+        0 18px 44px rgba(2,6,23,0.55),
+        0 2px 0 rgba(255,255,255,0.03) inset;
+    }
+
+    /* Head / price area inside card; align items center for neat horizontal layout */
+    .metal-head {
+      display:flex;
+      justify-content:space-between;
+      align-items:center; /* center vertically */
+      gap:8px;
+    }
+
+    /* Left column: name */
+    .metal-name {
+      font-size:0.92rem;
+      color:rgba(255,255,255,0.85); /* lighter heading */
+    }
+
+    /* Main price */
+    .metal-price {
+      font-weight:800;
+      font-size:1.05rem;
+      color:#ffffff; /* main price white */
+      margin-top:6px;
+    }
+
+    /* Secondary text (units, USD) */
+    .metal-sub {
+      font-size:0.85rem;
+      color:rgba(255,255,255,0.55); /* muted */
+    }
+
+    /* USD secondary text styling */
+    .metal-sub.usd { color:rgba(255,255,255,0.46); font-weight:600; }
+
+    /* Optional compact narrative (kept small) */
+    .metal-note { color:rgba(255,255,255,0.6); font-size:0.92rem; }
+
+    /* Responsive behaviour:
+       - Very wide screens: grid uses the min width so multiple cards in a row
+       - Medium screens: two columns for a horizontal feel
+       - Small screens: single column and hide USD
+    */
+    @media (max-width: 1100px) and (min-width: 800px) {
+      .brief-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+    }
+
+    @media (max-width: 799px) {
+      .brief-grid { grid-template-columns: 1fr; }
+      .metal-sub.usd { display: none; } /* keep mobile tidy */
+    }
+
   </style>
+
 </head>
 
 <body>
@@ -826,146 +956,146 @@ Status: ${ev.status}
     };
   }
 
-/* ---------- Morning brief handlers (compact cards, no timestamp, no per-card narrative) ---------- */
+  /* ---------- Morning brief handlers (compact cards, no timestamp, no per-card narrative) ---------- */
 
-function formatMoney(n) {
-  try {
-    if (n === null || typeof n === 'undefined') return null;
-    return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  } catch { return String(n); }
-}
-
-function relativeTime(iso) {
-  try {
-    const date = new Date(iso);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMin = Math.round(diffMs / 60000);
-    if (Math.abs(diffMin) < 1) return 'just now';
-    if (Math.abs(diffMin) < 60) return `${diffMin}m`;
-    const diffHours = Math.round(diffMin / 60);
-    if (Math.abs(diffHours) < 24) return `${diffHours}h`;
-    const diffDays = Math.round(diffHours / 24);
-    return `${diffDays}d`;
-  } catch { return iso || ''; }
-}
-
-function renderMorningBrief(payload) {
-  if (!payload) {
-    briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
-    return;
+  function formatMoney(n) {
+    try {
+      if (n === null || typeof n === 'undefined') return null;
+      return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } catch { return String(n); }
   }
 
-  // We intentionally do not show the "As of" timestamp here to keep the UI compact.
-  const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
-  const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
+  function relativeTime(iso) {
+    try {
+      const date = new Date(iso);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMin = Math.round(diffMs / 60000);
+      if (Math.abs(diffMin) < 1) return 'just now';
+      if (Math.abs(diffMin) < 60) return `${diffMin}m`;
+      const diffHours = Math.round(diffMin / 60);
+      if (Math.abs(diffHours) < 24) return `${diffHours}h`;
+      const diffDays = Math.round(diffHours / 24);
+      return `${diffDays}d`;
+    } catch { return iso || ''; }
+  }
 
-  if (payload.metals && typeof payload.metals === 'object') {
-    const metals = payload.metals;
-    const symbols = Object.keys(metals);
-    const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
+  function renderMorningBrief(payload) {
+    if (!payload) {
+      briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
+      return;
+    }
 
-    // Top meta: only show source / cached on the right (no As of on the left)
-    const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
+    // We intentionally do not show the "As of" timestamp here to keep the UI compact.
+    const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
+    const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
 
-    const cards = symbols.map(sym => {
-      const m = metals[sym] || {};
-      const priceAUD = (typeof m.priceAUD === 'number') ? formatMoney(m.priceAUD) : null;
-      const priceUSD = (typeof m.priceUSD === 'number') ? formatMoney(m.priceUSD) : null;
-      const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
+    if (payload.metals && typeof payload.metals === 'object') {
+      const metals = payload.metals;
+      const symbols = Object.keys(metals);
+      const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
 
-      // Compact pct badge: small "—" when no data
-      let pctHtml = `<span class="brief-badge no-data" aria-hidden="true">—</span>`;
-      if (pct !== null) {
-        if (pct > 0) pctHtml = `<span class="brief-badge up" aria-label="${pct}% up">▲ ${Math.abs(pct)}%</span>`;
-        else if (pct < 0) pctHtml = `<span class="brief-badge down" aria-label="${pct}% down">▼ ${Math.abs(pct)}%</span>`;
-        else pctHtml = `<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>`;
-      }
+      // Top meta: only show source / cached on the right (no As of on the left)
+      const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
 
-      const unit = (sym === 'XAU' || sym === 'XAG') ? '/oz' : '/unit';
-      const usdHtml = priceUSD ? `<div class="metal-sub usd">$${priceUSD} USD</div>` : `<div class="metal-sub usd">—</div>`;
-      const priceDisplay = priceAUD ? `$${priceAUD} AUD` : '<span style="color:#ffd166">Unavailable</span>';
+      const cards = symbols.map(sym => {
+        const m = metals[sym] || {};
+        const priceAUD = (typeof m.priceAUD === 'number') ? formatMoney(m.priceAUD) : null;
+        const priceUSD = (typeof m.priceUSD === 'number') ? formatMoney(m.priceUSD) : null;
+        const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
 
-      // Compact card: no per-card narrative
-      return `
-        <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
-          <div class="metal-head">
-            <div>
-              <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
-              <div class="metal-price">${priceDisplay} <small style="color:var(--muted);font-weight:600">${unit}</small></div>
-            </div>
-            <div style="text-align:right">
-              ${pctHtml}
-              ${usdHtml}
+        // Compact pct badge: small "—" when no data
+        let pctHtml = `<span class="brief-badge no-data" aria-hidden="true">—</span>`;
+        if (pct !== null) {
+          if (pct > 0) pctHtml = `<span class="brief-badge up" aria-label="${pct}% up">▲ ${Math.abs(pct)}%</span>`;
+          else if (pct < 0) pctHtml = `<span class="brief-badge down" aria-label="${pct}% down">▼ ${Math.abs(pct)}%</span>`;
+          else pctHtml = `<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>`;
+        }
+
+        const unit = (sym === 'XAU' || sym === 'XAG') ? '/oz' : '/unit';
+        const usdHtml = priceUSD ? `<div class="metal-sub usd">$${priceUSD} USD</div>` : `<div class="metal-sub usd">—</div>`;
+        const priceDisplay = priceAUD ? `$${priceAUD} AUD` : '<span style="color:#ffd166">Unavailable</span>';
+
+        // Compact card: no per-card narrative
+        return `
+          <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
+            <div class="metal-head">
+              <div>
+                <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
+                <div class="metal-price">${priceDisplay} <small style="color:var(--muted);font-weight:600">${unit}</small></div>
+              </div>
+              <div style="text-align:right">
+                ${pctHtml}
+                ${usdHtml}
+              </div>
             </div>
           </div>
-        </div>
-      `;
-    }).join("");
+        `;
+      }).join("");
 
-    briefContent.innerHTML = `${topMetaHtml}<div class="brief-grid">${cards}</div>`;
-    return;
-  }
-
-  // Fallback for single-gold payload: compact and no top timestamp
-  const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
-  const fallbackHtml = `
-    <div class="brief-top-meta">
-      <div></div>
-      <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
-    </div>
-    <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
-      <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
-      <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
-    </div>
-  `;
-  briefContent.innerHTML = fallbackHtml;
-}
-
-// open / refresh handlers remain the same
-openBriefBtn.addEventListener("click", async () => {
-  const region = briefRegionSelect.value || "au";
-  if (briefContent.style.display === "block") {
-    briefContent.style.display = "none";
-    openBriefBtn.textContent = "Open morning brief";
-    return;
-  }
-
-  briefContent.style.display = "block";
-  openBriefBtn.textContent = "Hide brief";
-
-  briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
-  try {
-    const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(t || 'Brief fetch failed');
+      briefContent.innerHTML = `${topMetaHtml}<div class="brief-grid">${cards}</div>`;
+      return;
     }
-    const payload = await res.json();
-    renderMorningBrief(payload);
-  } catch (err) {
-    console.error('Morning brief failed', err);
-    briefContent.innerHTML = `<div class="brief-loading">Failed to load morning brief.</div>`;
-  }
-});
 
-refreshBriefBtn.addEventListener("click", async () => {
-  if (briefContent.style.display !== "block") {
-    openBriefBtn.click();
-    return;
+    // Fallback for single-gold payload: compact and no top timestamp
+    const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
+    const fallbackHtml = `
+      <div class="brief-top-meta">
+        <div></div>
+        <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
+      </div>
+      <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
+        <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
+        <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
+      </div>
+    `;
+    briefContent.innerHTML = fallbackHtml;
   }
-  try {
-    briefContent.innerHTML = `<div class="brief-loading">Refreshing briefing…</div>`;
+
+  // open / refresh handlers remain the same
+  openBriefBtn.addEventListener("click", async () => {
     const region = briefRegionSelect.value || "au";
-    const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
-    if (!res.ok) throw new Error('Refresh failed');
-    const payload = await res.json();
-    renderMorningBrief(payload);
-  } catch (err) {
-    console.error('Refresh failed', err);
-    briefContent.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
-  }
-});
+    if (briefContent.style.display === "block") {
+      briefContent.style.display = "none";
+      openBriefBtn.textContent = "Open morning brief";
+      return;
+    }
+
+    briefContent.style.display = "block";
+    openBriefBtn.textContent = "Hide brief";
+
+    briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
+    try {
+      const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || 'Brief fetch failed');
+      }
+      const payload = await res.json();
+      renderMorningBrief(payload);
+    } catch (err) {
+      console.error('Morning brief failed', err);
+      briefContent.innerHTML = `<div class="brief-loading">Failed to load morning brief.</div>`;
+    }
+  });
+
+  refreshBriefBtn.addEventListener("click", async () => {
+    if (briefContent.style.display !== "block") {
+      openBriefBtn.click();
+      return;
+    }
+    try {
+      briefContent.innerHTML = `<div class="brief-loading">Refreshing briefing…</div>`;
+      const region = briefRegionSelect.value || "au";
+      const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
+      if (!res.ok) throw new Error('Refresh failed');
+      const payload = await res.json();
+      renderMorningBrief(payload);
+    } catch (err) {
+      console.error('Refresh failed', err);
+      briefContent.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
+    }
+  });
   /* ---------- Toggles & category handling ---------- */
 
   function setActiveToggle(isMarket) {
