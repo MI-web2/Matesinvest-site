@@ -252,11 +252,14 @@
       margin-top:6px;
     }
 
-    /* Secondary text (units) */
+    /* Secondary text (units, USD) */
     .metal-sub {
       font-size:0.85rem;
       color:rgba(255,255,255,0.55); /* muted */
     }
+
+    /* USD secondary text styling */
+    .metal-sub.usd { color:rgba(255,255,255,0.46); font-weight:600; }
 
     /* Optional compact narrative (kept small) */
     .metal-note { color:rgba(255,255,255,0.6); font-size:0.92rem; }
@@ -264,7 +267,7 @@
     /* Responsive behaviour:
        - Very wide screens: grid uses the min width so multiple cards in a row
        - Medium screens: two columns for a horizontal feel
-       - Small screens: single column
+       - Small screens: single column and hide USD
     */
     @media (max-width: 1100px) and (min-width: 800px) {
       .brief-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
@@ -272,9 +275,11 @@
 
     @media (max-width: 799px) {
       .brief-grid { grid-template-columns: 1fr; }
+      .metal-sub.usd { display: none; } /* keep mobile tidy */
     }
 
   </style>
+
 </head>
 
 <body>
@@ -546,7 +551,412 @@
     });
   }
 
-  /* ---------- Morning brief handlers (compact cards, USD removed) ---------- */
+  async function renderMarketMode() {
+    sportFilterRow.style.display = "none";
+    newsList.innerHTML = "";
+    const filtered = allArticles.filter(a =>
+      currentCategory === "all" || categoryFromArticle(a) === currentCategory
+    );
+
+    if (!filtered.length) {
+      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">No market headlines yet.</small></div>`;
+      return;
+    }
+
+    filtered.forEach(a => {
+      const item = document.createElement("div");
+      item.className = "headline";
+
+      const published = formatTime(a.publishedAt || a.published || "");
+
+      item.innerHTML = `
+        <div class="meta-row">
+          <div class="meta-left">
+            <div style="min-width:0">
+              <h3 title="${escapeHtml(a.title || '')}">${escapeHtml(a.title || '')}</h3>
+              <small>${escapeHtml(a.source || "")} · ${escapeHtml(published)}</small>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">Read original</a>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" aria-label="Generate summary for article">MatesInvest summary</button>
+        </div>
+        <div class="summary-output"></div>
+      `;
+
+      const btn = item.querySelector("button");
+      const output = item.querySelector(".summary-output");
+      let busy = false;
+
+      btn.addEventListener("click", async () => {
+        if (busy) return;
+        busy = true;
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.textContent = "Summarising…";
+
+        try {
+          const summary = await callMatesSummary({
+            text: `${a.title}\n\n${a.description || ""}`,
+            sourceType: "news_article",
+            headline: a.title,
+          });
+
+          output.innerHTML = renderSummary(summary);
+        } catch (err) {
+          console.error(err);
+          output.textContent = "Summary failed.";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = origText;
+          busy = false;
+        }
+      });
+
+      newsList.appendChild(item);
+    });
+  }
+
+  async function renderMatesMode() {
+    showSkeleton(5);
+    try {
+      const market = await getMarketFeed();
+      const sports = await getSportsFeed() || [];
+
+      const sportSet = new Set();
+      (sports || []).forEach(ev => {
+        const s = (ev.sport || ev.league || "").toString().trim();
+        if (s) {
+          const key = ev.sport ? ev.sport.toString().trim() : (ev.league || "").toString().trim();
+          const label = key.split(" ").map(w => w && (w[0].toUpperCase() + w.slice(1).toLowerCase())).join(" ");
+          sportSet.add(label);
+        }
+      });
+
+      renderSportFilters(Array.from(sportSet));
+
+      const sportsCards = (sports || []).map(ev => ({
+        type: "sport",
+        title: `${ev.home} vs ${ev.away}`,
+        subtitle: ev.league || "",
+        sportLabel: (ev.sport || ev.league || "").toString().trim(),
+        time: ev.localTime || ev.utcTime || ev.time,
+        raw: ev
+      }));
+
+      const marketCards = (market || []).map(a => ({
+        type: "market",
+        title: a.title,
+        subtitle: a.source || "",
+        url: a.url,
+        description: a.description || "",
+        time: a.publishedAt || a.published || new Date().toISOString(),
+        raw: a
+      }));
+
+      let combined = [...marketCards, ...sportsCards]
+        .sort((a,b) => new Date(b.time) - new Date(a.time));
+
+      if (selectedSports.size > 0) {
+        combined = combined.filter(item => {
+          if (item.type !== "sport") return true;
+          const sportVal = (item.sportLabel || "").toLowerCase();
+          return selectedSports.has(sportVal);
+        });
+      }
+
+      combined = combined.filter(item => {
+        if (item.type === "market") {
+          return currentCategory === "all" || categoryFromArticle(item.raw) === currentCategory;
+        }
+        return true;
+      });
+
+      newsList.innerHTML = "";
+
+      combined.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "headline";
+
+        if (item.type === "sport") {
+          const icon = getSportIcon(item.raw);
+          const ev = item.raw;
+          const when = formatTime(item.time);
+          const sportBadge = escapeHtml((item.sportLabel || "").toString());
+
+          div.innerHTML = `
+            <div class="meta-row">
+              <div class="meta-left" style="min-width:0">
+                <div>
+                  <h3>${escapeHtml(item.title || "")}</h3>
+                  <small>${icon} ${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
+                </div>
+              </div>
+              <div style="display:flex;gap:0.5rem;align-items:center">
+                <span class="sport-tag">${sportBadge}</span>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn">MatesInvest summary</button>
+              <button class="link-min" data-toggle-stats>Stats</button>
+            </div>
+
+            <div class="summary-output"></div>
+            <div class="sports-stats" style="margin-top:0.6rem; display:none;"></div>
+          `;
+
+          const btn = div.querySelector("button.btn");
+          const output = div.querySelector(".summary-output");
+          const statsBtn = div.querySelector('button[data-toggle-stats]');
+          const statsArea = div.querySelector(".sports-stats");
+          let busy = false;
+
+          btn.onclick = async () => {
+            if (busy) return;
+            busy = true;
+            btn.disabled = true;
+            const prev = btn.textContent;
+            btn.textContent = "Summarising…";
+
+            try {
+              const summary = await callMatesSummary({
+                sourceType: "sports_event",
+                headline: `${ev.home} vs ${ev.away}`,
+                text: `
+League: ${ev.league}
+Sport: ${ev.sport}
+Score: ${ev.home} ${ev.homeScore} - ${ev.awayScore} ${ev.away}
+Status: ${ev.status}
+`,
+              });
+
+              output.innerHTML = renderSportsSummary(summary, icon);
+            } catch (err) {
+              console.error(err);
+              output.textContent = "Summary failed.";
+            } finally {
+              btn.disabled = false;
+              btn.textContent = prev;
+              busy = false;
+            }
+          };
+
+          // Attach stats handler (on-demand event-details)
+          attachStatsHandler(statsBtn, statsArea, ev);
+
+          newsList.appendChild(div);
+        } else {
+          const when = formatTime(item.time);
+          div.innerHTML = `
+            <div class="meta-row">
+              <div class="meta-left">
+                <div style="min-width:0">
+                  <h3>${escapeHtml(item.title || "")}</h3>
+                  <small>${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
+                </div>
+              </div>
+              <div style="display:flex;gap:0.5rem;align-items:center">
+                <a class="link-min" href="${item.url || "#"}" target="_blank" rel="noopener">Read original</a>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn">MatesInvest summary</button>
+            </div>
+            <div class="summary-output"></div>
+          `;
+
+          const btn = div.querySelector("button");
+          const output = div.querySelector(".summary-output");
+          let busy = false;
+
+          btn.onclick = async () => {
+            if (busy) return;
+            busy = true;
+            btn.disabled = true;
+            const prev = btn.textContent;
+            btn.textContent = "Summarising…";
+
+            try {
+              const summary = await callMatesSummary({
+                text: `${item.title}\n\n${item.description}`,
+                sourceType: "news_article",
+                headline: item.title,
+              });
+
+              output.innerHTML = renderSummary(summary);
+            } catch (err) {
+              console.error(err);
+              output.textContent = "Summary failed.";
+            } finally {
+              btn.disabled = false;
+              btn.textContent = prev;
+              busy = false;
+            }
+          };
+
+          newsList.appendChild(div);
+        }
+      });
+
+      if (!combined.length) {
+        newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">No items found.</small></div>`;
+      }
+
+    } catch (err) {
+      console.error("Error rendering MatesMode", err);
+      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
+    }
+  }
+
+  /* ---------- RICH STATS HELPERS (event-details client) ---------- */
+
+  async function fetchEventDetails(eventId) {
+    const res = await fetch(`/.netlify/functions/event-details?id=${encodeURIComponent(eventId)}`);
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Event details request failed: ${res.status} ${txt}`);
+    }
+    return res.json();
+  }
+
+  function parseGoalDetails(raw) {
+    if (!raw || !raw.trim()) return [];
+    const parts = raw.split(/;|\n/).map(p => p.trim()).filter(Boolean);
+    const events = parts.map(p => {
+      const m = p.match(/^(\d+\+?\d*)'?[\s-–:]?\s*(.+)$/);
+      if (m) {
+        return { minute: m[1] + "'", text: m[2] };
+      }
+      return { minute: '', text: p };
+    });
+    return events;
+  }
+
+  function renderLineupSection(title, lineupStr) {
+    if (!lineupStr || !lineupStr.trim()) return '';
+    const players = lineupStr.split(/, ?/).map(s => s.trim()).filter(Boolean);
+    return `<div class="lineup-block" role="group" aria-label="${escapeHtml(title)}">
+      <strong style="color:var(--muted)">${escapeHtml(title)}</strong>
+      <div style="margin-top:0.35rem">${players.map(p => `<div>${escapeHtml(p)}</div>`).join('')}</div>
+    </div>`;
+  }
+
+  function renderBoxScoreAndPlayers(ev) {
+    if (!ev) return `<div style="color:var(--muted)">No stats available.</div>`;
+
+    const home = escapeHtml(ev.home || '');
+    const away = escapeHtml(ev.away || '');
+    const homeScore = (ev.homeScore !== null && ev.homeScore !== undefined) ? escapeHtml(String(ev.homeScore)) : '—';
+    const awayScore = (ev.awayScore !== null && ev.awayScore !== undefined) ? escapeHtml(String(ev.awayScore)) : '—';
+
+    const shotsRow = (ev.homeShots !== null || ev.awayShots !== null)
+      ? `<div class="stat-row"><div class="stat-pill">Shots: ${ev.homeShots !== null ? escapeHtml(String(ev.homeShots)) : '—'} — ${ev.awayShots !== null ? escapeHtml(String(ev.awayShots)) : '—'}</div></div>`
+      : '';
+
+    const timelineItems = [];
+    (parseGoalDetails(ev.homeGoalDetails || ev.raw?.strHomeGoalDetails || '')).forEach(it => timelineItems.push({side:'home', ...it}));
+    (parseGoalDetails(ev.awayGoalDetails || ev.raw?.strAwayGoalDetails || '')).forEach(it => timelineItems.push({side:'away', ...it}));
+
+    const minuteToNumber = m => {
+      if (!m) return 9999;
+      const clean = m.replace("'", "");
+      if (clean.includes('+')) {
+        const [base, extra] = clean.split('+').map(Number);
+        return base * 100 + (extra || 0);
+      }
+      return Number(clean);
+    };
+    timelineItems.sort((a,b) => minuteToNumber(a.minute) - minuteToNumber(b.minute));
+
+    const timelineHtml = timelineItems.length ? `
+      <div style="margin-top:0.45rem"><strong style="color:var(--muted-2)">Timeline</strong>
+        <div class="event-timeline">
+          ${timelineItems.map(it => `
+            <div class="timeline-item">
+              <div class="timeline-bullet" aria-hidden="true" style="background:${it.side === 'home' ? 'var(--accent)' : 'rgba(255,255,255,0.16)'}"></div>
+              <div style="display:flex;gap:0.5rem;align-items:flex-start">
+                <div class="timeline-min">${escapeHtml(it.minute || '')}</div>
+                <div style="max-width:680px;color:var(--muted)">${escapeHtml(it.text || '')}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+
+    const homeLineupHtml = ev.homeLineupGoalkeeper || ev.homeLineupDefense || ev.homeLineupMidfield || ev.homeLineupForward
+      ? renderLineupSection('Home lineups', (ev.homeLineupGoalkeeper || '') + (ev.homeLineupDefense ? ', ' + ev.homeLineupDefense : '') + (ev.homeLineupMidfield ? ', ' + ev.homeLineupMidfield : '') + (ev.homeLineupForward ? ', ' + ev.homeLineupForward : ''))
+      : '';
+    const awayLineupHtml = ev.awayLineupGoalkeeper || ev.awayLineupDefense || ev.awayLineupMidfield || ev.awayLineupForward
+      ? renderLineupSection('Away lineups', (ev.awayLineupGoalkeeper || '') + (ev.awayLineupDefense ? ', ' + ev.awayLineupDefense : '') + (ev.awayLineupMidfield ? ', ' + ev.awayLineupMidfield : '') + (ev.awayLineupForward ? ', ' + ev.awayLineupForward : ''))
+      : '';
+
+    let playersHtml = '';
+    if (Array.isArray(ev.raw?.player) && ev.raw.player.length) {
+      playersHtml = `<div style="margin-top:0.5rem"><strong style="color:var(--muted-2)">Players</strong>
+        <div style="margin-top:0.4rem">
+          ${ev.raw.player.map(p => `<div style="display:flex;gap:0.8rem;align-items:center"><div style="width:36px">${escapeHtml(p.number || '')}</div><div><strong>${escapeHtml(p.name)}</strong> <div style="color:var(--muted-2);font-size:0.9rem">${escapeHtml(p.position || '')} ${p.goals ? `• Goals: ${escapeHtml(String(p.goals))}` : ''}</div></div></div>`).join('')}
+        </div></div>`;
+    } else {
+      playersHtml = `<div style="margin-top:0.35rem;color:var(--muted)">Per-player box stats not available from TheSportsDB for this event. Use a sport-specific provider (e.g. balldontlie for NBA) for full box scores.</div>`;
+    }
+
+    const notesHtml = ev.description ? `<details style="margin-top:0.5rem"><summary style="cursor:pointer;color:var(--muted-2)">Match notes</summary><div style="margin-top:0.4rem;color:var(--muted-2)">${escapeHtml(ev.description)}</div></details>` : '';
+
+    return `
+      <div class="summary-block">
+        <div class="stat-row">
+          <div class="stat-pill"><strong>${home}</strong> ${homeScore}</div>
+          <div style="align-self:center;color:var(--muted)">vs</div>
+          <div class="stat-pill"><strong>${away}</strong> ${awayScore}</div>
+          <div style="margin-left:auto;color:var(--muted)">${escapeHtml(ev.status || '')}</div>
+        </div>
+
+        ${shotsRow}
+        ${timelineHtml}
+        ${homeLineupHtml}
+        ${awayLineupHtml}
+        ${playersHtml}
+        ${notesHtml}
+      </div>
+    `;
+  }
+
+  async function attachStatsHandler(statsBtn, statsArea, ev) {
+    statsBtn.onclick = async () => {
+      try {
+        if (statsArea.style.display === 'block' && statsArea.innerHTML.trim()) {
+          statsArea.style.display = "none";
+          statsBtn.textContent = 'Stats';
+          return;
+        }
+
+        statsBtn.disabled = true;
+        const prev = statsBtn.textContent;
+        statsBtn.textContent = 'Loading…';
+
+        const eventId = (ev && (ev.idEvent || ev.id || ev.eventId)) || (ev.raw && (ev.raw.idEvent || ev.raw.id));
+        if (!eventId) throw new Error('Event id not available.');
+
+        const details = await fetchEventDetails(eventId);
+        statsArea.innerHTML = renderBoxScoreAndPlayers(details);
+        statsArea.style.display = 'block';
+        statsBtn.textContent = 'Hide';
+      } catch (err) {
+        console.error('Stats load failed', err);
+        statsArea.innerHTML = `<div style="color:var(--muted)">Failed to load stats.</div>`;
+        statsArea.style.display = 'block';
+      } finally {
+        statsBtn.disabled = false;
+      }
+    };
+  }
+
+  /* ---------- Morning brief handlers (compact cards, no timestamp, no per-card narrative) ---------- */
 
   function formatMoney(n) {
     try {
@@ -576,7 +986,7 @@
       return;
     }
 
-    // Remove USD from the UI — AUD only for your market
+    // We intentionally do not show the "As of" timestamp here to keep the UI compact.
     const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
     const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
 
@@ -585,12 +995,13 @@
       const symbols = Object.keys(metals);
       const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
 
-      // Top meta: only show source / cached on the right (no As of)
+      // Top meta: only show source / cached on the right (no As of on the left)
       const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
 
       const cards = symbols.map(sym => {
         const m = metals[sym] || {};
         const priceAUD = (typeof m.priceAUD === 'number') ? formatMoney(m.priceAUD) : null;
+        const priceUSD = (typeof m.priceUSD === 'number') ? formatMoney(m.priceUSD) : null;
         const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
 
         // Compact pct badge: small "—" when no data
@@ -602,18 +1013,20 @@
         }
 
         const unit = (sym === 'XAU' || sym === 'XAG') ? '/oz' : '/unit';
+        const usdHtml = priceUSD ? `<div class="metal-sub usd">$${priceUSD} USD</div>` : `<div class="metal-sub usd">—</div>`;
         const priceDisplay = priceAUD ? `$${priceAUD} AUD` : '<span style="color:#ffd166">Unavailable</span>';
 
-        // Build card with AUD only (USD removed)
+        // Compact card: no per-card narrative
         return `
           <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
             <div class="metal-head">
               <div>
                 <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
-                <div class="metal-price">${priceDisplay} <small class="metal-sub" style="color:var(--muted);font-weight:600">${unit}</small></div>
+                <div class="metal-price">${priceDisplay} <small style="color:var(--muted);font-weight:600">${unit}</small></div>
               </div>
               <div style="text-align:right">
                 ${pctHtml}
+                ${usdHtml}
               </div>
             </div>
           </div>
@@ -683,8 +1096,8 @@
       briefContent.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
     }
   });
-
   /* ---------- Toggles & category handling ---------- */
+
   function setActiveToggle(isMarket) {
     if (isMarket) {
       toggleMarket.classList.add("active");
