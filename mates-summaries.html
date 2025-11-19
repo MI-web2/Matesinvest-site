@@ -486,49 +486,42 @@
   <!-- HERO (kept for accessibility/SEO but visually hidden) -->
   <h1 class="visually-hidden">MatesFeed</h1>
 
-<!-- 🔥 NEW COLLAPSIBLE MORNING BRIEF SECTION -->
-<section id="morningBrief" class="card" style="padding:0">
-
-  <!-- Collapsible Header -->
-  <button class="toggle-brief-btn" onclick="toggleMorningBrief()">
-    Morning Briefing
-    <span id="brief-arrow">▼</span>
-  </button>
-
-  <!-- Collapsible Content -->
-  <div id="morning-brief-content" class="brief-content hidden" style="padding:1rem">
-
-      <!-- Morning Note -->
-      <div id="matesMorningNote" class="mates-note" style="margin-top:1rem;">
-        <div class="mates-note-header">
-          <span class="pill">Mates Morning Note</span>
-          <span id="matesNoteTimestamp" class="timestamp">Updated just now</span>
-        </div>
-        <p id="matesNoteText" class="mates-note-body">Loading today’s note…</p>
+  <!-- MORNING BRIEF -->
+  <section id="morningBrief" class="card">
+    <div class="brief-header">
+      <div>
+        <h2 style="margin:0">Morning Briefing</h2>
+        <div style="color:var(--muted);font-size:0.92rem;margin-top:0.35rem">A short note on what could move markets in Australia today.</div>
       </div>
-
-      <!-- Stock of the Day -->
-      <div id="stockOfDay" class="sotd-card" style="margin-top:1.5rem;">
-        <div class class="sotd-header">
-          <div class="sotd-title-left">
-            <span class="pill sotd-pill">Stock of the Day</span>
-            <span id="sotdTicker" class="sotd-ticker">—</span>
-            <span id="sotdName" class="sotd-name"></span>
-          </div>
-          <span id="sotdExchange" class="sotd-exchange">ASX</span>
-        </div>
-
-        <p id="sotdSummary" class="sotd-summary">Loading today’s stock snapshot…</p>
-        <p class="sotd-disclaimer">General information only. Not financial advice.</p>
-      </div>
-
-      <!-- Commodities -->
-      <div id="commoditiesContainer" style="margin-top:1.5rem;">
-        <!-- Your commodity cards render inside here via JS -->
-      </div>
-
+<!-- === MATES MORNING NOTE === -->
+<div id="matesMorningNote" class="mates-note" style="margin-top:1rem; display:none;">
+  <div class="mates-note-header">
+    <span class="pill">Mates Morning Note</span>
+    <span id="matesNoteTimestamp" class="timestamp">Updated just now</span>
   </div>
-</section>
+  <p id="matesNoteText" class="mates-note-body">
+    Loading today’s note…
+  </p>
+</div>
+<!-- === STOCK OF THE DAY === -->
+<div id="stockOfDay" class="sotd-card" style="margin-top:1rem; display:none;">
+  <div class="sotd-header">
+    <div class="sotd-title-left">
+      <span class="pill sotd-pill">Stock of the Day</span>
+      <span id="sotdTicker" class="sotd-ticker">—</span>
+      <span id="sotdName" class="sotd-name"></span>
+    </div>
+    <span id="sotdExchange" class="sotd-exchange">ASX</span>
+  </div>
+
+  <p id="sotdSummary" class="sotd-summary">
+    Loading today’s stock snapshot…
+  </p>
+
+  <p class="sotd-disclaimer">
+    General information only. Not financial advice.
+  </p>
+</div>
 
 
       <div class="brief-controls">
@@ -590,11 +583,6 @@
 
   const openBriefBtn = document.getElementById("openBrief");
   const briefContent = document.getElementById("briefContent");
-  // NEW: dedicated container for commodities inside the brief section
-  const briefCommodities = document.getElementById("briefCommodities") || briefContent;
-  // Optional arrow span in the button for nicer UX
-  const briefArrow = document.getElementById("briefArrow");
-
   const refreshBriefBtn = document.getElementById("refreshBrief");
   const briefRegionSelect = document.getElementById("briefRegion");
 
@@ -618,59 +606,56 @@
       return new Intl.DateTimeFormat(undefined, { dateStyle:'short', timeStyle:'short' }).format(d);
     } catch { return iso || ""; }
   }
+/* ---------- Mates Morning Note ---------- */
+async function loadMatesMorningNote() {
+  const container = document.getElementById("matesMorningNote");
+  const textBox = document.getElementById("matesNoteText");
+  const timeBox = document.getElementById("matesNoteTimestamp");
 
-  /* ---------- Mates Morning Note ---------- */
-  async function loadMatesMorningNote() {
-    const container = document.getElementById("matesMorningNote");
-    const textBox = document.getElementById("matesNoteText");
-    const timeBox = document.getElementById("matesNoteTimestamp");
+  try {
+    const res = await fetch("/.netlify/functions/matesMorningNote");
+    const data = await res.json();
 
-    if (!container || !textBox || !timeBox) return;
+    const note = data.note || "No update available.";
+    textBox.textContent = note;
 
-    try {
-      const res = await fetch("/.netlify/functions/matesMorningNote");
-      const data = await res.json();
+    const now = new Date();
+    timeBox.textContent =
+      "Updated " + now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
 
-      const note = data.note || "No update available.";
-      textBox.textContent = note;
-
-      const now = new Date();
-      timeBox.textContent =
-        "Updated " + now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
-
-      container.style.display = "block";
-    } catch (err) {
-      console.error("Failed to load Morning Note", err);
-      textBox.textContent = "Unable to load today’s note.";
-      container.style.display = "block";
-    }
+    container.style.display = "block";
+  } catch (err) {
+    console.error("Failed to load Morning Note", err);
+    textBox.textContent = "Unable to load today’s note.";
+    container.style.display = "block";
   }
+}
+async function loadStockOfTheDay() {
+  const container = document.getElementById("stockOfDay");
+  if (!container) return;
 
-  async function loadStockOfTheDay() {
-    const container = document.getElementById("stockOfDay");
-    if (!container) return;
+  const tickerEl = document.getElementById("sotdTicker");
+  const nameEl = document.getElementById("sotdName");
+  const exchEl = document.getElementById("sotdExchange");
+  const summaryEl = document.getElementById("sotdSummary");
 
-    const tickerEl = document.getElementById("sotdTicker");
-    const nameEl = document.getElementById("sotdName");
-    const exchEl = document.getElementById("sotdExchange");
-    const summaryEl = document.getElementById("sotdSummary");
+  try {
+    const res = await fetch("/.netlify/functions/stockOfTheDay");
+    const data = await res.json();
 
-    try {
-      const res = await fetch("/.netlify/functions/stockOfTheDay");
-      const data = await res.json();
+    tickerEl.textContent = data.ticker || "—";
+    nameEl.textContent = data.name || "";
+    exchEl.textContent = (data.exchange || "ASX").toUpperCase();
+    summaryEl.textContent = data.summary || "No snapshot available today.";
 
-      tickerEl.textContent = data.ticker || "—";
-      nameEl.textContent = data.name || "";
-      exchEl.textContent = (data.exchange || "ASX").toUpperCase();
-      summaryEl.textContent = data.summary || "No snapshot available today.";
-
-      container.style.display = "block";
-    } catch (err) {
-      console.error("loadStockOfTheDay failed", err);
-      summaryEl.textContent = "Unable to load today’s Stock of the Day.";
-      container.style.display = "block"; // still show the card with message
-    }
+    container.style.display = "block";
+  } catch (err) {
+    console.error("loadStockOfTheDay failed", err);
+    summaryEl.textContent = "Unable to load today’s Stock of the Day.";
+    container.style.display = "block"; // still show the card with message
   }
+}
+
 
   /* ---------- Feeds ---------- */
   async function getMarketFeed() {
@@ -1232,182 +1217,159 @@ Status: ${ev.status}
 
   /* ---------- Morning brief handlers (cleaned & robust) ---------- */
 
-  function formatMoney(n) {
-    try {
-      if (n === null || typeof n === 'undefined') return null;
-      return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    } catch { return String(n); }
+function formatMoney(n) {
+  try {
+    if (n === null || typeof n === 'undefined') return null;
+    return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch { return String(n); }
+}
+
+function relativeTime(iso) {
+  try {
+    const date = new Date(iso);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMin = Math.round(diffMs / 60000);
+    if (Math.abs(diffMin) < 1) return 'just now';
+    if (Math.abs(diffMin) < 60) return `${diffMin}m`;
+    const diffHours = Math.round(diffMin / 60);
+    if (Math.abs(diffHours) < 24) return `${diffHours}h`;
+    const diffDays = Math.round(diffHours / 24);
+    return `${diffDays}d`;
+  } catch { return iso || ''; }
+}
+
+/*
+  Render the morning brief.
+  - Accepts payload that may contain either `payload.metals` or `payload.symbols`
+  - Uses snapshot-provided unit when present (m.unit)
+  - Shows AUD price using m.priceAUD (your snapshot function writes AUD already)
+  - Shows a small api hint if apiPriceUSD is present
+*/
+function renderMorningBrief(payload) {
+  if (!payload) {
+    briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
+    return;
   }
 
-  function relativeTime(iso) {
-    try {
-      const date = new Date(iso);
-      const now = new Date();
-      const diffMs = now - date;
-      const diffMin = Math.round(diffMs / 60000);
-      if (Math.abs(diffMin) < 1) return 'just now';
-      if (Math.abs(diffMin) < 60) return `${diffMin}m`;
-      const diffHours = Math.round(diffMin / 60);
-      if (Math.abs(diffHours) < 24) return `${diffHours}h`;
-      const diffDays = Math.round(diffHours / 24);
-      return `${diffDays}d`;
-    } catch { return iso || ''; }
-  }
+  const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
+  const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
 
-  /*
-    Render the morning brief.
-    - Accepts payload that may contain either `payload.metals` or `payload.symbols`
-    - Uses snapshot-provided unit when present (m.unit)
-    - Shows AUD price using m.priceAUD (your snapshot function writes AUD already)
-    - Shows a small api hint if apiPriceUSD is present
+  // Accept either payload.metals (old) or payload.symbols (snapshot-metals.js)
+  const metalsObj = (payload.metals && typeof payload.metals === 'object')
+    ? payload.metals
+    : (payload.symbols && typeof payload.symbols === 'object')
+      ? payload.symbols
+      : null;
 
-    NOTE: This now only updates the commodities area (briefCommodities),
-    so we don't overwrite Mates Morning Note or Stock of the Day.
-  */
-  function renderMorningBrief(payload) {
-    if (!briefCommodities) return;
+  if (metalsObj) {
+    const symbols = Object.keys(metalsObj);
+    const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', 'LITH-CAR':'Lithium (LCE)', NI: 'Nickel', URANIUM: 'Uranium' };
 
-    if (!payload) {
-      briefCommodities.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
-      return;
-    }
+    const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
 
-    const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
-    const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
+    const cards = symbols.map(sym => {
+      const m = metalsObj[sym] || {};
+      const priceAUDraw = (typeof m.priceAUD === 'number') ? m.priceAUD : null;
+      const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
 
-    // Accept either payload.metals (old) or payload.symbols (snapshot-metals.js)
-    const metalsObj = (payload.metals && typeof payload.metals === 'object')
-      ? payload.metals
-      : (payload.symbols && typeof payload.symbols === 'object')
-        ? payload.symbols
-        : null;
+      // Prefer explicit unit from snapshot; fallback to heuristic
+      const unitFromSnapshot = (m.unit || m.unit === '' ? m.unit : (m.unitName || '')).toString().trim();
+      const unit = unitFromSnapshot || ((sym === 'XAU' || sym === 'XAG') ? 'oz' : (sym === 'IRON' ? 'tonne' : 'unit'));
 
-    if (metalsObj) {
-      const symbols = Object.keys(metalsObj);
-      const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', 'LITH-CAR':'Lithium (LCE)', NI: 'Nickel', URANIUM: 'Uranium' };
+      const priceDisplay = priceAUDraw !== null ? `$${formatMoney(priceAUDraw)} AUD` : '<span style="color:#ffd166">Unavailable</span>';
 
-      const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
+      // pct badge
+      let pctHtml = `<span class="brief-badge no-data" aria-hidden="true">—</span>`;
+      if (pct !== null) {
+        if (pct > 0) pctHtml = `<span class="brief-badge up" aria-label="${pct}% up">▲ ${Math.abs(pct)}%</span>`;
+        else if (pct < 0) pctHtml = `<span class="brief-badge down" aria-label="${pct}% down">▼ ${Math.abs(pct)}%</span>`;
+        else pctHtml = `<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>`;
+      }
 
-      const cards = symbols.map(sym => {
-        const m = metalsObj[sym] || {};
-        const priceAUDraw = (typeof m.priceAUD === 'number') ? m.priceAUD : null;
-        const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
+      // optional trace: show original API USD (apiPriceUSD) small hint if present
+      const apiUsdRaw = (typeof m.apiPriceUSD === 'number') ? m.apiPriceUSD : (typeof m.apiPriceUsd === 'number' ? m.apiPriceUsd : null);
+      const apiHint = (apiUsdRaw !== null) ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:6px">api: $${formatMoney(apiUsdRaw)} USD</div>` : '';
 
-        // Prefer explicit unit from snapshot; fallback to heuristic
-        const unitFromSnapshot = (m.unit || m.unit === '' ? m.unit : (m.unitName || '')).toString().trim();
-        const unit = unitFromSnapshot || ((sym === 'XAU' || sym === 'XAG') ? 'oz' : (sym === 'IRON' ? 'tonne' : 'unit'));
-
-        const priceDisplay = priceAUDraw !== null ? `$${formatMoney(priceAUDraw)} AUD` : '<span style="color:#ffd166">Unavailable</span>';
-
-        // pct badge
-        let pctHtml = `<span class="brief-badge no-data" aria-hidden="true">—</span>`;
-        if (pct !== null) {
-          if (pct > 0) pctHtml = `<span class="brief-badge up" aria-label="${pct}% up">▲ ${Math.abs(pct)}%</span>`;
-          else if (pct < 0) pctHtml = `<span class="brief-badge down" aria-label="${pct}% down">▼ ${Math.abs(pct)}%</span>`;
-          else pctHtml = `<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>`;
-        }
-
-        // optional trace: show original API USD (apiPriceUSD) small hint if present
-        const apiUsdRaw = (typeof m.apiPriceUSD === 'number') ? m.apiPriceUSD : (typeof m.apiPriceUsd === 'number' ? m.apiPriceUsd : null);
-        const apiHint = (apiUsdRaw !== null) ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:6px">api: $${formatMoney(apiUsdRaw)} USD</div>` : '';
-
-        return `
-          <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
-            <div class="metal-head">
-              <div>
-                <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
-                <div class="metal-price">${priceDisplay} <small class="metal-sub" style="color:var(--muted);font-weight:600">${escapeHtml('/' + unit)}</small></div>
-              </div>
-              <div style="text-align:right">
-                ${pctHtml}
-              </div>
+      return `
+        <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
+          <div class="metal-head">
+            <div>
+              <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
+              <div class="metal-price">${priceDisplay} <small class="metal-sub" style="color:var(--muted);font-weight:600">${escapeHtml('/' + unit)}</small></div>
             </div>
-            ${apiHint}
+            <div style="text-align:right">
+              ${pctHtml}
+            </div>
           </div>
-        `;
-      }).join("");
+          ${apiHint}
+        </div>
+      `;
+    }).join("");
 
-      briefCommodities.innerHTML = `${topMetaHtml}<div class="brief-grid">${cards}</div>`;
-      return;
+    briefContent.innerHTML = `${topMetaHtml}<div class="brief-grid">${cards}</div>`;
+    return;
+  }
+
+  // Fallback: old single-gold payload shape
+  const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
+  const fallbackHtml = `
+    <div class="brief-top-meta">
+      <div></div>
+      <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
+    </div>
+    <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
+      <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
+      <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
+    </div>
+  `;
+  briefContent.innerHTML = fallbackHtml;
+}
+
+/* ---------- open / refresh handlers (unchanged) ---------- */
+openBriefBtn.addEventListener("click", async () => {
+  const region = briefRegionSelect.value || "au";
+  if (briefContent.style.display === "block") {
+    briefContent.style.display = "none";
+    openBriefBtn.textContent = "Open morning brief";
+    return;
+  }
+
+  briefContent.style.display = "block";
+  openBriefBtn.textContent = "Hide brief";
+
+  briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
+  try {
+    const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Brief fetch failed');
     }
-
-    // Fallback: old single-gold payload shape
-    const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
-    const fallbackHtml = `
-      <div class="brief-top-meta">
-        <div></div>
-        <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
-      </div>
-      <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
-        <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
-        <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
-      </div>
-    `;
-    briefCommodities.innerHTML = fallbackHtml;
+    const payload = await res.json();
+    renderMorningBrief(payload);
+  } catch (err) {
+    console.error('Morning brief failed', err);
+    briefContent.innerHTML = `<div class="brief-loading">Failed to load morning brief.</div>`;
   }
+});
 
-  /* ---------- open / refresh handlers (updated for new layout) ---------- */
-  if (openBriefBtn && briefContent) {
-    openBriefBtn.addEventListener("click", async () => {
-      const region = briefRegionSelect ? (briefRegionSelect.value || "au") : "au";
-
-      const isOpen = briefContent.style.display === "block";
-
-      if (isOpen) {
-        briefContent.style.display = "none";
-        if (briefArrow) briefArrow.textContent = "▼";
-        // If you still want text-only button, comment out arrow line and use:
-        // openBriefBtn.textContent = "Open morning brief";
-        return;
-      }
-
-      briefContent.style.display = "block";
-      if (briefArrow) briefArrow.textContent = "▲";
-      // openBriefBtn.textContent = "Hide brief"; // only if you use text-only
-
-      if (briefCommodities) {
-        briefCommodities.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
-      }
-
-      try {
-        const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
-        if (!res.ok) {
-          const t = await res.text();
-          throw new Error(t || 'Brief fetch failed');
-        }
-        const payload = await res.json();
-        renderMorningBrief(payload);
-      } catch (err) {
-        console.error('Morning brief failed', err);
-        if (briefCommodities) {
-          briefCommodities.innerHTML = `<div class="brief-loading">Failed to load morning brief.</div>`;
-        }
-      }
-    });
+refreshBriefBtn.addEventListener("click", async () => {
+  if (briefContent.style.display !== "block") {
+    openBriefBtn.click();
+    return;
   }
-
-  if (refreshBriefBtn) {
-    refreshBriefBtn.addEventListener("click", async () => {
-      if (!briefContent || !briefCommodities) return;
-
-      if (briefContent.style.display !== "block") {
-        // Open it first to keep UX consistent
-        if (openBriefBtn) openBriefBtn.click();
-      }
-      try {
-        briefCommodities.innerHTML = `<div class="brief-loading">Refreshing briefing…</div>`;
-        const region = briefRegionSelect ? (briefRegionSelect.value || "au") : "au";
-        const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
-        if (!res.ok) throw new Error('Refresh failed');
-        const payload = await res.json();
-        renderMorningBrief(payload);
-      } catch (err) {
-        console.error('Refresh failed', err);
-        briefCommodities.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
-      }
-    });
+  try {
+    briefContent.innerHTML = `<div class="brief-loading">Refreshing briefing…</div>`;
+    const region = briefRegionSelect.value || "au";
+    const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
+    if (!res.ok) throw new Error('Refresh failed');
+    const payload = await res.json();
+    renderMorningBrief(payload);
+  } catch (err) {
+    console.error('Refresh failed', err);
+    briefContent.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
   }
-
+});
   /* ---------- Toggles & category handling ---------- */
 
   function setActiveToggle(isMarket) {
@@ -1454,21 +1416,20 @@ Status: ${ev.status}
   };
 
   /* ---------- Initial load ---------- */
-  (async function init() {
-    try {
-      feedStatus.textContent = "Loading…";
-      showSkeleton(4);
-      allArticles = await getMarketFeed();
-      renderMarketMode();
-      feedStatus.textContent = "Live";
+(async function init() {
+  try {
+    feedStatus.textContent = "Loading…";
+    showSkeleton(4);
+    allArticles = await getMarketFeed();
+    renderMarketMode();
+    feedStatus.textContent = "Live";
 
-      loadMatesMorningNote();
-      loadStockOfTheDay();
-    } catch (err) {
-      console.error(err);
-      // ...
-    }
-  })();
+    loadMatesMorningNote();
+    loadStockOfTheDay(); // ← NEW
+  } catch (err) {
+    // ...
+  }
+})();
 </script>
 
 </body>
