@@ -8,7 +8,7 @@
 // - UPSTASH_REDIS_REST_URL
 // - UPSTASH_REDIS_REST_TOKEN
 //
-// Symbols used: XAU, XAG, IRON, LITHIUM, NI, URANIUM
+// Symbols used: XAU, XAG, IRON, LITH-CAR, NI, URANIUM
 // The response contains a `metals` object keyed by symbol with priceUSD, priceAUD, yesterdayPriceAUD, pctChange.
 
 exports.handler = async function (event) {
@@ -49,7 +49,7 @@ exports.handler = async function (event) {
   }
 
   // symbols list
-  const symbols = ['XAU','XAG','IRON','LITHIUM','NI','URANIUM'];
+  const symbols = ['XAU','XAG','IRON','LITH-CAR','NI','URANIUM'];
   const debug = { steps: [] };
 
   try {
