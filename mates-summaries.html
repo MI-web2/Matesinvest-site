@@ -348,6 +348,43 @@
       /* keep body bottom padding modest */
       body { padding-bottom:2rem; }
     }
+/* ---------------------
+   Mates Morning Note
+---------------------- */
+.mates-note {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+}
+
+.mates-note-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:0.4rem;
+}
+
+.mates-note-header .pill {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  border:1px solid rgba(63,191,127,0.26);
+}
+
+.mates-note-body {
+  font-size:0.92rem;
+  color:rgba(255,255,255,0.85);
+  line-height:1.45;
+}
+
+.mates-note .timestamp {
+  font-size:0.78rem;
+  color: var(--muted-2);
+}
+
 
   </style>
 
@@ -382,6 +419,17 @@
         <h2 style="margin:0">Morning Briefing</h2>
         <div style="color:var(--muted);font-size:0.92rem;margin-top:0.35rem">A short note on what could move markets in Australia today.</div>
       </div>
+<!-- === MATES MORNING NOTE === -->
+<div id="matesMorningNote" class="mates-note" style="margin-top:1rem; display:none;">
+  <div class="mates-note-header">
+    <span class="pill">Mates Morning Note</span>
+    <span id="matesNoteTimestamp" class="timestamp">Updated just now</span>
+  </div>
+  <p id="matesNoteText" class="mates-note-body">
+    Loading today’s note…
+  </p>
+</div>
+
 
       <div class="brief-controls">
         <select id="briefRegion" class="brief-toggle" aria-label="Region">
@@ -465,6 +513,31 @@
       return new Intl.DateTimeFormat(undefined, { dateStyle:'short', timeStyle:'short' }).format(d);
     } catch { return iso || ""; }
   }
+/* ---------- Mates Morning Note ---------- */
+async function loadMatesMorningNote() {
+  const container = document.getElementById("matesMorningNote");
+  const textBox = document.getElementById("matesNoteText");
+  const timeBox = document.getElementById("matesNoteTimestamp");
+
+  try {
+    const res = await fetch("/.netlify/functions/matesMorningNote");
+    const data = await res.json();
+
+    const note = data.note || "No update available.";
+    textBox.textContent = note;
+
+    const now = new Date();
+    timeBox.textContent =
+      "Updated " + now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+
+    container.style.display = "block";
+  } catch (err) {
+    console.error("Failed to load Morning Note", err);
+    textBox.textContent = "Unable to load today’s note.";
+    container.style.display = "block";
+  }
+}
+
 
   /* ---------- Feeds ---------- */
   async function getMarketFeed() {
@@ -1225,19 +1298,22 @@ refreshBriefBtn.addEventListener("click", async () => {
   };
 
   /* ---------- Initial load ---------- */
-  (async function init() {
-    try {
-      feedStatus.textContent = "Loading…";
-      showSkeleton(4);
-      allArticles = await getMarketFeed();
-      renderMarketMode();
-      feedStatus.textContent = "Live";
-    } catch (err) {
-      console.error(err);
-      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">Failed to load initial feed.</small></div>`;
-      feedStatus.textContent = "Offline";
-    }
-  })();
+(async function init() {
+  try {
+    feedStatus.textContent = "Loading…";
+    showSkeleton(4);
+    allArticles = await getMarketFeed();
+    renderMarketMode();
+    feedStatus.textContent = "Live";
+
+    loadMatesMorningNote(); // ← NEW
+  } catch (err) {
+    console.error(err);
+    newsList.innerHTML =
+      `<div class="headline"><small style="color:var(--muted)">Failed to load initial feed.</small></div>`;
+    feedStatus.textContent = "Offline";
+  }
+})();
 </script>
 
 </body>
