@@ -1,12 +1,9 @@
 // netlify/functions/matesMorningNote.js
 
-const fetch = require("node-fetch");
-
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Helper: figure out base URL so we can call our own newsFeed function
 function getBaseUrl(event) {
-  // In production Netlify sets URL; in dev we usually run on 8888
   const envUrl = process.env.URL;
   if (envUrl) return envUrl.replace(/\/$/, "");
 
@@ -22,7 +19,7 @@ function buildPrompt(region, articles) {
     : region === "global" ? "global markets"
     : "Australia and the ASX";
 
-  const topBits = articles.slice(0, 6).map((a, i) => {
+  const topBits = articles.slice(0, 6).map((a) => {
     const title = a.title || "";
     const src = a.source || "";
     return `• ${title}${src ? ` (${src})` : ""}`;
@@ -54,7 +51,7 @@ exports.handler = async function (event, context) {
     // 1) Get latest headlines from your existing newsFeed lambda
     let articles = [];
     try {
-      const newsRes = await fetch(newsUrl);
+      const newsRes = await fetch(newsUrl);   // ← global fetch
       if (newsRes.ok) {
         const newsData = await newsRes.json();
         articles = newsData.articles || [];
