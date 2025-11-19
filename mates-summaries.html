@@ -292,6 +292,63 @@
       .metal-sub.usd { display: none; } /* keep mobile tidy */
     }
 
+    /* =========================
+       MOBILE TIDY-UP (phones)
+       ========================= */
+    @media (max-width: 480px) {
+      /* make page tighter */
+      .page-shell { padding: 0.7rem 0.9rem 2rem; }
+
+      /* compact nav */
+      .nav-inner { padding: 0.5rem 0.9rem; gap:0.5rem; }
+      .nav-logo { height:34px; width:34px; }
+      .nav-title { font-size:0.98rem; }
+      .nav-pill { display:none; } /* hide prototype pill on small screens */
+      .nav-right { font-size:0.78rem; gap:0.5rem; }
+
+      /* stack brief header and controls vertically */
+      .brief-header { flex-direction: column; align-items:flex-start; gap:0.6rem; }
+      .brief-header > div:first-child { width:100%; }
+      .brief-controls { width:100%; display:flex; gap:0.45rem; justify-content:flex-start; flex-wrap:wrap; }
+      .brief-controls select { flex:0 0 auto; min-width:120px; }
+      .brief-controls .brief-toggle { flex:0 0 auto; padding:0.28rem 0.6rem; font-size:0.86rem; }
+
+      /* reduce card padding and card-metal padding */
+      .card { padding:0.85rem; border-radius:12px; }
+      .card-metal { padding:0.66rem; min-height:72px; }
+      .headline { padding:0.7rem; }
+
+      /* reduce font sizes for compactness */
+      .metal-name { font-size:0.86rem; }
+      .metal-price { font-size:0.98rem; }
+      .brief-top-meta { font-size:0.82rem; gap:8px; }
+
+      /* ensure chip row can scroll horizontally */
+      .chip-row { overflow-x:auto; -webkit-overflow-scrolling:touch; gap:0.5rem; padding-bottom:6px; }
+      .chip { white-space:nowrap; flex:0 0 auto; }
+
+      /* tighten grid gaps */
+      .brief-grid { gap:10px; }
+
+      /* ensure headline meta rows wrap nicely */
+      .meta-row { gap:0.4rem; align-items:flex-start; }
+
+      /* remove large left margins, keep rounded edges */
+      .summary-block { padding-top:0.45rem; }
+
+      /* reduce top spacing where possible */
+      .page-shell > section.card:first-of-type { margin-top: 0.4rem; }
+
+      /* make small buttons fit */
+      .btn, .link-min { padding:0.4rem 0.7rem; font-size:0.82rem; }
+
+      /* make sure modal-like brief-content can expand naturally */
+      .brief-content { margin-top:0.6rem; }
+
+      /* keep body bottom padding modest */
+      body { padding-bottom:2rem; }
+    }
+
   </style>
 
 </head>
@@ -967,7 +1024,7 @@ Status: ${ev.status}
     };
   }
 
-  /* ---------- Morning brief handlers (compact cards, no timestamp, no per-card narrative) ---------- */
+  /* ---------- Morning brief handlers (cleaned & robust) ---------- */
 
 function formatMoney(n) {
   try {
@@ -1016,7 +1073,7 @@ function renderMorningBrief(payload) {
 
   if (metalsObj) {
     const symbols = Object.keys(metalsObj);
-    const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
+    const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', 'LITH-CAR':'Lithium (LCE)', NI: 'Nickel', URANIUM: 'Uranium' };
 
     const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
 
