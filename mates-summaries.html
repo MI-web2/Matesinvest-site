@@ -45,6 +45,20 @@
       padding:1rem 1.25rem 3rem;
     }
 
+    /* Accessible visually-hidden utility (keeps H1 for SEO / screen readers) */
+    .visually-hidden {
+      position: absolute !important;
+      height: 1px;
+      width: 1px;
+      overflow: hidden;
+      clip: rect(1px, 1px, 1px, 1px);
+      white-space: nowrap; /* prevent line breaks */
+      border: 0;
+      padding: 0;
+      margin: -1px;
+    }
+
+
     /* NAV */
     .nav{
       position:sticky;
@@ -299,38 +313,35 @@
     </div>
   </div>
 
-  <div class="page-shell">
+<div class="page-shell">
 
-    <!-- HERO -->
-    <section class="card card-hero">
-      <h1>MatesFeed</h1>
-      <p>Your daily, plain-English investing brief — now with MatesMode.</p>
-    </section>
+  <!-- HERO (kept for accessibility/SEO but visually hidden) -->
+  <h1 class="visually-hidden">MatesFeed</h1>
 
-    <!-- MORNING BRIEF -->
-    <section id="morningBrief" class="card">
-      <div class="brief-header">
-        <div>
-          <h2 style="margin:0">Morning Briefing</h2>
-          <div style="color:var(--muted);font-size:0.92rem;margin-top:0.35rem">A short note on what could move markets in Australia today.</div>
-        </div>
-
-        <div class="brief-controls">
-          <select id="briefRegion" class="brief-toggle" aria-label="Region">
-            <option value="au" selected>Australia (ASX)</option>
-            <option value="us">US</option>
-            <option value="global">Global</option>
-          </select>
-
-          <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
-          <button id="refreshBrief" class="brief-toggle" title="Refresh">Refresh</button>
-        </div>
+  <!-- MORNING BRIEF -->
+  <section id="morningBrief" class="card">
+    <div class="brief-header">
+      <div>
+        <h2 style="margin:0">Morning Briefing</h2>
+        <div style="color:var(--muted);font-size:0.92rem;margin-top:0.35rem">A short note on what could move markets in Australia today.</div>
       </div>
 
-      <div id="briefContent" class="brief-content" aria-live="polite">
-        <!-- injected by JS -->
+      <div class="brief-controls">
+        <select id="briefRegion" class="brief-toggle" aria-label="Region">
+          <option value="au" selected>Australia (ASX)</option>
+          <option value="us">US</option>
+          <option value="global">Global</option>
+        </select>
+
+        <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
+        <button id="refreshBrief" class="brief-toggle" title="Refresh">Refresh</button>
       </div>
-    </section>
+    </div>
+
+    <div id="briefContent" class="brief-content" aria-live="polite">
+      <!-- injected by JS -->
+    </div>
+  </section>
 
     <!-- LATEST HEADLINES -->
     <section id="news" class="card" aria-labelledby="latest-headlines">
