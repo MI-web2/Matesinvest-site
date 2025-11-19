@@ -102,6 +102,7 @@
     .brief-tldr { display:flex; gap:0.6rem; flex-direction:column; margin-top:0.5rem }
     .brief-bullet { background:rgba(255,255,255,0.02); padding:0.45rem; border-radius:8px; border:1px solid rgba(255,255,255,0.03) }
 
+
     /* Controls & chips (existing) */
     .controls { display:flex; gap:var(--gap); align-items:center; flex-wrap:wrap; margin-top:0.6rem; }
     .segmented { display:inline-flex; background:var(--glass); border-radius:999px; padding:3px; gap:4px; border:1px solid var(--border); }
@@ -384,6 +385,79 @@
   font-size:0.78rem;
   color: var(--muted-2);
 }
+/* -------------------------
+   Stock of the Day
+-------------------------- */
+.sotd-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 0.9rem 1rem 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.sotd-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:0.75rem;
+  margin-bottom:0.4rem;
+  flex-wrap:wrap;
+}
+
+.sotd-title-left {
+  display:flex;
+  align-items:center;
+  gap:0.4rem;
+  flex-wrap:wrap;
+}
+
+.sotd-pill {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  border:1px solid rgba(63,191,127,0.26);
+}
+
+.sotd-ticker {
+  font-weight:600;
+  letter-spacing:0.03em;
+  font-size:0.9rem;
+}
+
+.sotd-name {
+  font-size:0.9rem;
+  color:var(--muted-2);
+}
+
+.sotd-exchange {
+  font-size:0.8rem;
+  color:var(--muted-2);
+}
+
+.sotd-summary {
+  font-size:0.9rem;
+  line-height:1.45;
+  color:rgba(255,255,255,0.9);
+  margin-bottom:0.35rem;
+}
+
+.sotd-disclaimer {
+  font-size:0.75rem;
+  color:var(--muted-2);
+}
+
+/* mobile tweaks */
+@media (max-width: 768px) {
+  .sotd-card {
+    padding: 0.85rem 0.9rem;
+  }
+  .sotd-summary {
+    font-size:0.88rem;
+  }
+}
 
 
   </style>
@@ -427,6 +501,25 @@
   </div>
   <p id="matesNoteText" class="mates-note-body">
     Loading today’s note…
+  </p>
+</div>
+<!-- === STOCK OF THE DAY === -->
+<div id="stockOfDay" class="sotd-card" style="margin-top:1rem; display:none;">
+  <div class="sotd-header">
+    <div class="sotd-title-left">
+      <span class="pill sotd-pill">Stock of the Day</span>
+      <span id="sotdTicker" class="sotd-ticker">—</span>
+      <span id="sotdName" class="sotd-name"></span>
+    </div>
+    <span id="sotdExchange" class="sotd-exchange">ASX</span>
+  </div>
+
+  <p id="sotdSummary" class="sotd-summary">
+    Loading today’s stock snapshot…
+  </p>
+
+  <p class="sotd-disclaimer">
+    General information only. Not financial advice.
   </p>
 </div>
 
@@ -535,6 +628,31 @@ async function loadMatesMorningNote() {
     console.error("Failed to load Morning Note", err);
     textBox.textContent = "Unable to load today’s note.";
     container.style.display = "block";
+  }
+}
+async function loadStockOfTheDay() {
+  const container = document.getElementById("stockOfDay");
+  if (!container) return;
+
+  const tickerEl = document.getElementById("sotdTicker");
+  const nameEl = document.getElementById("sotdName");
+  const exchEl = document.getElementById("sotdExchange");
+  const summaryEl = document.getElementById("sotdSummary");
+
+  try {
+    const res = await fetch("/.netlify/functions/stockOfTheDay");
+    const data = await res.json();
+
+    tickerEl.textContent = data.ticker || "—";
+    nameEl.textContent = data.name || "";
+    exchEl.textContent = (data.exchange || "ASX").toUpperCase();
+    summaryEl.textContent = data.summary || "No snapshot available today.";
+
+    container.style.display = "block";
+  } catch (err) {
+    console.error("loadStockOfTheDay failed", err);
+    summaryEl.textContent = "Unable to load today’s Stock of the Day.";
+    container.style.display = "block"; // still show the card with message
   }
 }
 
@@ -1306,12 +1424,10 @@ refreshBriefBtn.addEventListener("click", async () => {
     renderMarketMode();
     feedStatus.textContent = "Live";
 
-    loadMatesMorningNote(); // ← NEW
+    loadMatesMorningNote();
+    loadStockOfTheDay(); // ← NEW
   } catch (err) {
-    console.error(err);
-    newsList.innerHTML =
-      `<div class="headline"><small style="color:var(--muted)">Failed to load initial feed.</small></div>`;
-    feedStatus.textContent = "Offline";
+    // ...
   }
 })();
 </script>
