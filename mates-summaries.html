@@ -958,28 +958,35 @@ Status: ${ev.status}
 
   /* ---------- Morning brief handlers (compact cards, no timestamp, no per-card narrative) ---------- */
 
-  function formatMoney(n) {
-    try {
-      if (n === null || typeof n === 'undefined') return null;
-      return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    } catch { return String(n); }
-  }
+function formatMoney(n) {
+  try {
+    if (n === null || typeof n === 'undefined') return null;
+    return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch { return String(n); }
+}
 
-  function relativeTime(iso) {
-    try {
-      const date = new Date(iso);
-      const now = new Date();
-      const diffMs = now - date;
-      const diffMin = Math.round(diffMs / 60000);
-      if (Math.abs(diffMin) < 1) return 'just now';
-      if (Math.abs(diffMin) < 60) return `${diffMin}m`;
-      const diffHours = Math.round(diffMin / 60);
-      if (Math.abs(diffHours) < 24) return `${diffHours}h`;
-      const diffDays = Math.round(diffHours / 24);
-      return `${diffDays}d`;
-    } catch { return iso || ''; }
-  }
+function relativeTime(iso) {
+  try {
+    const date = new Date(iso);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMin = Math.round(diffMs / 60000);
+    if (Math.abs(diffMin) < 1) return 'just now';
+    if (Math.abs(diffMin) < 60) return `${diffMin}m`;
+    const diffHours = Math.round(diffMin / 60);
+    if (Math.abs(diffHours) < 24) return `${diffHours}h`;
+    const diffDays = Math.round(diffHours / 24);
+    return `${diffDays}d`;
+  } catch { return iso || ''; }
+}
 
+/*
+  Render the morning brief.
+  - Accepts payload that may contain either `payload.metals` or `payload.symbols`
+  - Uses snapshot-provided unit when present (m.unit)
+  - Shows AUD price using m.priceAUD (your snapshot function writes AUD already)
+  - Shows a small api hint if apiPriceUSD is present
+*/
 function renderMorningBrief(payload) {
   if (!payload) {
     briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
@@ -989,20 +996,26 @@ function renderMorningBrief(payload) {
   const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
   const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
 
-  if (payload.metals && typeof payload.metals === 'object') {
-    const metals = payload.metals;
-    const symbols = Object.keys(metals);
+  // Accept either payload.metals (old) or payload.symbols (snapshot-metals.js)
+  const metalsObj = (payload.metals && typeof payload.metals === 'object')
+    ? payload.metals
+    : (payload.symbols && typeof payload.symbols === 'object')
+      ? payload.symbols
+      : null;
+
+  if (metalsObj) {
+    const symbols = Object.keys(metalsObj);
     const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', LITHIUM: 'Lithium', NI: 'Nickel', URANIUM: 'Uranium' };
 
     const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
 
     const cards = symbols.map(sym => {
-      const m = metals[sym] || {};
+      const m = metalsObj[sym] || {};
       const priceAUDraw = (typeof m.priceAUD === 'number') ? m.priceAUD : null;
       const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
 
       // Prefer explicit unit from snapshot; fallback to heuristic
-      const unitFromSnapshot = (m.unit || '').toString().trim();
+      const unitFromSnapshot = (m.unit || m.unit === '' ? m.unit : (m.unitName || '')).toString().trim();
       const unit = unitFromSnapshot || ((sym === 'XAU' || sym === 'XAG') ? 'oz' : (sym === 'IRON' ? 'tonne' : 'unit'));
 
       const priceDisplay = priceAUDraw !== null ? `$${formatMoney(priceAUDraw)} AUD` : '<span style="color:#ffd166">Unavailable</span>';
@@ -1016,7 +1029,8 @@ function renderMorningBrief(payload) {
       }
 
       // optional trace: show original API USD (apiPriceUSD) small hint if present
-      const apiHint = (typeof m.apiPriceUSD === 'number') ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:6px">api: $${formatMoney(m.apiPriceUSD)} USD</div>` : '';
+      const apiUsdRaw = (typeof m.apiPriceUSD === 'number') ? m.apiPriceUSD : (typeof m.apiPriceUsd === 'number' ? m.apiPriceUsd : null);
+      const apiHint = (apiUsdRaw !== null) ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:6px">api: $${formatMoney(apiUsdRaw)} USD</div>` : '';
 
       return `
         <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
@@ -1038,7 +1052,7 @@ function renderMorningBrief(payload) {
     return;
   }
 
-  // Fallback: old single-gold payload
+  // Fallback: old single-gold payload shape
   const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
   const fallbackHtml = `
     <div class="brief-top-meta">
@@ -1053,69 +1067,50 @@ function renderMorningBrief(payload) {
   briefContent.innerHTML = fallbackHtml;
 }
 
-      briefContent.innerHTML = `${topMetaHtml}<div class="brief-grid">${cards}</div>`;
-      return;
-    }
-
-    // Fallback for single-gold payload: compact and no top timestamp
-    const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
-    const fallbackHtml = `
-      <div class="brief-top-meta">
-        <div></div>
-        <div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div>
-      </div>
-      <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
-        <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
-        <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
-      </div>
-    `;
-    briefContent.innerHTML = fallbackHtml;
+/* ---------- open / refresh handlers (unchanged) ---------- */
+openBriefBtn.addEventListener("click", async () => {
+  const region = briefRegionSelect.value || "au";
+  if (briefContent.style.display === "block") {
+    briefContent.style.display = "none";
+    openBriefBtn.textContent = "Open morning brief";
+    return;
   }
 
-  // open / refresh handlers remain the same
-  openBriefBtn.addEventListener("click", async () => {
+  briefContent.style.display = "block";
+  openBriefBtn.textContent = "Hide brief";
+
+  briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
+  try {
+    const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || 'Brief fetch failed');
+    }
+    const payload = await res.json();
+    renderMorningBrief(payload);
+  } catch (err) {
+    console.error('Morning brief failed', err);
+    briefContent.innerHTML = `<div class="brief-loading">Failed to load morning brief.</div>`;
+  }
+});
+
+refreshBriefBtn.addEventListener("click", async () => {
+  if (briefContent.style.display !== "block") {
+    openBriefBtn.click();
+    return;
+  }
+  try {
+    briefContent.innerHTML = `<div class="brief-loading">Refreshing briefing…</div>`;
     const region = briefRegionSelect.value || "au";
-    if (briefContent.style.display === "block") {
-      briefContent.style.display = "none";
-      openBriefBtn.textContent = "Open morning brief";
-      return;
-    }
-
-    briefContent.style.display = "block";
-    openBriefBtn.textContent = "Hide brief";
-
-    briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
-    try {
-      const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || 'Brief fetch failed');
-      }
-      const payload = await res.json();
-      renderMorningBrief(payload);
-    } catch (err) {
-      console.error('Morning brief failed', err);
-      briefContent.innerHTML = `<div class="brief-loading">Failed to load morning brief.</div>`;
-    }
-  });
-
-  refreshBriefBtn.addEventListener("click", async () => {
-    if (briefContent.style.display !== "block") {
-      openBriefBtn.click();
-      return;
-    }
-    try {
-      briefContent.innerHTML = `<div class="brief-loading">Refreshing briefing…</div>`;
-      const region = briefRegionSelect.value || "au";
-      const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
-      if (!res.ok) throw new Error('Refresh failed');
-      const payload = await res.json();
-      renderMorningBrief(payload);
-    } catch (err) {
-      console.error('Refresh failed', err);
-      briefContent.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
-    }
-  });
+    const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
+    if (!res.ok) throw new Error('Refresh failed');
+    const payload = await res.json();
+    renderMorningBrief(payload);
+  } catch (err) {
+    console.error('Refresh failed', err);
+    briefContent.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
+  }
+});
   /* ---------- Toggles & category handling ---------- */
 
   function setActiveToggle(isMarket) {
