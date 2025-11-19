@@ -24,8 +24,6 @@ function buildPrompt(region, articles) {
     const src = a.source || "";
     return `• ${title}${src ? ` (${src})` : ""}`;
   }).join("\n");
-
-  return `
 return `
 You are writing a short pre-market note for everyday investors in ${regionLabel}.
 Use plain English, no jargon, and keep it to 2–3 sentences max.
