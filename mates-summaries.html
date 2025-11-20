@@ -399,6 +399,35 @@
     .sotd-exchange { font-size:0.8rem; color:var(--muted-2); }
     .sotd-summary { font-size:0.9rem; line-height:1.45; color:rgba(255,255,255,0.9); margin-bottom:0.35rem; }
 
+    /* === New: Top performers UI inside Morning Brief === */
+    .top-performers {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .perf-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.03);
+      padding: 10px;
+      border-radius: 10px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-height:72px;
+      justify-content:center;
+    }
+    .perf-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .perf-symbol { font-weight:800; font-size:1rem; color:#fff; }
+    .perf-exch { font-size:0.78rem; color:var(--muted-2); }
+    .perf-last { font-size:0.95rem; font-weight:700; color:#fff; }
+    .perf-pct { font-weight:700; font-size:0.86rem; padding:4px 8px; border-radius:999px; align-self:flex-start; }
+    .perf-pct.up { background: rgba(110,231,183,0.12); color: #6ee7b7; border: 1px solid rgba(110,231,183,0.18); }
+    .perf-pct.down { background: rgba(255,180,180,0.06); color: #ffb4b4; border: 1px solid rgba(255,180,180,0.08); }
+    .perf-note { color:var(--muted-2); font-size:0.82rem; }
+    @media (max-width:560px) {
+      .top-performers { grid-template-columns: repeat(2, 1fr); }
+    }
   </style>
 
 </head>
@@ -446,7 +475,7 @@
     </div>
 
     <div id="briefContent" class="brief-content" aria-live="polite">
-      <!-- injected by JS: will include placeholders for Mates Morning Note + Stock of the Day + metals grid -->
+      <!-- injected by JS: will include placeholders for Mates Morning Note + Stock of the Day + metals grid + top performers -->
     </div>
   </section>
 
@@ -1081,6 +1110,7 @@ function relativeTime(iso) {
   Render the morning brief:
   - Inserts placeholders for Mates Morning Note and Stock of the Day (so loaders can populate them)
   - Renders metals grid using payload.symbols or payload.metals
+  - Renders topPerformers (from EODHD) if present
 */
 function renderMorningBrief(payload) {
   if (!payload) {
@@ -1097,6 +1127,39 @@ function renderMorningBrief(payload) {
     : (payload.symbols && typeof payload.symbols === 'object')
       ? payload.symbols
       : null;
+
+  // Build top performers HTML if present
+  let topPerfHtml = '';
+  if (Array.isArray(payload.topPerformers) && payload.topPerformers.length) {
+    const items = payload.topPerformers.map(tp => {
+      const pct = (typeof tp.pctGain === 'number') ? tp.pctGain : (tp.pctGain ? Number(tp.pctGain) : null);
+      const pctClass = (pct === null) ? 'perf-pct neutral' : (pct > 0 ? 'perf-pct up' : (pct < 0 ? 'perf-pct down' : 'perf-pct neutral'));
+      const lastClose = (typeof tp.lastClose === 'number') ? `$${formatMoney(tp.lastClose)}` : (tp.lastClose ? escapeHtml(String(tp.lastClose)) : '—');
+      return `
+        <div class="perf-card" role="article" aria-label="Top performer ${escapeHtml(tp.symbol || '')}">
+          <div class="perf-top">
+            <div>
+              <div class="perf-symbol">${escapeHtml(tp.symbol || '')}</div>
+              <div class="perf-exch">${escapeHtml(tp.exchange || '')}</div>
+            </div>
+            <div>
+              <div class="perf-last">${lastClose}</div>
+              <div class="${pctClass}">${pct === null ? '—' : (pct > 0 ? '▲ ' + Math.abs(pct) + '%' : (pct < 0 ? '▼ ' + Math.abs(pct) + '%' : `${pct}%`))}</div>
+            </div>
+          </div>
+          <div class="perf-note">${escapeHtml(tp.name || '')}</div>
+        </div>
+      `;
+    }).join('');
+    topPerfHtml = `
+      <div>
+        <strong style="display:block;margin-bottom:6px">Top performers (5 business days)</strong>
+        <div class="top-performers">
+          ${items}
+        </div>
+      </div>
+    `;
+  }
 
   // Top meta row + placeholders for Mates note and SOTD
   const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
@@ -1169,9 +1232,10 @@ function renderMorningBrief(payload) {
       `;
     }).join("");
 
-    // Assemble final HTML: topMeta, top two cards (mates note & sotd), then metals grid
+    // Assemble final HTML: topMeta, topPerformers (if any), top two cards (mates note & sotd), then metals grid
     briefContent.innerHTML = `
       ${topMetaHtml}
+      ${topPerfHtml}
       <div class="brief-top-cards">
         ${matesPlaceholder}
         ${sotdPlaceholder}
@@ -1184,10 +1248,11 @@ function renderMorningBrief(payload) {
     return;
   }
 
-  // Fallback: old single-gold payload shape
+  // Fallback: old single-gold payload shape — include top performers if present
   const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
   const fallbackHtml = `
     ${topMetaHtml}
+    ${topPerfHtml}
     <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
       <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
       <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>

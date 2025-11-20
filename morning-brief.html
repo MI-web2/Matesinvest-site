@@ -1,215 +1,436 @@
-<main class="page-shell" style="max-width:840px;margin:0 auto;padding:2rem 1.25rem 4rem;">
+// netlify/functions/morning-brief.js
+// Morning brief for multiple metals + top performers across US + ASX using EODHD.
+// - Preserves your working metals snapshot logic (Upstash + Metals-API fallback)
+// - Adds an EODHD-backed computation of top 5 performers across US and ASX
+// Env required for metals part (existing):
+// - UPSTASH_REDIS_REST_URL
+// - UPSTASH_REDIS_REST_TOKEN
+// - METALS_API_KEY (optional fallback)
+// Env required for EODHD part (new):
+// - EODHD_API_TOKEN
+//
+// Notes
+// - EODHD scanning of all symbols is potentially heavy. Defaults are conservative (MAX_PER_EXCHANGE).
+// - You can request specific symbols by passing ?symbols=AAPL,BHP or restrict region with ?region=au or ?region=us
+// - Response includes existing `metals` and `narratives` keys plus `topPerformers` (array) and `_debug.eodhd` metadata.
 
-  <!-- HERO -->
-  <section aria-labelledby="matesMorningProHeading" style="margin-bottom:2.5rem;">
-    <p style="text-transform:uppercase;letter-spacing:0.12em;font-size:0.78rem;color:var(--muted);margin-bottom:0.35rem;">
-      Premium · Early access
-    </p>
-    <h1 id="matesMorningProHeading" style="margin:0 0 0.75rem;font-size:2rem;">
-      MatesMorning Pro
-    </h1>
-    <p style="margin:0;color:var(--muted);font-size:0.98rem;max-width:640px;">
-      A clean, Australian-focused market briefing delivered to your inbox by
-      <strong>6:00am AEST</strong> — so you can start the day knowing what matters,
-      without scrolling through noise.
-    </p>
+const fetch = global.fetch || require('node-fetch');
 
-    <!-- Primary CTA row -->
-    <div style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:1.75rem;align-items:center;">
-      <a href="#pricing" class="btn-primary" style="padding:0.7rem 1.4rem;border-radius:999px;background:var(--accent);color:#000;font-weight:600;text-decoration:none;">
-        Get early access
-      </a>
-      <button type="button" onclick="document.getElementById('sampleIssue').scrollIntoView({behavior:'smooth'});" 
-              style="background:none;border:none;color:var(--muted-2);font-size:0.9rem;cursor:pointer;padding:0;">
-        View a sample briefing ↓
-      </button>
-    </div>
+exports.handler = async function (event) {
+  const nowIso = new Date().toISOString();
 
-    <p style="margin-top:0.9rem;font-size:0.8rem;color:var(--muted);">
-      Founding members lock in pricing for life. No lock-in contract. Cancel anytime.
-    </p>
-  </section>
+  async function fetchWithTimeout(url, opts = {}, timeout = 9000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(url, { ...opts, signal: controller.signal });
+      clearTimeout(id);
+      return res;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
+    }
+  }
 
-  <!-- WHAT YOU GET -->
-  <section aria-labelledby="whatYouGetHeading" style="margin-bottom:2.5rem;">
-    <h2 id="whatYouGetHeading" style="font-size:1.2rem;margin-bottom:1rem;">What you get each morning</h2>
-    <div style="display:grid;gap:1rem;">
-      <div class="card" style="padding:1rem;border-radius:14px;background:#101018;border:1px solid rgba(255,255,255,0.04);">
-        <div class="pill" style="display:inline-flex;align-items:center;padding:0.16rem 0.6rem;border-radius:999px;font-size:0.75rem;background:rgba(120,255,173,0.08);color:#78ffad;margin-bottom:0.4rem;">
-          ☕ Mates Morning Note
-        </div>
-        <p style="margin:0;color:var(--muted-2);font-size:0.92rem;">
-          A short, plain-English note on what could move markets in Australia today — macro themes, key headlines, and the one big thing to watch.
-        </p>
-      </div>
+  const fmt = n => (typeof n === 'number' && Number.isFinite(n)) ? Number(n.toFixed(2)) : null;
 
-      <div class="card" style="padding:1rem;border-radius:14px;background:#101018;border:1px solid rgba(255,255,255,0.04);">
-        <div class="pill" style="display:inline-flex;align-items:center;padding:0.16rem 0.6rem;border-radius:999px;font-size:0.75rem;background:rgba(120,200,255,0.08);color:#7fd2ff;margin-bottom:0.4rem;">
-          📈 Stock of the Day
-        </div>
-        <p style="margin:0;color:var(--muted-2);font-size:0.92rem;">
-          One ASX-listed name with a 2–3 line snapshot — what it does, why it’s on the radar today, and a key risk to keep in mind.
-        </p>
-      </div>
+  // ---------- Upstash helpers (existing) ----------
+  const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || null;
+  const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
+  async function redisGet(key) {
+    if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
+    try {
+      const res = await fetchWithTimeout(`${UPSTASH_URL}/get/${encodeURIComponent(key)}`, {
+        headers: { 'Authorization': `Bearer ${UPSTASH_TOKEN}` }
+      }, 7000);
+      if (!res.ok) return null;
+      const j = await res.json().catch(()=>null);
+      if (!j || typeof j.result === 'undefined') return null;
+      return j.result;
+    } catch (e) {
+      console.warn('redisGet error', e && e.message);
+      return null;
+    }
+  }
 
-      <div class="card" style="padding:1rem;border-radius:14px;background:#101018;border:1px solid rgba(255,255,255,0.04);">
-        <div class="pill" style="display:inline-flex;align-items:center;padding:0.16rem 0.6rem;border-radius:999px;font-size:0.75rem;background:rgba(255,214,102,0.08);color:#ffd166;margin-bottom:0.4rem;">
-          ⚒️ Commodities & levels
-        </div>
-        <p style="margin:0;color:var(--muted-2);font-size:0.92rem;">
-          Gold, iron ore, lithium, uranium, nickel and more — in AUD where it matters — plus a quick take on who’s smiling and who’s hurting at these prices.
-        </p>
-      </div>
+  // symbols to show for metals
+  const symbols = ['XAU','XAG','IRON','LITH-CAR','NI','URANIUM'];
+  const debug = { steps: [] };
 
-      <div class="card" style="padding:1rem;border-radius:14px;background:#101018;border:1px solid rgba(255,255,255,0.04);">
-        <div class="pill" style="display:inline-flex;align-items:center;padding:0.16rem 0.6rem;border-radius:999px;font-size:0.75rem;background:rgba(180,150,255,0.08);color:#b89cff;margin-bottom:0.4rem;">
-          🌏 Overnight wrap & catalysts
-        </div>
-        <p style="margin:0;color:var(--muted-2);font-size:0.92rem;">
-          A 3-line US/Asia/FX wrap and <strong>3 catalysts to watch</strong> on the ASX today — results, macro prints, or sector-moving news.
-        </p>
-      </div>
-    </div>
-  </section>
+  try {
+    // ------------------------------
+    // Existing metals snapshot logic
+    // ------------------------------
+    let latestSnapshot = null;
+    try {
+      const rawLatest = await redisGet('metals:latest');
+      if (rawLatest) {
+        if (typeof rawLatest === 'string') {
+          try { latestSnapshot = JSON.parse(rawLatest); }
+          catch (e) { latestSnapshot = null; debug.steps.push({ source: 'parse-latest-failed', error: e && e.message }); }
+        } else if (typeof rawLatest === 'object') {
+          latestSnapshot = rawLatest;
+        }
+        debug.steps.push({ source: 'upstash-latest', found: !!latestSnapshot });
+      } else {
+        debug.steps.push({ source: 'upstash-latest', found: false });
+      }
+    } catch (e) {
+      debug.steps.push({ source: 'upstash-latest-error', error: e && e.message });
+    }
 
-  <!-- SAMPLE ISSUE PREVIEW -->
-  <section id="sampleIssue" aria-labelledby="sampleHeading" style="margin-bottom:2.5rem;">
-    <h2 id="sampleHeading" style="font-size:1.2rem;margin-bottom:0.75rem;">How it looks</h2>
-    <p style="margin:0 0 0.85rem;color:var(--muted);font-size:0.9rem;">
-      This is a simplified example of a MatesMorning Pro email. The real thing updates live from our data feeds each morning.
-    </p>
+    const currentUsd = {}; // symbol -> USD price (number|null)
+    const currentAud = {}; // symbol -> AUD price (number|null)
+    let priceTimestamp = null;
+    let usdToAud = null;
+    let metalsDataSource = 'live-metals-api';
 
-    <div class="card" style="padding:1.1rem 1rem;border-radius:16px;background:linear-gradient(145deg,#0b0d17,#111827);border:1px solid rgba(255,255,255,0.08);box-shadow:0 18px 40px rgba(0,0,0,0.65);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;">
-        <div style="font-size:0.85rem;color:var(--muted);">
-          <strong>MatesMorning Pro</strong> · ASX Briefing
-        </div>
-        <div style="font-size:0.78rem;color:var(--muted-2);">
-          Sent 6:00am AEST
-        </div>
-      </div>
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:0.45rem 0 0.9rem;">
+    if (latestSnapshot && latestSnapshot.symbols) {
+      metalsDataSource = 'upstash-latest';
+      for (const s of symbols) {
+        const entry = latestSnapshot.symbols[s] || (latestSnapshot.metals && latestSnapshot.metals[s]) || null;
+        if (entry && typeof entry === 'object') {
+          currentUsd[s] = (typeof entry.priceUSD === 'number') ? entry.priceUSD : (typeof entry.apiPriceUSD === 'number' ? entry.apiPriceUSD : null);
+          currentAud[s] = (typeof entry.priceAUD === 'number') ? entry.priceAUD : null;
+          priceTimestamp = priceTimestamp || entry.priceTimestamp || latestSnapshot.priceTimestamp || latestSnapshot.snappedAt || null;
+        } else {
+          currentUsd[s] = null;
+          currentAud[s] = null;
+        }
+      }
+      usdToAud = latestSnapshot.usdToAud || null;
+      debug.snapshotDate = latestSnapshot.snappedAt || null;
+    } else {
+      // Fallback live fetch path (tries Metals-API then FX)
+      const METALS_API_KEY = process.env.METALS_API_KEY || null;
+      if (METALS_API_KEY) {
+        try {
+          const metaUrl = `https://metals-api.com/api/latest?access_key=${encodeURIComponent(METALS_API_KEY)}&base=USD&symbols=${encodeURIComponent(symbols.join(','))}`;
+          const mres = await fetchWithTimeout(metaUrl, {}, 10000);
+          const mtxt = await mres.text().catch(()=>'');
+          let mj = null;
+          try { mj = mtxt ? JSON.parse(mtxt) : null; } catch(e){ mj = null; }
+          debug.steps.push({ source: 'metals-api', ok: !!mres.ok, status: mres.status });
+          if (mres.ok && mj && mj.rates) {
+            const rates = mj.rates;
+            for (const s of symbols) {
+              const rv = rates[s];
+              if (typeof rv === 'number') {
+                // metals-api may return rates as units per USD or USD per unit depending on base; handle heuristics
+                if (rv > 0 && rv < 1) currentUsd[s] = 1 / rv;
+                else currentUsd[s] = rv;
+              } else {
+                currentUsd[s] = null;
+              }
+            }
+            if (mj.timestamp) priceTimestamp = new Date(mj.timestamp * 1000).toISOString();
+            debug.ratesPreview = mj.rates;
+          } else {
+            debug.steps.push({ source: 'metals-api-body', preview: mtxt.slice(0,400) });
+            for (const s of symbols) currentUsd[s] = null;
+          }
+        } catch (e) {
+          debug.steps.push({ source: 'metals-api-error', error: e && e.message });
+          for (const s of symbols) currentUsd[s] = null;
+        }
+      } else {
+        debug.steps.push({ source: 'metals-api', note: 'METALS_API_KEY missing' });
+        for (const s of symbols) currentUsd[s] = null;
+      }
 
-      <div style="margin-bottom:0.9rem;">
-        <div class="pill" style="display:inline-flex;padding:0.15rem 0.55rem;border-radius:999px;font-size:0.75rem;background:rgba(120,255,173,0.08);color:#78ffad;margin-bottom:0.4rem;">
-          Mates Morning Note
-        </div>
-        <p style="margin:0;color:#e5e7eb;font-size:0.92rem;">
-          Futures are pointing slightly higher after a mixed US session. Resources remain in focus with gold steady in AUD terms and iron ore near recent highs. Watch for any follow-through in the lithium names after yesterday’s bounce.
-        </p>
-      </div>
+      // FX USD -> AUD (try open.er-api.com then exchangerate.host)
+      try {
+        let fRes = await fetchWithTimeout('https://open.er-api.com/v6/latest/USD', {}, 7000);
+        let ftxt = await fRes.text().catch(()=>'');
+        let fj = null;
+        try { fj = ftxt ? JSON.parse(ftxt) : null; } catch(e){ fj = null; }
+        if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === 'number') {
+          usdToAud = Number(fj.rates.AUD);
+          debug.fxSource = 'open.er-api.com';
+        } else {
+          // fallback
+          fRes = await fetchWithTimeout('https://api.exchangerate.host/latest?base=USD&symbols=AUD', {}, 7000);
+          ftxt = await fRes.text().catch(()=>'');
+          try { fj = ftxt ? JSON.parse(ftxt) : null; } catch(e){ fj = null; }
+          if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === 'number') {
+            usdToAud = Number(fj.rates.AUD);
+            debug.fxSource = 'exchangerate.host';
+          } else {
+            debug.steps.push({ source: 'fx-bodies', preview: ftxt.slice(0,300) });
+          }
+        }
+      } catch (e) {
+        debug.steps.push({ source: 'fx-error', error: e && e.message });
+      }
 
-      <div style="margin-bottom:0.9rem;">
-        <div class="pill" style="display:inline-flex;padding:0.15rem 0.55rem;border-radius:999px;font-size:0.75rem;background:rgba(120,200,255,0.08);color:#7fd2ff;margin-bottom:0.35rem;">
-          Stock of the Day — WES
-        </div>
-        <p style="margin:0;color:#e5e7eb;font-size:0.9rem;">
-          Wesfarmers (WES) — diversified exposure across retail, chemicals and lithium. Today’s focus is on how the market digests their latest trading update and commentary around discretionary spend.
-        </p>
-        <p style="margin:0.35rem 0 0;font-size:0.78rem;color:var(--muted-2);">
-          General information only. Not financial advice.
-        </p>
-      </div>
+      // compute current AUD prices per symbol (from live USD)
+      for (const s of symbols) {
+        const pUsd = currentUsd[s];
+        currentAud[s] = (typeof pUsd === 'number' && typeof usdToAud === 'number') ? Number((pUsd * usdToAud).toFixed(2)) : null;
+      }
+    }
 
-      <div style="margin-bottom:0.9rem;">
-        <div class="pill" style="display:inline-flex;padding:0.15rem 0.55rem;border-radius:999px;font-size:0.75rem;background:rgba(255,214,102,0.08);color:#ffd166;margin-bottom:0.35rem;">
-          Key commodities (AUD)
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0.45rem;font-size:0.85rem;">
-          <div style="padding:0.55rem 0.6rem;border-radius:10px;background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.18);">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span>Gold (XAU)</span>
-              <span style="font-weight:600;">$3,450</span>
-            </div>
-            <div style="margin-top:0.2rem;font-size:0.75rem;color:#16a34a;">▲ 0.7%</div>
-          </div>
-          <div style="padding:0.55rem 0.6rem;border-radius:10px;background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.18);">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span>Iron ore</span>
-              <span style="font-weight:600;">$152/t</span>
-            </div>
-            <div style="margin-top:0.2rem;font-size:0.75rem;color:#16a34a;">▲ 1.3%</div>
-          </div>
-          <div style="padding:0.55rem 0.6rem;border-radius:10px;background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.18);">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span>Lithium (LCE)</span>
-              <span style="font-weight:600;">$1,450/t</span>
-            </div>
-            <div style="margin-top:0.2rem;font-size:0.75rem;color:#ef4444;">▼ 0.9%</div>
-          </div>
-        </div>
-      </div>
+    // ------------------------------
+    // Read yesterday snapshot (Upstash) to compute pct change for metals
+    // ------------------------------
+    let yesterdayData = null;
+    try {
+      const d = new Date();
+      const yd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - 1));
+      const key = `metals:${yd.toISOString().slice(0,10)}`; // metals:YYYY-MM-DD
+      const val = await redisGet(key);
+      if (val) {
+        if (typeof val === 'string') {
+          try { yesterdayData = JSON.parse(val); } catch (e) { yesterdayData = null; debug.steps.push({ source: 'parse-yesterday-failed', error: e && e.message }); }
+        } else if (typeof val === 'object') {
+          yesterdayData = val;
+        }
+      }
+      debug.steps.push({ source: 'redis-get-yesterday', key, found: !!yesterdayData });
+    } catch (e) {
+      debug.steps.push({ source: 'redis-get-error', error: e && e.message });
+    }
 
-      <div>
-        <div class="pill" style="display:inline-flex;padding:0.15rem 0.55rem;border-radius:999px;font-size:0.75rem;background:rgba(180,150,255,0.08);color:#b89cff;margin-bottom:0.35rem;">
-          3 things to watch today
-        </div>
-        <ol style="margin:0 0 0.2rem 1.15rem;color:#e5e7eb;font-size:0.9rem;">
-          <li>AGM commentary from the major retailers on Christmas trading.</li>
-          <li>Any follow-through in small cap lithium after yesterday’s move.</li>
-          <li>US futures reaction to tonight’s inflation print.</li>
-        </ol>
-      </div>
-    </div>
-  </section>
+    // 4) assemble per-symbol result: priceUSD, priceAUD, yesterdayPriceAUD, pctChange
+    const metals = {};
+    for (const s of symbols) {
+      const todayUSD = (typeof currentUsd[s] === 'number') ? currentUsd[s] : null;
+      const todayAUD = (typeof currentAud[s] === 'number') ? currentAud[s] : null;
 
-  <!-- PRICING -->
-  <section id="pricing" aria-labelledby="pricingHeading" style="margin-bottom:2.5rem;">
-    <h2 id="pricingHeading" style="font-size:1.2rem;margin-bottom:0.75rem;">Founding member pricing</h2>
-    <div class="card" style="padding:1.3rem 1.1rem;border-radius:16px;background:#050712;border:1px solid rgba(129,140,248,0.4);">
-      <p style="margin:0 0 0.5rem;font-size:0.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;">
-        MatesMorning Pro
-      </p>
-      <div style="display:flex;flex-wrap:wrap;align-items-baseline;gap:0.4rem;margin-bottom:0.4rem;">
-        <span style="font-size:1.9rem;font-weight:600;">$5</span>
-        <span style="color:var(--muted-2);font-size:0.9rem;">per month</span>
-        <span style="color:var(--muted-2);font-size:0.85rem;">or $39/year</span>
-      </div>
-      <p style="margin:0 0 0.9rem;color:var(--muted-2);font-size:0.9rem;">
-        Daily ASX-focused briefing at 6:00am AEST, written for Australian investors who
-        don’t have time to scroll through ten different apps before work.
-      </p>
+      let yesterdayAUD = null;
+      if (yesterdayData && yesterdayData.symbols && typeof yesterdayData.symbols[s] !== 'undefined') {
+        const p = (yesterdayData.symbols[s] && typeof yesterdayData.symbols[s].priceAUD !== 'undefined') ? yesterdayData.symbols[s].priceAUD : null;
+        if (p !== null) yesterdayAUD = (typeof p === 'number') ? p : Number(p);
+      }
 
-      <ul style="margin:0 0 0.9rem 1.1rem;font-size:0.88rem;color:var(--muted-2);">
-        <li>Daily Mates Morning Note & Stock of the Day</li>
-        <li>Commodities and key levels in AUD</li>
-        <li>3 catalysts to watch on the ASX</li>
-        <li>Ad-free, no spam, cancel anytime</li>
-      </ul>
+      let pctChange = null;
+      if (todayAUD !== null && yesterdayAUD !== null && yesterdayAUD !== 0) {
+        pctChange = Number(((todayAUD - yesterdayAUD) / yesterdayAUD * 100).toFixed(2));
+      }
 
-      <!-- Replace href with your Stripe checkout link when ready -->
-      <a href="YOUR_STRIPE_CHECKOUT_LINK_HERE" 
-         style="display:inline-flex;justify-content:center;align-items:center;padding:0.75rem 1.5rem;border-radius:999px;background:var(--accent);color:#000;font-weight:600;text-decoration:none;margin-top:0.2rem;">
-        Become a founding member
-      </a>
+      metals[s] = {
+        priceUSD: fmt(todayUSD),
+        priceAUD: fmt(todayAUD),
+        yesterdayPriceAUD: yesterdayAUD !== null ? fmt(yesterdayAUD) : null,
+        pctChange,
+        priceTimestamp: priceTimestamp || null
+      };
+    }
 
-      <p style="margin-top:0.6rem;font-size:0.78rem;color:var(--muted);">
-        You’ll be emailed a receipt and get access as soon as we switch the premium briefings on.
-      </p>
-    </div>
-  </section>
+    const narratives = {};
+    for (const s of symbols) {
+      const m = metals[s];
+      if (m.priceAUD === null) {
+        narratives[s] = `The ${s} price is currently unavailable.`;
+      } else {
+        const upDown = (m.pctChange === null) ? '' : (m.pctChange > 0 ? ` — up ${Math.abs(m.pctChange)}% vs yesterday` : (m.pctChange < 0 ? ` — down ${Math.abs(m.pctChange)}% vs yesterday` : ' — unchanged vs yesterday'));
+        narratives[s] = `${s} is currently $${m.priceAUD} AUD per ${s === 'IRON' ? 'tonne' : 'unit'}${upDown}.`;
+      }
+    }
 
-  <!-- FAQ -->
-  <section aria-labelledby="faqHeading">
-    <h2 id="faqHeading" style="font-size:1.1rem;margin-bottom:0.5rem;">Common questions</h2>
-    <details style="margin-bottom:0.4rem;">
-      <summary style="cursor:pointer;font-size:0.9rem;color:#e5e7eb;">Is this financial advice?</summary>
-      <p style="margin:0.4rem 0 0;font-size:0.86rem;color:var(--muted-2);">
-        No. MatesMorning Pro is general information only and does not take into account your objectives, financial situation or needs. Always do your own research and consider speaking with a licensed adviser.
-      </p>
-    </details>
-    <details style="margin-bottom:0.4rem;">
-      <summary style="cursor:pointer;font-size:0.9rem;color:#e5e7eb;">What time do emails go out?</summary>
-      <p style="margin:0.4rem 0 0;font-size:0.86rem;color:var(--muted-2);">
-        We aim to send by 6:00am AEST on trading days so it’s in your inbox before work.
-      </p>
-    </details>
-    <details style="margin-bottom:0.4rem;">
-      <summary style="cursor:pointer;font-size:0.9rem;color:#e5e7eb;">Can I cancel anytime?</summary>
-      <p style="margin:0.4rem 0 0;font-size:0.86rem;color:var(--muted-2);">
-        Yes. You can cancel at any time and you won’t be charged again. You’ll keep access until the end of the billing period.
-      </p>
-    </details>
-  </section>
+    // ------------------------------
+    // NEW: EODHD top performers logic
+    // ------------------------------
+    // Environment and defaults
+    const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
+    const MAX_PER_EXCHANGE = Number(process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500); // conservative default
+    const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
+    const FIVE_DAYS = 5;
 
-</main>
+    const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
+
+    // Utility: return last N business days (ascending oldest->newest), inclusive of today if business day
+    function getLastBusinessDays(n) {
+      const days = [];
+      let d = new Date(); // local timezone is fine for dates; EODHD expects YYYY-MM-DD
+      while (days.length < n) {
+        const dow = d.getDay(); // 0 Sun, 6 Sat
+        if (dow !== 0 && dow !== 6) {
+          // push a copy
+          days.push(new Date(d));
+        }
+        d.setDate(d.getDate() - 1);
+      }
+      return days.reverse().map(dt => dt.toISOString().slice(0,10));
+    }
+
+    // Generic JSON fetch w/ timeout (used for EODHD)
+    async function fetchJson(url, opts = {}, timeout = 12000) {
+      try {
+        const res = await fetchWithTimeout(url, opts, timeout);
+        const text = await res.text().catch(()=>'');
+        try {
+          return { ok: res.ok, status: res.status, json: text ? JSON.parse(text) : null, text };
+        } catch (e) {
+          return { ok: res.ok, status: res.status, json: null, text };
+        }
+      } catch (err) {
+        return { ok: false, status: 0, json: null, text: String(err && err.message || err) };
+      }
+    }
+
+    // EODHD: list symbols for exchange
+    async function listSymbolsForExchange(exchangeCode) {
+      const url = `https://eodhd.com/api/exchange-symbol-list/${encodeURIComponent(exchangeCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`;
+      const r = await fetchJson(url, {}, 12000);
+      if (!r.ok || !Array.isArray(r.json)) {
+        return { ok:false, data: [], error: r.text || `HTTP ${r.status}` };
+      }
+      return { ok:true, data: r.json };
+    }
+
+    // EODHD: fetch eod for symbol.exchange from->to
+    async function fetchEodForSymbol(symbol, exchange, from, to) {
+      const url = `https://eodhd.com/api/eod/${encodeURIComponent(symbol)}.${encodeURIComponent(exchange)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&period=d&from=${from}&to=${to}&fmt=json`;
+      const r = await fetchJson(url, {}, 12000);
+      if (!r.ok || !Array.isArray(r.json)) {
+        return { ok:false, data: null, error: r.text || `HTTP ${r.status}` };
+      }
+      const arr = r.json.slice().sort((a,b)=> new Date(a.date) - new Date(b.date));
+      return { ok:true, data: arr };
+    }
+
+    function pctGainFromPrices(prices) {
+      if (!Array.isArray(prices) || prices.length < 2) return null;
+      const first = prices[0].close;
+      const last = prices[prices.length - 1].close;
+      if (typeof first !== 'number' || typeof last !== 'number' || first === 0) return null;
+      return ((last - first) / first) * 100;
+    }
+
+    async function mapWithConcurrency(items, fn, concurrency = EODHD_CONCURRENCY) {
+      const results = new Array(items.length);
+      let idx = 0;
+      const workers = new Array(Math.min(concurrency, items.length)).fill(null).map(async () => {
+        while (true) {
+          const i = idx++;
+          if (i >= items.length) return;
+          try {
+            results[i] = await fn(items[i], i);
+          } catch (err) {
+            results[i] = { error: err.message || String(err) };
+          }
+        }
+      });
+      await Promise.all(workers);
+      return results;
+    }
+
+    // Compose EODHD work only if token present
+    let topPerformers = [];
+    if (EODHD_TOKEN) {
+      try {
+        const qs = (event && event.queryStringParameters) ? event.queryStringParameters : {};
+        const requestedSymbolsParam = qs.symbols && String(qs.symbols).trim();
+        const regionParam = (qs.region || 'both').toLowerCase();
+
+        const days = getLastBusinessDays(FIVE_DAYS);
+        const from = days[0];
+        const to = days[days.length - 1];
+
+        let symbolRequests = [];
+
+        if (requestedSymbolsParam) {
+          const sarr = requestedSymbolsParam.split(',').map(x=>x.trim()).filter(Boolean);
+          sarr.forEach(sym => {
+            const parts = sym.split('.');
+            if (parts.length === 1) {
+              const exch = (regionParam === 'au') ? 'ASX' : 'US';
+              symbolRequests.push({ symbol: parts[0].toUpperCase(), exchange: exch });
+            } else {
+              symbolRequests.push({ symbol: parts[0].toUpperCase(), exchange: parts.slice(1).join('.') });
+            }
+          });
+          eodhdDebug.steps.push({ source: 'symbols-param', count: symbolRequests.length });
+        } else {
+          // fetch exchange symbol lists
+          const exchanges = [];
+          if (regionParam === 'us') exchanges.push('US');
+          else if (regionParam === 'au') exchanges.push('ASX');
+          else exchanges.push('US','ASX');
+
+          for (const ex of exchanges) {
+            const res = await listSymbolsForExchange(ex);
+            if (!res.ok) {
+              eodhdDebug.steps.push({ source: 'list-symbols-failed', exchange: ex, error: res.error || 'unknown' });
+              continue;
+            }
+            const items = res.data;
+            // Normalize
+            const normalized = items.map(it => {
+              if (!it) return null;
+              if (typeof it === 'string') return { code: it };
+              return { code: it.code || it.symbol || (it[0]||''), name: it.name || it.companyName || (it[1]||'') };
+            }).filter(Boolean).filter(x => x.code && !x.code.includes('^') && !x.code.includes('/'));
+            const limited = normalized.slice(0, MAX_PER_EXCHANGE);
+            limited.forEach(it => symbolRequests.push({ symbol: it.code.toUpperCase(), exchange: ex, name: it.name || '' }));
+            // polite pause
+            await new Promise(r=>setTimeout(r, 200));
+            eodhdDebug.steps.push({ source: 'list-symbols', exchange: ex, totalFound: normalized.length, used: limited.length });
+          }
+        }
+
+        if (symbolRequests.length > 0) {
+          // fetch EOD data per symbol with concurrency limit
+          const results = await mapWithConcurrency(symbolRequests, async (req) => {
+            const sym = req.symbol;
+            const exch = req.exchange;
+            const r = await fetchEodForSymbol(sym, exch, from, to);
+            if (!r.ok || !Array.isArray(r.data) || r.data.length < FIVE_DAYS) {
+              return null;
+            }
+            const pct = pctGainFromPrices(r.data);
+            if (pct === null || isNaN(pct)) return null;
+            return {
+              symbol: sym,
+              exchange: exch,
+              name: req.name || '',
+              pctGain: Number(pct.toFixed(2)),
+              firstClose: r.data[0].close,
+              lastClose: r.data[r.data.length - 1].close,
+              pricesCount: r.data.length
+            };
+          }, EODHD_CONCURRENCY);
+
+          const cleaned = results.filter(Boolean);
+          cleaned.sort((a,b) => b.pctGain - a.pctGain);
+          topPerformers = cleaned.slice(0,5);
+          eodhdDebug.steps.push({ source: 'computed', evaluated: cleaned.length, top5: topPerformers.map(x=>({ symbol:x.symbol, pct:x.pctGain })) });
+        } else {
+          eodhdDebug.steps.push({ source: 'no-symbols' });
+        }
+
+        // attach eodhd metadata
+        debug.eodhd = eodhdDebug;
+        debug.eodhd.window = { from: (new Date(from)).toISOString().slice(0,10), to: (new Date(to)).toISOString().slice(0,10) };
+
+      } catch (err) {
+        debug.eodhd = debug.eodhd || {};
+        debug.eodhd.error = err && err.message || String(err);
+      }
+    } else {
+      debug.eodhd = { active: false, note: 'EODHD_API_TOKEN missing' };
+    }
+
+    // ------------------------------
+    // Final payload (combined)
+    // ------------------------------
+    const payload = {
+      generatedAt: nowIso,
+      usdToAud: fmt(usdToAud),
+      metals,
+      narratives,
+      topPerformers, // array of {symbol, exchange, pctGain, ...}
+      _debug: {
+        ...debug,
+        metalsDataSource,
+      }
+    };
+
+    return { statusCode: 200, body: JSON.stringify(payload) };
+
+  } catch (err) {
+    console.error('morning-brief multi error', err && (err.stack || err.message || err));
+    return { statusCode: 500, body: JSON.stringify({ error: err && err.message || String(err) }) };
+  }
+};
