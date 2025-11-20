@@ -1,17 +1,17 @@
 // netlify/functions/morning-brief.js
 // Morning brief for multiple metals + top performers across ASX using EODHD.
-// - Preserves your working metals snapshot logic (Upstash + Metals-API fallback)
-// - Adds an EODHD-backed computation of top 5 performers across ASX only
-// Env required for metals part (existing):
-// - UPSTASH_REDIS_REST_URL
-// - UPSTASH_REDIS_REST_TOKEN
-// - METALS_API_KEY (optional fallback)
-// Env required for EODHD part (new):
-// - EODHD_API_TOKEN
+// - Metals prices: snapshot-only from Upstash (no live metals or FX fetches)
+// - Top performers: EODHD-backed 5-day % gain for ASX, filtered by market cap
 //
-// Notes
-// - EODHD scanning of all symbols is potentially heavy. We still keep MAX_PER_EXCHANGE
-//   as a safety cap, but restrict to ASX only for now.
+// Env for metals:
+//   UPSTASH_REDIS_REST_URL
+//   UPSTASH_REDIS_REST_TOKEN
+//
+// Env for EODHD:
+//   EODHD_API_TOKEN
+//   (optional) EODHD_MAX_SYMBOLS_PER_EXCHANGE
+//   (optional) EODHD_CONCURRENCY
+//   (optional) EODHD_MIN_MARKET_CAP
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -31,10 +31,10 @@ exports.handler = async function (event) {
     }
   }
 
-  const fmt = n =>
+  const fmt = (n) =>
     typeof n === "number" && Number.isFinite(n) ? Number(n.toFixed(2)) : null;
 
-  // ---------- Upstash helpers (existing) ----------
+  // ---------- Upstash helpers ----------
   const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || null;
   const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
 
@@ -58,14 +58,14 @@ exports.handler = async function (event) {
     }
   }
 
-  // symbols to show for metals
+  // metals symbols we show
   const symbols = ["XAU", "XAG", "IRON", "LITH-CAR", "NI", "URANIUM"];
   const debug = { steps: [] };
 
   try {
-    // ------------------------------
-    // Existing metals snapshot logic
-    // ------------------------------
+    // --------------------------------------------------
+    // 1) METALS: snapshot-only from Upstash
+    // --------------------------------------------------
     let latestSnapshot = null;
     try {
       const rawLatest = await redisGet("metals:latest");
@@ -98,7 +98,7 @@ exports.handler = async function (event) {
     const currentAud = {}; // symbol -> AUD price (number|null)
     let priceTimestamp = null;
     let usdToAud = null;
-    let metalsDataSource = "live-metals-api";
+    let metalsDataSource = "snapshot-only";
 
     if (latestSnapshot && latestSnapshot.symbols) {
       metalsDataSource = "upstash-latest";
@@ -129,79 +129,21 @@ exports.handler = async function (event) {
       }
       usdToAud = latestSnapshot.usdToAud || null;
       debug.snapshotDate = latestSnapshot.snappedAt || null;
-} else {
-    // DO NOT fetch live metals or live FX.
-    // Morning Brief must ONLY use Upstash snapshot.
-    metalsDataSource = "snapshot-only";
-
-    for (const s of symbols) {
+    } else {
+      // No snapshot for today – do NOT fetch live prices.
+      metalsDataSource = "snapshot-missing";
+      for (const s of symbols) {
         currentUsd[s] = null;
         currentAud[s] = null;
-    }
-
-    debug.steps.push({
+      }
+      debug.steps.push({
         source: "snapshot-missing",
-        note: "No metals:latest snapshot found — live fetch disabled"
-    });
-}
-
-
-      // FX USD -> AUD (try open.er-api.com then exchangerate.host)
-      try {
-        let fRes = await fetchWithTimeout(
-          "https://open.er-api.com/v6/latest/USD",
-          {},
-          7000
-        );
-        let ftxt = await fRes.text().catch(() => "");
-        let fj = null;
-        try {
-          fj = ftxt ? JSON.parse(ftxt) : null;
-        } catch (e) {
-          fj = null;
-        }
-        if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === "number") {
-          usdToAud = Number(fj.rates.AUD);
-          debug.fxSource = "open.er-api.com";
-        } else {
-          // fallback
-          fRes = await fetchWithTimeout(
-            "https://api.exchangerate.host/latest?base=USD&symbols=AUD",
-            {},
-            7000
-          );
-          ftxt = await fRes.text().catch(() => "");
-          try {
-            fj = ftxt ? JSON.parse(ftxt) : null;
-          } catch (e) {
-            fj = null;
-          }
-          if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === "number") {
-            usdToAud = Number(fj.rates.AUD);
-            debug.fxSource = "exchangerate.host";
-          } else {
-            debug.steps.push({
-              source: "fx-bodies",
-              preview: ftxt.slice(0, 300),
-            });
-          }
-        }
-      } catch (e) {
-        debug.steps.push({ source: "fx-error", error: e && e.message });
-      }
-
-      // compute current AUD prices per symbol (from live USD)
-      for (const s of symbols) {
-        const pUsd = currentUsd[s];
-        currentAud[s] =
-          typeof pUsd === "number" && typeof usdToAud === "number"
-            ? Number((pUsd * usdToAud).toFixed(2))
-            : null;
-      }
+        note: "No metals:latest snapshot found; live fetch disabled.",
+      });
     }
 
     // ------------------------------
-    // Read yesterday snapshot (Upstash) to compute pct change for metals
+    // 1b) Yesterday snapshot for pct change
     // ------------------------------
     let yesterdayData = null;
     try {
@@ -238,7 +180,7 @@ exports.handler = async function (event) {
       });
     }
 
-    // assemble per-symbol result: priceUSD, priceAUD, yesterdayPriceAUD, pctChange
+    // assemble per-symbol result
     const metals = {};
     for (const s of symbols) {
       const todayUSD = typeof currentUsd[s] === "number" ? currentUsd[s] : null;
@@ -294,9 +236,9 @@ exports.handler = async function (event) {
       }
     }
 
-    // ------------------------------
-    // NEW: EODHD top performers logic (ASX only, market cap filtered)
-    // ------------------------------
+    // --------------------------------------------------
+    // 2) EODHD top performers (ASX only, market cap filtered)
+    // --------------------------------------------------
     const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
     const MAX_PER_EXCHANGE = Number(
       process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500
@@ -305,15 +247,12 @@ exports.handler = async function (event) {
       process.env.EODHD_CONCURRENCY || 8
     );
     const FIVE_DAYS = 5;
-
-    // minimum market cap in AUD (default 300m)
     const MIN_MARKET_CAP = Number(
       process.env.EODHD_MIN_MARKET_CAP || 300_000_000
-    );
+    ); // default 300m
 
     const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
 
-    // Utility: return last N business days (ascending oldest->newest)
     function getLastBusinessDays(n) {
       const days = [];
       let d = new Date();
@@ -324,7 +263,7 @@ exports.handler = async function (event) {
         }
         d.setDate(d.getDate() - 1);
       }
-      return days.reverse().map(dt => dt.toISOString().slice(0, 10));
+      return days.reverse().map((dt) => dt.toISOString().slice(0, 10));
     }
 
     async function fetchJson(url, opts = {}, timeout = 12000) {
@@ -351,7 +290,6 @@ exports.handler = async function (event) {
       }
     }
 
-    // EODHD: list symbols for exchange (ASX via AU code)
     async function listSymbolsForExchange(exchangeCode) {
       const url = `https://eodhd.com/api/exchange-symbol-list/${encodeURIComponent(
         exchangeCode
@@ -363,12 +301,8 @@ exports.handler = async function (event) {
       return { ok: true, data: r.json };
     }
 
-    // EODHD: fetch eod for symbol.exchange from->to
     async function fetchEodForSymbol(symbol, exchange, from, to) {
-      // If symbol already has a suffix (e.g. BHP.AX), don't append the exchange again
-      const fullCode = symbol.includes(".")
-        ? symbol
-        : `${symbol}.${exchange}`;
+      const fullCode = symbol.includes(".") ? symbol : `${symbol}.${exchange}`;
       const url = `https://eodhd.com/api/eod/${encodeURIComponent(
         fullCode
       )}?api_token=${encodeURIComponent(
@@ -436,9 +370,9 @@ exports.handler = async function (event) {
         if (requestedSymbolsParam) {
           const sarr = requestedSymbolsParam
             .split(",")
-            .map(x => x.trim())
+            .map((x) => x.trim())
             .filter(Boolean);
-          sarr.forEach(sym => {
+          sarr.forEach((sym) => {
             const parts = sym.split(".");
             if (parts.length === 1) {
               symbolRequests.push({
@@ -447,7 +381,7 @@ exports.handler = async function (event) {
               });
             } else {
               symbolRequests.push({
-                symbol: sym, // already has suffix
+                symbol: sym,
                 exchange: "AX",
               });
             }
@@ -457,7 +391,7 @@ exports.handler = async function (event) {
             count: symbolRequests.length,
           });
         } else {
-          // ASX only – via AU exchange list
+          // ASX only – list AU exchange, filter by market cap
           const exchanges = ["AU"];
 
           for (const ex of exchanges) {
@@ -473,9 +407,8 @@ exports.handler = async function (event) {
 
             const items = res.data;
 
-            // Normalize + pull market cap
             const normalized = items
-              .map(it => {
+              .map((it) => {
                 if (!it) return null;
 
                 if (typeof it === "string") {
@@ -495,7 +428,6 @@ exports.handler = async function (event) {
                   it.CompanyName ||
                   (it[1] || "");
 
-                // Try different possible market-cap keys from EODHD
                 let rawMcap =
                   it.MarketCapitalization ??
                   it.MarketCapitalizationMln ??
@@ -512,7 +444,6 @@ exports.handler = async function (event) {
                     ? rawMcap
                     : null;
 
-                // Heuristic: if it looks like "in millions", scale up
                 if (mcap !== null && mcap < 1_000_000) {
                   mcap = mcap * 1_000_000;
                 }
@@ -521,7 +452,7 @@ exports.handler = async function (event) {
               })
               .filter(Boolean)
               .filter(
-                x =>
+                (x) =>
                   x.code &&
                   !x.code.includes("^") &&
                   !x.code.includes("/") &&
@@ -529,11 +460,9 @@ exports.handler = async function (event) {
                   x.mcap >= MIN_MARKET_CAP
               );
 
-            // Cap per exchange as before
             const limited = normalized.slice(0, MAX_PER_EXCHANGE);
 
-            // Keep name (and mcap) on the request for debug
-            limited.forEach(it =>
+            limited.forEach((it) =>
               symbolRequests.push({
                 symbol: it.code.toUpperCase(),
                 exchange: "AX",
@@ -542,7 +471,7 @@ exports.handler = async function (event) {
               })
             );
 
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise((r) => setTimeout(r, 200));
             eodhdDebug.steps.push({
               source: "list-symbols",
               exchange: ex,
@@ -556,7 +485,7 @@ exports.handler = async function (event) {
         if (symbolRequests.length > 0) {
           const results = await mapWithConcurrency(
             symbolRequests,
-            async req => {
+            async (req) => {
               const sym = req.symbol;
               const exch = req.exchange;
               const r = await fetchEodForSymbol(sym, exch, from, to);
@@ -571,7 +500,7 @@ exports.handler = async function (event) {
               if (pct === null || Number.isNaN(pct)) return null;
               return {
                 symbol: sym,
-                exchange: "AU", // display as AU in UI
+                exchange: "AU",
                 name: req.name || "",
                 pctGain: Number(pct.toFixed(2)),
                 firstClose: r.data[0].close,
@@ -589,7 +518,7 @@ exports.handler = async function (event) {
           eodhdDebug.steps.push({
             source: "computed",
             evaluated: cleaned.length,
-            top5: topPerformers.map(x => ({
+            top5: topPerformers.map((x) => ({
               symbol: x.symbol,
               pct: x.pctGain,
             })),
@@ -611,9 +540,9 @@ exports.handler = async function (event) {
       debug.eodhd = { active: false, note: "EODHD_API_TOKEN missing" };
     }
 
-    // ------------------------------
-    // Final payload (combined)
-    // ------------------------------
+    // --------------------------------------------------
+    // Final payload
+    // --------------------------------------------------
     const payload = {
       generatedAt: nowIso,
       usdToAud: fmt(usdToAud),
