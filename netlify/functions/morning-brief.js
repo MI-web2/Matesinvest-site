@@ -416,17 +416,18 @@ exports.handler = async function (event) {
     // ------------------------------
     // Final payload (combined)
     // ------------------------------
-    const payload = {
-      generatedAt: nowIso,
-      usdToAud: fmt(usdToAud),
-      metals,
-      narratives,
-      topPerformers, // array of {symbol, exchange, pctGain, ...}
-      _debug: {
-        ...debug,
-        metalsDataSource,
-      }
-    };
+  const payload = {
+  generatedAt: nowIso,
+  usdToAud: fmt(usdToAud),
+  metals,
+  narratives,
+  topPerformers,
+  _debug: {
+    ...debug,
+    metalsDataSource,
+  },
+};
+
 
     return { statusCode: 200, body: JSON.stringify(payload) };
 
