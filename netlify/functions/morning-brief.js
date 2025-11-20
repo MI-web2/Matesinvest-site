@@ -347,6 +347,15 @@ exports.handler = async function (event) {
     const FIVE_DAYS = 5;
 
     const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
+// Environment and defaults
+const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
+const MAX_PER_EXCHANGE = Number(process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500); // conservative default
+const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
+const FIVE_DAYS = 5;
+
+// NEW: minimum market cap filter (default 300m)
+const MIN_MARKET_CAP = Number(process.env.EODHD_MIN_MARKET_CAP || 300_000_000);
+
 
     // Utility: return last N business days (ascending oldest->newest)
     function getLastBusinessDays(n) {
@@ -505,25 +514,60 @@ exports.handler = async function (event) {
               });
               continue;
             }
-            const items = res.data;
-            const normalized = items
-              .map(it => {
-                if (!it) return null;
-                if (typeof it === "string") return { code: it };
-                return {
-                  code:
-                    it.code ||
-                    it.Code ||
-                    it.symbol ||
-                    it.Symbol ||
-                    (it[0] || ""),
-                  name:
-                    it.name ||
-                    it.Name ||
-                    it.companyName ||
-                    it.CompanyName ||
-                    (it[1] || ""),
-                };
+const items = res.data;
+
+// Normalize + pull market cap
+const normalized = items
+  .map(it => {
+    if (!it) return null;
+
+    if (typeof it === 'string') {
+      return { code: it, name: '', mcap: null };
+    }
+
+    const code = it.code || it.Code || it.symbol || it.Symbol || (it[0] || '');
+    const name = it.name || it.Name || it.companyName || it.CompanyName || (it[1] || '');
+
+    // Try different possible market-cap keys from EODHD
+    let rawMcap =
+      it.MarketCapitalization ??
+      it.MarketCapitalizationMln ??
+      it.market_capitalization ??
+      it.marketCap ??
+      null;
+
+    if (typeof rawMcap === 'string') rawMcap = parseFloat(rawMcap.replace(/,/g, ''));
+    let mcap = (typeof rawMcap === 'number' && !Number.isNaN(rawMcap)) ? rawMcap : null;
+
+    // Heuristic: if it looks like "in millions", scale up
+    if (mcap !== null && mcap < 1_000_000) {
+      mcap = mcap * 1_000_000;
+    }
+
+    return { code, name, mcap };
+  })
+  .filter(Boolean)
+  .filter(x =>
+    x.code &&
+    !x.code.includes('^') &&
+    !x.code.includes('/') &&
+    x.mcap !== null &&
+    x.mcap >= MIN_MARKET_CAP
+  );
+
+// Cap per exchange as before
+const limited = normalized.slice(0, MAX_PER_EXCHANGE);
+
+// Keep name (and optionally mcap) on the request for debug
+limited.forEach(it =>
+  symbolRequests.push({
+    symbol: it.code.toUpperCase(),
+    exchange: ex,
+    name: it.name || '',
+    mcap: it.mcap
+  })
+);
+
               })
               .filter(Boolean)
               .filter(
