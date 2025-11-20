@@ -337,25 +337,15 @@ exports.handler = async function (event) {
     // ------------------------------
     // NEW: EODHD top performers logic (ASX only)
     // ------------------------------
-    const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
-    const MAX_PER_EXCHANGE = Number(
-      process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500
-    ); // safety cap
-    const EODHD_CONCURRENCY = Number(
-      process.env.EODHD_CONCURRENCY || 8
-    );
-    const FIVE_DAYS = 5;
-
-    const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
-// Environment and defaults
 const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
-const MAX_PER_EXCHANGE = Number(process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500); // conservative default
+const MAX_PER_EXCHANGE = Number(process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500);
 const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
 const FIVE_DAYS = 5;
 
 // NEW: minimum market cap filter (default 300m)
 const MIN_MARKET_CAP = Number(process.env.EODHD_MIN_MARKET_CAP || 300_000_000);
 
+const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
 
     // Utility: return last N business days (ascending oldest->newest)
     function getLastBusinessDays(n) {
