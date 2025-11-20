@@ -392,7 +392,7 @@ exports.handler = async function (event) {
           });
         } else {
           // ASX only – list AU exchange, filter by market cap
-          const exchanges = ["AU"];
+          const exchanges = ["ASX"];
 
           for (const ex of exchanges) {
             const res = await listSymbolsForExchange(ex);
