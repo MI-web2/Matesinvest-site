@@ -391,96 +391,71 @@ exports.handler = async function (event) {
             count: symbolRequests.length,
           });
         } else {
-          // ASX only – list AU exchange, filter by market cap
-          const exchanges = ["ASX"];
+// ASX only – list AU exchange (no market-cap filter for now)
+const exchanges = ["AU"];
 
-          for (const ex of exchanges) {
-            const res = await listSymbolsForExchange(ex);
-            if (!res.ok) {
-              eodhdDebug.steps.push({
-                source: "list-symbols-failed",
-                exchange: ex,
-                error: res.error || "unknown",
-              });
-              continue;
-            }
+for (const ex of exchanges) {
+  const res = await listSymbolsForExchange(ex);
+  if (!res.ok) {
+    eodhdDebug.steps.push({
+      source: "list-symbols-failed",
+      exchange: ex,
+      error: res.error || "unknown",
+    });
+    continue;
+  }
 
-            const items = res.data;
+  const items = res.data;
 
-            const normalized = items
-              .map((it) => {
-                if (!it) return null;
+  const normalized = items
+    .map((it) => {
+      if (!it) return null;
 
-                if (typeof it === "string") {
-                  return { code: it, name: "", mcap: null };
-                }
+      if (typeof it === "string") {
+        return { code: it, name: "" };
+      }
 
-                const code =
-                  it.code ||
-                  it.Code ||
-                  it.symbol ||
-                  it.Symbol ||
-                  (it[0] || "");
-                const name =
-                  it.name ||
-                  it.Name ||
-                  it.companyName ||
-                  it.CompanyName ||
-                  (it[1] || "");
+      const code =
+        it.code ||
+        it.Code ||
+        it.symbol ||
+        it.Symbol ||
+        (it[0] || "");
+      const name =
+        it.name ||
+        it.Name ||
+        it.companyName ||
+        it.CompanyName ||
+        (it[1] || "");
 
-                let rawMcap =
-                  it.MarketCapitalization ??
-                  it.MarketCapitalizationMln ??
-                  it.market_capitalization ??
-                  it.marketCap ??
-                  null;
+      return { code, name };
+    })
+    .filter(Boolean)
+    .filter(
+      (x) =>
+        x.code &&
+        !x.code.includes("^") &&
+        !x.code.includes("/")
+    );
 
-                if (typeof rawMcap === "string") {
-                  rawMcap = parseFloat(rawMcap.replace(/,/g, ""));
-                }
+  const limited = normalized.slice(0, MAX_PER_EXCHANGE);
 
-                let mcap =
-                  typeof rawMcap === "number" && !Number.isNaN(rawMcap)
-                    ? rawMcap
-                    : null;
+  limited.forEach((it) =>
+    symbolRequests.push({
+      symbol: it.code.toUpperCase(),
+      exchange: "AX",
+      name: it.name || "",
+    })
+  );
 
-                if (mcap !== null && mcap < 1_000_000) {
-                  mcap = mcap * 1_000_000;
-                }
-
-                return { code, name, mcap };
-              })
-              .filter(Boolean)
-              .filter(
-                (x) =>
-                  x.code &&
-                  !x.code.includes("^") &&
-                  !x.code.includes("/") &&
-                  x.mcap !== null &&
-                  x.mcap >= MIN_MARKET_CAP
-              );
-
-            const limited = normalized.slice(0, MAX_PER_EXCHANGE);
-
-            limited.forEach((it) =>
-              symbolRequests.push({
-                symbol: it.code.toUpperCase(),
-                exchange: "ASX",
-                name: it.name || "",
-                mcap: it.mcap,
-              })
-            );
-
-            await new Promise((r) => setTimeout(r, 200));
-            eodhdDebug.steps.push({
-              source: "list-symbols",
-              exchange: ex,
-              totalFound: normalized.length,
-              used: limited.length,
-              minCap: MIN_MARKET_CAP,
-            });
-          }
-        }
+  await new Promise((r) => setTimeout(r, 200));
+  eodhdDebug.steps.push({
+    source: "list-symbols",
+    exchange: ex,
+    totalFound: normalized.length,
+    used: limited.length,
+  });
+}
 
         if (symbolRequests.length > 0) {
           const results = await mapWithConcurrency(
@@ -500,7 +475,7 @@ exports.handler = async function (event) {
               if (pct === null || Number.isNaN(pct)) return null;
               return {
                 symbol: sym,
-                exchange: "ASX",
+                exchange: "AU",
                 name: req.name || "",
                 pctGain: Number(pct.toFixed(2)),
                 firstClose: r.data[0].close,
