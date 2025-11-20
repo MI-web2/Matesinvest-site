@@ -1,69 +1,113 @@
 // netlify/functions/newsFeed.js
+// Switched from NewsAPI -> MarketAux (https://www.marketaux.com/documentation)
+// Exposes the same output shape: { articles: [...] } used by front-end.
 
-exports.handler = async () => {
+exports.handler = async (event) => {
   try {
-    const apiKey = process.env.NEWSAPI_KEY;
-    if (!apiKey) {
-      return { statusCode: 500, body: "Missing NEWSAPI_KEY" };
+    const MARKETAUX_TOKEN = process.env.MARKETAUX_API_TOKEN || null;
+
+    // Accept region query param to keep parity with previous behavior
+    const qs = event.queryStringParameters || {};
+    const region = (qs.region || 'us').toLowerCase(); // default to 'us' for dev parity
+
+    // map region to MarketAux countries param. 'global' => omit countries
+    const regionToCountries = {
+      au: 'au',
+      us: 'us',
+      ca: 'ca',
+      uk: 'gb'
+    };
+    const countries = (region === 'global') ? null : (regionToCountries[region] || region);
+
+    // build MarketAux URL
+    const base = 'https://api.marketaux.com/v1/news/all';
+    const url = new URL(base);
+
+    if (!MARKETAUX_TOKEN) {
+      console.warn('MARKETAUX_API_TOKEN not set in environment');
+      // Return fallback articles (same format as before)
+      const fallback = getFallbackArticles('Missing MARKETAUX_API_TOKEN');
+      return { statusCode: 200, body: JSON.stringify({ articles: fallback }) };
     }
 
-    const url = new URL("https://newsapi.org/v2/top-headlines");
-    url.searchParams.set("country", "us");       // <-- dev plan supports US
-    url.searchParams.set("category", "business");
-    url.searchParams.set("pageSize", "20");
-    url.searchParams.set("apiKey", apiKey);
+    url.searchParams.set('api_token', MARKETAUX_TOKEN);
+    // optional filters - keep results English and reasonably sized
+    url.searchParams.set('language', 'en');
 
-    const res = await fetch(url.toString());
+    // Apply countries if not global
+    if (countries) url.searchParams.set('countries', countries);
+
+    // Request page size / limit - MarketAux accepts pagination (page, per_page or limit may vary by plan)
+    // We request a reasonable number that maps to the previous pageSize (20)
+    // If the API ignores unknown params, it's still fine.
+    url.searchParams.set('page', '1');
+    url.searchParams.set('per_page', '20');
+
+    // Optionally, you can pass additional filters such as 'industries' or 'symbols' here
+
+    const timeoutMs = 9000;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+
+    let res;
+    try {
+      res = await fetch(url.toString(), { signal: controller.signal });
+    } finally {
+      clearTimeout(id);
+    }
 
     if (!res.ok) {
-      const text = await res.text();
-      console.error("NewsAPI HTTP error:", text);
-      const fallbackArticles = getFallbackArticles("HTTP error: " + text);
+      const txt = await res.text().catch(() => '');
+      console.error('MarketAux HTTP error:', res.status, txt);
+      const fallback = getFallbackArticles(`MarketAux HTTP ${res.status}`);
+      return { statusCode: 200, body: JSON.stringify({ articles: fallback }) };
+    }
+
+    const data = await res.json().catch(() => null);
+    if (!data) {
+      console.warn('MarketAux returned empty body');
+      const fallback = getFallbackArticles('MarketAux empty body');
+      return { statusCode: 200, body: JSON.stringify({ articles: fallback }) };
+    }
+
+    // MarketAux typically returns data array in `data` property (see docs)
+    const items = Array.isArray(data.data) ? data.data : (Array.isArray(data.articles) ? data.articles : []);
+
+    // Map MarketAux item -> frontend article shape
+    const mapped = items.slice(0, 50).map((it, idx) => {
+      // MarketAux fields may be named: title, description, published_at, url, source
+      const title = it.title || it.headline || '';
+      const description = it.description || it.summary || '';
+      const urlLink = it.url || it.link || '';
+      const source = (typeof it.source === 'string') ? it.source : (it.source && it.source.name) ? it.source.name : (it.publisher || '');
+      const publishedAt = it.published_at || it.publishedAt || it.time || new Date().toISOString();
+
       return {
-        statusCode: 200,
-        body: JSON.stringify({ articles: fallbackArticles }),
+        id: idx,
+        title: title,
+        description: description,
+        url: urlLink || 'https://matesinvest.com',
+        source: source || 'MarketAux',
+        publishedAt: publishedAt
       };
+    });
+
+    if (!mapped.length) {
+      const fallback = getFallbackArticles('No MarketAux articles returned');
+      return { statusCode: 200, body: JSON.stringify({ articles: fallback }) };
     }
-
-    const data = await res.json();
-
-    if (data.status && data.status !== "ok") {
-      console.error("NewsAPI logical error:", data);
-      const fallbackArticles = getFallbackArticles(
-        "NewsAPI error: " + (data.message || data.code)
-      );
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ articles: fallbackArticles }),
-      };
-    }
-
-    let articles = Array.isArray(data.articles) ? data.articles : [];
-
-    if (!articles.length) {
-      console.warn("NewsAPI returned zero articles, using fallback.");
-      articles = getFallbackArticles("No live headlines returned");
-    }
-
-    const mapped = articles.map((a, idx) => ({
-      id: idx,
-      title: a.title,
-      description: a.description,
-      url: a.url || "https://matesinvest.com",
-      source: (a.source && a.source.name) || "NewsAPI",
-      publishedAt: a.publishedAt || new Date().toISOString(),
-    }));
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ articles: mapped }),
+      body: JSON.stringify({ articles: mapped })
     };
+
   } catch (err) {
-    console.error("newsFeed function error:", err);
-    const fallbackArticles = getFallbackArticles("Unexpected server error");
+    console.error('newsFeed function error:', err && (err.stack || err.message || err));
+    const fallback = getFallbackArticles('Unexpected server error');
     return {
       statusCode: 200,
-      body: JSON.stringify({ articles: fallbackArticles }),
+      body: JSON.stringify({ articles: fallback })
     };
   }
 };
