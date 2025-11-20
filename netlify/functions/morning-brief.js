@@ -465,7 +465,7 @@ exports.handler = async function (event) {
             limited.forEach((it) =>
               symbolRequests.push({
                 symbol: it.code.toUpperCase(),
-                exchange: "AX",
+                exchange: "ASX",
                 name: it.name || "",
                 mcap: it.mcap,
               })
