@@ -1,17 +1,16 @@
 // netlify/functions/morning-brief.js
-// Morning brief for multiple metals + top performers across ASX using EODHD.
-// - Metals prices: snapshot-only from Upstash (no live metals or FX fetches)
-// - Top performers: EODHD-backed 5-day % gain for ASX, filtered by market cap
+// Morning brief for multiple metals + top performers across ASX (AU) using EODHD.
+// - Metals prices: snapshot-only from Upstash (no live metals/FX fetches)
+// - Top performers: EODHD-backed 5-business-day % gain for AU exchange
 //
-// Env for metals:
+// Required env:
 //   UPSTASH_REDIS_REST_URL
 //   UPSTASH_REDIS_REST_TOKEN
-//
-// Env for EODHD:
 //   EODHD_API_TOKEN
-//   (optional) EODHD_MAX_SYMBOLS_PER_EXCHANGE
-//   (optional) EODHD_CONCURRENCY
-//   (optional) EODHD_MIN_MARKET_CAP
+// Optional env:
+//   EODHD_MAX_SYMBOLS_PER_EXCHANGE (default 500)
+//   EODHD_CONCURRENCY (default 8)
+//   EODHD_MIN_MARKET_CAP (not used in this simple scan, reserved for future)
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -237,7 +236,7 @@ exports.handler = async function (event) {
     }
 
     // --------------------------------------------------
-    // 2) EODHD top performers (ASX only, market cap filtered)
+    // 2) EODHD top performers (AU exchange)
     // --------------------------------------------------
     const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
     const MAX_PER_EXCHANGE = Number(
@@ -245,7 +244,6 @@ exports.handler = async function (event) {
     ); // safety cap
     const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
     const FIVE_DAYS = 5;
-    const MIN_MARKET_CAP = Number(process.env.EODHD_MIN_MARKET_CAP || 300_000_000); // default 300m
 
     const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
 
@@ -360,19 +358,19 @@ exports.handler = async function (event) {
             if (parts.length === 1) {
               symbolRequests.push({
                 symbol: parts[0].toUpperCase(),
-                exchange: "ASX",
+                exchange: "AU",
               });
             } else {
               symbolRequests.push({
                 symbol: sym,
-                exchange: "ASX",
+                exchange: "AU",
               });
             }
           });
           eodhdDebug.steps.push({ source: "symbols-param", count: symbolRequests.length });
         } else {
-          // ASX only – list ASX exchange
-          const exchanges = ["ASX"];
+          // AU only – list AU exchange (match the URL you shared)
+          const exchanges = ["AU"];
           for (const ex of exchanges) {
             const res = await listSymbolsForExchange(ex);
             if (!res.ok) {
@@ -404,7 +402,7 @@ exports.handler = async function (event) {
             limited.forEach((it) =>
               symbolRequests.push({
                 symbol: it.code.toUpperCase(),
-                exchange: "ASX",
+                exchange: "AU",
                 name: it.name || "",
               })
             );
@@ -424,7 +422,7 @@ exports.handler = async function (event) {
             symbolRequests,
             async (req) => {
               const sym = req.symbol;
-              const r = await fetchEodForSymbol(sym, req.exchange || "ASX", from, to);
+              const r = await fetchEodForSymbol(sym, req.exchange || "AU", from, to);
               if (!r.ok || !Array.isArray(r.data) || r.data.length < FIVE_DAYS) {
                 return null;
               }
@@ -432,7 +430,7 @@ exports.handler = async function (event) {
               if (pct === null || Number.isNaN(pct)) return null;
               return {
                 symbol: sym,
-                exchange: "ASX",
+                exchange: "AU",
                 name: req.name || "",
                 pctGain: Number(pct.toFixed(2)),
                 firstClose: r.data[0].close,
