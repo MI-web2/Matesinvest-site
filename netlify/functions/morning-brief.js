@@ -14,7 +14,8 @@
 // - You can request specific symbols by passing ?symbols=AAPL,BHP or restrict region with ?region=au or ?region=us
 // - Response includes existing `metals` and `narratives` keys plus `topPerformers` (array) and `_debug.eodhd` metadata.
 
-const fetch = global.fetch || require('node-fetch');
+const fetch = (...args) => global.fetch(...args);
+
 
 exports.handler = async function (event) {
   const nowIso = new Date().toISOString();
