@@ -78,6 +78,23 @@ exports.handler = async (event) => {
       const mapped = regionToCountries[region] || null;
       if (mapped) url.searchParams.set('countries', mapped);
     }
+    // If we're in the AU region and the UI hasn't asked for anything specific,
+    // default to "Aussie business" style news:
+    //  - country = au
+    //  - entity types = equities + indices (ie, company/market news)
+    //  - must_have_entities = true (filter out generic macro/politics with no market hook)
+    const wantsDefaultAuBusiness =
+      region === 'au' &&
+      !qs.countries &&
+      !qs.symbols &&
+      !qs.industries &&
+      !qs.entity_types;
+
+    if (wantsDefaultAuBusiness) {
+      url.searchParams.set('countries', regionToCountries.au); // 'au'
+      url.searchParams.set('entity_types', 'equity,index');
+      url.searchParams.set('must_have_entities', 'true');
+    }
 
     // Forward whitelisted params from the UI with validation & sanitization
     for (const key of Object.keys(qs)) {

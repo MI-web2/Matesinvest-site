@@ -37,6 +37,7 @@ exports.handler = async function (event) {
   // ---------- Upstash helpers (existing) ----------
   const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || null;
   const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
+
   async function redisGet(key) {
     if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
     try {
@@ -335,17 +336,23 @@ exports.handler = async function (event) {
     }
 
     // ------------------------------
-    // NEW: EODHD top performers logic (ASX only)
+    // NEW: EODHD top performers logic (ASX only, market cap filtered)
     // ------------------------------
-const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
-const MAX_PER_EXCHANGE = Number(process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500);
-const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
-const FIVE_DAYS = 5;
+    const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
+    const MAX_PER_EXCHANGE = Number(
+      process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500
+    ); // safety cap
+    const EODHD_CONCURRENCY = Number(
+      process.env.EODHD_CONCURRENCY || 8
+    );
+    const FIVE_DAYS = 5;
 
-// NEW: minimum market cap filter (default 300m)
-const MIN_MARKET_CAP = Number(process.env.EODHD_MIN_MARKET_CAP || 300_000_000);
+    // minimum market cap in AUD (default 300m)
+    const MIN_MARKET_CAP = Number(
+      process.env.EODHD_MIN_MARKET_CAP || 300_000_000
+    );
 
-const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
+    const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
 
     // Utility: return last N business days (ascending oldest->newest)
     function getLastBusinessDays(n) {
@@ -385,7 +392,7 @@ const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
       }
     }
 
-    // EODHD: list symbols for exchange (ASX)
+    // EODHD: list symbols for exchange (ASX via AU code)
     async function listSymbolsForExchange(exchangeCode) {
       const url = `https://eodhd.com/api/exchange-symbol-list/${encodeURIComponent(
         exchangeCode
@@ -477,12 +484,12 @@ const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
             if (parts.length === 1) {
               symbolRequests.push({
                 symbol: parts[0].toUpperCase(),
-                exchange: "AU",
+                exchange: "AX",
               });
             } else {
               symbolRequests.push({
                 symbol: sym, // already has suffix
-                exchange: "AU",
+                exchange: "AX",
               });
             }
           });
@@ -491,7 +498,7 @@ const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
             count: symbolRequests.length,
           });
         } else {
-          // ASX only
+          // ASX only – via AU exchange list
           const exchanges = ["AU"];
 
           for (const ex of exchanges) {
@@ -504,83 +511,85 @@ const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
               });
               continue;
             }
-const items = res.data;
 
-// Normalize + pull market cap
-const normalized = items
-  .map(it => {
-    if (!it) return null;
+            const items = res.data;
 
-    if (typeof it === 'string') {
-      return { code: it, name: '', mcap: null };
-    }
+            // Normalize + pull market cap
+            const normalized = items
+              .map(it => {
+                if (!it) return null;
 
-    const code = it.code || it.Code || it.symbol || it.Symbol || (it[0] || '');
-    const name = it.name || it.Name || it.companyName || it.CompanyName || (it[1] || '');
+                if (typeof it === "string") {
+                  return { code: it, name: "", mcap: null };
+                }
 
-    // Try different possible market-cap keys from EODHD
-    let rawMcap =
-      it.MarketCapitalization ??
-      it.MarketCapitalizationMln ??
-      it.market_capitalization ??
-      it.marketCap ??
-      null;
+                const code =
+                  it.code ||
+                  it.Code ||
+                  it.symbol ||
+                  it.Symbol ||
+                  (it[0] || "");
+                const name =
+                  it.name ||
+                  it.Name ||
+                  it.companyName ||
+                  it.CompanyName ||
+                  (it[1] || "");
 
-    if (typeof rawMcap === 'string') rawMcap = parseFloat(rawMcap.replace(/,/g, ''));
-    let mcap = (typeof rawMcap === 'number' && !Number.isNaN(rawMcap)) ? rawMcap : null;
+                // Try different possible market-cap keys from EODHD
+                let rawMcap =
+                  it.MarketCapitalization ??
+                  it.MarketCapitalizationMln ??
+                  it.market_capitalization ??
+                  it.marketCap ??
+                  null;
 
-    // Heuristic: if it looks like "in millions", scale up
-    if (mcap !== null && mcap < 1_000_000) {
-      mcap = mcap * 1_000_000;
-    }
+                if (typeof rawMcap === "string") {
+                  rawMcap = parseFloat(rawMcap.replace(/,/g, ""));
+                }
 
-    return { code, name, mcap };
-  })
-  .filter(Boolean)
-  .filter(x =>
-    x.code &&
-    !x.code.includes('^') &&
-    !x.code.includes('/') &&
-    x.mcap !== null &&
-    x.mcap >= MIN_MARKET_CAP
-  );
+                let mcap =
+                  typeof rawMcap === "number" && !Number.isNaN(rawMcap)
+                    ? rawMcap
+                    : null;
 
-// Cap per exchange as before
-const limited = normalized.slice(0, MAX_PER_EXCHANGE);
+                // Heuristic: if it looks like "in millions", scale up
+                if (mcap !== null && mcap < 1_000_000) {
+                  mcap = mcap * 1_000_000;
+                }
 
-// Keep name (and optionally mcap) on the request for debug
-limited.forEach(it =>
-  symbolRequests.push({
-    symbol: it.code.toUpperCase(),
-    exchange: ex,
-    name: it.name || '',
-    mcap: it.mcap
-  })
-);
-
+                return { code, name, mcap };
               })
               .filter(Boolean)
               .filter(
                 x =>
                   x.code &&
                   !x.code.includes("^") &&
-                  !x.code.includes("/")
+                  !x.code.includes("/") &&
+                  x.mcap !== null &&
+                  x.mcap >= MIN_MARKET_CAP
               );
 
+            // Cap per exchange as before
             const limited = normalized.slice(0, MAX_PER_EXCHANGE);
+
+            // Keep name (and mcap) on the request for debug
             limited.forEach(it =>
               symbolRequests.push({
-                symbol: it.code,
-                exchange: ex,
+                symbol: it.code.toUpperCase(),
+                exchange: "AX",
                 name: it.name || "",
+                mcap: it.mcap,
               })
             );
+
             await new Promise(r => setTimeout(r, 200));
             eodhdDebug.steps.push({
               source: "list-symbols",
               exchange: ex,
               totalFound: normalized.length,
               used: limited.length,
+              minCap: MIN_MARKET_CAP,
             });
           }
         }
@@ -603,12 +612,13 @@ limited.forEach(it =>
               if (pct === null || Number.isNaN(pct)) return null;
               return {
                 symbol: sym,
-                exchange: exch,
+                exchange: "AU", // display as AU in UI
                 name: req.name || "",
                 pctGain: Number(pct.toFixed(2)),
                 firstClose: r.data[0].close,
                 lastClose: r.data[r.data.length - 1].close,
                 pricesCount: r.data.length,
+                mcap: req.mcap || null,
               };
             },
             EODHD_CONCURRENCY
