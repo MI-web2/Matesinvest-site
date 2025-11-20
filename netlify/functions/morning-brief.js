@@ -129,63 +129,22 @@ exports.handler = async function (event) {
       }
       usdToAud = latestSnapshot.usdToAud || null;
       debug.snapshotDate = latestSnapshot.snappedAt || null;
-    } else {
-      // Fallback live fetch path (tries Metals-API then FX)
-      const METALS_API_KEY = process.env.METALS_API_KEY || null;
-      if (METALS_API_KEY) {
-        try {
-          const metaUrl = `https://metals-api.com/api/latest?access_key=${encodeURIComponent(
-            METALS_API_KEY
-          )}&base=USD&symbols=${encodeURIComponent(symbols.join(","))}`;
-          const mres = await fetchWithTimeout(metaUrl, {}, 10000);
-          const mtxt = await mres.text().catch(() => "");
-          let mj = null;
-          try {
-            mj = mtxt ? JSON.parse(mtxt) : null;
-          } catch (e) {
-            mj = null;
-          }
-          debug.steps.push({
-            source: "metals-api",
-            ok: !!mres.ok,
-            status: mres.status,
-          });
-          if (mres.ok && mj && mj.rates) {
-            const rates = mj.rates;
-            for (const s of symbols) {
-              const rv = rates[s];
-              if (typeof rv === "number") {
-                // metals-api may return rates as units per USD or USD per unit depending on base; handle heuristics
-                if (rv > 0 && rv < 1) currentUsd[s] = 1 / rv;
-                else currentUsd[s] = rv;
-              } else {
-                currentUsd[s] = null;
-              }
-            }
-            if (mj.timestamp)
-              priceTimestamp = new Date(mj.timestamp * 1000).toISOString();
-            debug.ratesPreview = mj.rates;
-          } else {
-            debug.steps.push({
-              source: "metals-api-body",
-              preview: mtxt.slice(0, 400),
-            });
-            for (const s of symbols) currentUsd[s] = null;
-          }
-        } catch (e) {
-          debug.steps.push({
-            source: "metals-api-error",
-            error: e && e.message,
-          });
-          for (const s of symbols) currentUsd[s] = null;
-        }
-      } else {
-        debug.steps.push({
-          source: "metals-api",
-          note: "METALS_API_KEY missing",
-        });
-        for (const s of symbols) currentUsd[s] = null;
-      }
+} else {
+    // DO NOT fetch live metals or live FX.
+    // Morning Brief must ONLY use Upstash snapshot.
+    metalsDataSource = "snapshot-only";
+
+    for (const s of symbols) {
+        currentUsd[s] = null;
+        currentAud[s] = null;
+    }
+
+    debug.steps.push({
+        source: "snapshot-missing",
+        note: "No metals:latest snapshot found — live fetch disabled"
+    });
+}
+
 
       // FX USD -> AUD (try open.er-api.com then exchangerate.host)
       try {
