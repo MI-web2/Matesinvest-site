@@ -465,7 +465,7 @@ exports.handler = async function (event) {
             limited.forEach((it) =>
               symbolRequests.push({
                 symbol: it.code.toUpperCase(),
-                exchange: "ASX",
+                exchange: "AX",
                 name: it.name || "",
                 mcap: it.mcap,
               })
@@ -500,7 +500,7 @@ exports.handler = async function (event) {
               if (pct === null || Number.isNaN(pct)) return null;
               return {
                 symbol: sym,
-                exchange: "AU",
+                exchange: "ASX",
                 name: req.name || "",
                 pctGain: Number(pct.toFixed(2)),
                 firstClose: r.data[0].close,
