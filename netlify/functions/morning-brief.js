@@ -243,13 +243,9 @@ exports.handler = async function (event) {
     const MAX_PER_EXCHANGE = Number(
       process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500
     ); // safety cap
-    const EODHD_CONCURRENCY = Number(
-      process.env.EODHD_CONCURRENCY || 8
-    );
+    const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
     const FIVE_DAYS = 5;
-    const MIN_MARKET_CAP = Number(
-      process.env.EODHD_MIN_MARKET_CAP || 300_000_000
-    ); // default 300m
+    const MIN_MARKET_CAP = Number(process.env.EODHD_MIN_MARKET_CAP || 300_000_000); // default 300m
 
     const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
 
@@ -312,9 +308,7 @@ exports.handler = async function (event) {
       if (!r.ok || !Array.isArray(r.json)) {
         return { ok: false, data: null, error: r.text || `HTTP ${r.status}` };
       }
-      const arr = r.json
-        .slice()
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      const arr = r.json.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
       return { ok: true, data: arr };
     }
 
@@ -322,11 +316,7 @@ exports.handler = async function (event) {
       if (!Array.isArray(prices) || prices.length < 2) return null;
       const first = prices[0].close;
       const last = prices[prices.length - 1].close;
-      if (
-        typeof first !== "number" ||
-        typeof last !== "number" ||
-        first === 0
-      )
+      if (typeof first !== "number" || typeof last !== "number" || first === 0)
         return null;
       return ((last - first) / first) * 100;
     }
@@ -354,12 +344,8 @@ exports.handler = async function (event) {
     let topPerformers = [];
     if (EODHD_TOKEN) {
       try {
-        const qs =
-          event && event.queryStringParameters
-            ? event.queryStringParameters
-            : {};
-        const requestedSymbolsParam =
-          qs.symbols && String(qs.symbols).trim();
+        const qs = event && event.queryStringParameters ? event.queryStringParameters : {};
+        const requestedSymbolsParam = qs.symbols && String(qs.symbols).trim();
 
         const days = getLastBusinessDays(FIVE_DAYS);
         const from = days[0];
@@ -368,114 +354,85 @@ exports.handler = async function (event) {
         let symbolRequests = [];
 
         if (requestedSymbolsParam) {
-          const sarr = requestedSymbolsParam
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean);
+          const sarr = requestedSymbolsParam.split(",").map((x) => x.trim()).filter(Boolean);
           sarr.forEach((sym) => {
             const parts = sym.split(".");
             if (parts.length === 1) {
               symbolRequests.push({
                 symbol: parts[0].toUpperCase(),
-                exchange: "AX",
+                exchange: "ASX",
               });
             } else {
               symbolRequests.push({
                 symbol: sym,
-                exchange: "AX",
+                exchange: "ASX",
               });
             }
           });
-          eodhdDebug.steps.push({
-            source: "symbols-param",
-            count: symbolRequests.length,
-          });
+          eodhdDebug.steps.push({ source: "symbols-param", count: symbolRequests.length });
         } else {
-// ASX only – list AU exchange (no market-cap filter for now)
-const exchanges = ["AU"];
+          // ASX only – list ASX exchange
+          const exchanges = ["ASX"];
+          for (const ex of exchanges) {
+            const res = await listSymbolsForExchange(ex);
+            if (!res.ok) {
+              eodhdDebug.steps.push({
+                source: "list-symbols-failed",
+                exchange: ex,
+                error: res.error || "unknown",
+              });
+              continue;
+            }
 
-for (const ex of exchanges) {
-  const res = await listSymbolsForExchange(ex);
-  if (!res.ok) {
-    eodhdDebug.steps.push({
-      source: "list-symbols-failed",
-      exchange: ex,
-      error: res.error || "unknown",
-    });
-    continue;
-  }
+            const items = res.data;
 
-  const items = res.data;
+            const normalized = items
+              .map((it) => {
+                if (!it) return null;
+                if (typeof it === "string") {
+                  return { code: it, name: "" };
+                }
+                const code = it.code || it.Code || it.symbol || it.Symbol || (it[0] || "");
+                const name = it.name || it.Name || it.companyName || it.CompanyName || (it[1] || "");
+                return { code, name };
+              })
+              .filter(Boolean)
+              .filter((x) => x.code && !x.code.includes("^") && !x.code.includes("/"));
 
-  const normalized = items
-    .map((it) => {
-      if (!it) return null;
+            const limited = normalized.slice(0, MAX_PER_EXCHANGE);
 
-      if (typeof it === "string") {
-        return { code: it, name: "" };
-      }
+            limited.forEach((it) =>
+              symbolRequests.push({
+                symbol: it.code.toUpperCase(),
+                exchange: "ASX",
+                name: it.name || "",
+              })
+            );
 
-      const code =
-        it.code ||
-        it.Code ||
-        it.symbol ||
-        it.Symbol ||
-        (it[0] || "");
-      const name =
-        it.name ||
-        it.Name ||
-        it.companyName ||
-        it.CompanyName ||
-        (it[1] || "");
-
-      return { code, name };
-    })
-    .filter(Boolean)
-    .filter(
-      (x) =>
-        x.code &&
-        !x.code.includes("^") &&
-        !x.code.includes("/")
-    );
-
-  const limited = normalized.slice(0, MAX_PER_EXCHANGE);
-
-  limited.forEach((it) =>
-    symbolRequests.push({
-      symbol: it.code.toUpperCase(),
-      exchange: "AX",
-      name: it.name || "",
-    })
-  );
-
-  await new Promise((r) => setTimeout(r, 200));
-  eodhdDebug.steps.push({
-    source: "list-symbols",
-    exchange: ex,
-    totalFound: normalized.length,
-    used: limited.length,
-  });
-}
+            await new Promise((r) => setTimeout(r, 200));
+            eodhdDebug.steps.push({
+              source: "list-symbols",
+              exchange: ex,
+              totalFound: normalized.length,
+              used: limited.length,
+            });
+          }
+        }
 
         if (symbolRequests.length > 0) {
           const results = await mapWithConcurrency(
             symbolRequests,
             async (req) => {
               const sym = req.symbol;
-              const exch = req.exchange;
-              const r = await fetchEodForSymbol(sym, exch, from, to);
-              if (
-                !r.ok ||
-                !Array.isArray(r.data) ||
-                r.data.length < FIVE_DAYS
-              ) {
+              const r = await fetchEodForSymbol(sym, req.exchange || "ASX", from, to);
+              if (!r.ok || !Array.isArray(r.data) || r.data.length < FIVE_DAYS) {
                 return null;
               }
               const pct = pctGainFromPrices(r.data);
               if (pct === null || Number.isNaN(pct)) return null;
               return {
                 symbol: sym,
-                exchange: "AU",
+                exchange: "ASX",
                 name: req.name || "",
                 pctGain: Number(pct.toFixed(2)),
                 firstClose: r.data[0].close,
@@ -493,10 +450,7 @@ for (const ex of exchanges) {
           eodhdDebug.steps.push({
             source: "computed",
             evaluated: cleaned.length,
-            top5: topPerformers.map((x) => ({
-              symbol: x.symbol,
-              pct: x.pctGain,
-            })),
+            top5: topPerformers.map((x) => ({ symbol: x.symbol, pct: x.pctGain })),
           });
         } else {
           eodhdDebug.steps.push({ source: "no-symbols" });
@@ -532,10 +486,7 @@ for (const ex of exchanges) {
 
     return { statusCode: 200, body: JSON.stringify(payload) };
   } catch (err) {
-    console.error(
-      "morning-brief multi error",
-      err && (err.stack || err.message || err)
-    );
+    console.error("morning-brief multi error", err && (err.stack || err.message || err));
     return {
       statusCode: 500,
       body: JSON.stringify({
