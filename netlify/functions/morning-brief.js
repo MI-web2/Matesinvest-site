@@ -478,12 +478,12 @@ exports.handler = async function (event) {
             if (parts.length === 1) {
               symbolRequests.push({
                 symbol: parts[0].toUpperCase(),
-                exchange: "ASX",
+                exchange: "AU",
               });
             } else {
               symbolRequests.push({
                 symbol: sym, // already has suffix
-                exchange: "ASX",
+                exchange: "AU",
               });
             }
           });
@@ -493,7 +493,7 @@ exports.handler = async function (event) {
           });
         } else {
           // ASX only
-          const exchanges = ["ASX"];
+          const exchanges = ["AU"];
 
           for (const ex of exchanges) {
             const res = await listSymbolsForExchange(ex);
