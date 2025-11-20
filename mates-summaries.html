@@ -11,7 +11,6 @@
   <link rel="apple-touch-icon" href="/assets/img/favicon.png">
 
   <style>
-    /* === Existing theme variables (kept) === */
     :root{
       --bg: #050814;
       --card: linear-gradient(180deg, rgba(20,24,40,0.9), rgba(15,18,32,0.85));
@@ -46,17 +45,18 @@
       padding:1rem 1.25rem 3rem;
     }
 
-    /* Utility classes to replace inline styles */
-    .no-margin { margin: 0 !important; }
-    .muted { color: var(--muted); }
-    .muted-2 { color: var(--muted-2); }
-    .small { font-size:0.92rem; color: var(--muted); }
-    .meta-left-inner { min-width:0; }
-    .meta-right { display:flex; gap:0.5rem; align-items:center; }
-    .actions-row { display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem; }
-    .summary-output { margin-top:0.65rem; }
-    .center-right { text-align:right; }
-    .pill-inline { display:inline-flex; align-items:center; gap:0.4rem; }
+    /* Accessible visually-hidden utility (keeps H1 for SEO / screen readers) */
+    .visually-hidden {
+      position: absolute !important;
+      height: 1px;
+      width: 1px;
+      overflow: hidden;
+      clip: rect(1px, 1px, 1px, 1px);
+      white-space: nowrap; /* prevent line breaks */
+      border: 0;
+      padding: 0;
+      margin: -1px;
+    }
 
     /* NAV */
     .nav{
@@ -124,7 +124,6 @@
 
     .meta-row{ display:flex; align-items:center; gap:0.6rem; justify-content:space-between }
     .meta-left{ display:flex; align-items:center; gap:0.65rem; min-width:0 }
-    .meta-left-inner { min-width:0; }
     .headline h3{ margin:0 0 0.25rem 0; font-size:1rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
     .headline small{ color:var(--muted-2); font-size:0.82rem; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
     .headline .actions{ display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem }
@@ -135,6 +134,8 @@
 
     .link-min{ background:transparent; border:1px solid var(--border); color:var(--muted); padding:0.42rem 0.7rem; border-radius:999px; text-decoration:none; font-size:0.83rem }
     .link-min:hover{ background:rgba(255,255,255,0.02) }
+
+    .summary-output{ margin-top:0.65rem }
 
     .summary-block{ margin-top:0.45rem; border-top:1px dashed rgba(255,255,255,0.04); padding-top:0.6rem; font-size:0.95rem; color: #fff; }
     .summary-block p{margin:0.45rem 0}
@@ -286,6 +287,118 @@
 
     /* Optional compact narrative (kept small) */
     .metal-note { color:rgba(255,255,255,0.6); font-size:0.92rem; }
+
+    /* Responsive behaviour:
+       - Very wide screens: grid uses the min width so multiple cards in a row
+       - Medium screens: two columns for a horizontal feel
+       - Small screens: single column and hide USD
+    */
+    @media (max-width: 1100px) and (min-width: 800px) {
+      .brief-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+    }
+
+    @media (max-width: 799px) {
+      .brief-grid { grid-template-columns: 1fr; }
+      .metal-sub.usd { display: none; } /* keep mobile tidy */
+    }
+
+    /* =========================
+       MOBILE TIDY-UP (phones)
+       ========================= */
+    @media (max-width: 480px) {
+      /* make page tighter */
+      .page-shell { padding: 0.7rem 0.9rem 2rem; }
+
+      /* compact nav */
+      .nav-inner { padding: 0.5rem 0.9rem; gap:0.5rem; }
+      .nav-logo { height:34px; width:34px; }
+      .nav-title { font-size:0.98rem; }
+      .nav-pill { display:none; } /* hide prototype pill on small screens */
+      .nav-right { font-size:0.78rem; gap:0.5rem; }
+
+      /* stack brief header and controls vertically */
+      .brief-header { flex-direction: column; align-items:flex-start; gap:0.6rem; }
+      .brief-header > div:first-child { width:100%; }
+      .brief-controls { width:100%; display:flex; gap:0.45rem; justify-content:flex-start; flex-wrap:wrap; }
+      .brief-controls select { flex:0 0 auto; min-width:120px; }
+      .brief-controls .brief-toggle { flex:0 0 auto; padding:0.28rem 0.6rem; font-size:0.86rem; }
+
+      /* reduce card padding and card-metal padding */
+      .card { padding:0.85rem; border-radius:12px; }
+      .card-metal { padding:0.66rem; min-height:72px; }
+      .headline { padding:0.7rem; }
+
+      /* reduce font sizes for compactness */
+      .metal-name { font-size:0.86rem; }
+      .metal-price { font-size:0.98rem; }
+      .brief-top-meta { font-size:0.82rem; gap:8px; }
+
+      /* ensure chip row can scroll horizontally */
+      .chip-row { overflow-x:auto; -webkit-overflow-scrolling:touch; gap:0.5rem; padding-bottom:6px; }
+      .chip { white-space:nowrap; flex:0 0 auto; }
+
+      /* tighten grid gaps */
+      .brief-grid { gap:10px; }
+
+      /* ensure headline meta rows wrap nicely */
+      .meta-row { gap:0.4rem; align-items:flex-start; }
+
+      /* remove large left margins, keep rounded edges */
+      .summary-block { padding-top:0.45rem; }
+
+      /* reduce top spacing where possible */
+      .page-shell > section.card:first-of-type { margin-top: 0.4rem; }
+
+      /* make small buttons fit */
+      .btn, .link-min { padding:0.4rem 0.7rem; font-size:0.82rem; }
+
+      /* make sure modal-like brief-content can expand naturally */
+      .brief-content { margin-top:0.6rem; }
+
+      /* keep body bottom padding modest */
+      body { padding-bottom:2rem; }
+    }
+
+    /* ---------------------
+       Mates Morning Note & SOTD card styles (kept simple)
+    ---------------------- */
+    .mates-note {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.04);
+      padding: 0.9rem 1rem;
+      border-radius: 12px;
+    }
+    .mates-note-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:0.4rem;
+    }
+    .mates-note-header .pill {
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      border:1px solid rgba(63,191,127,0.26);
+    }
+    .mates-note-body { font-size:0.92rem; color:rgba(255,255,255,0.85); line-height:1.45; }
+    .mates-note .timestamp { font-size:0.78rem; color: var(--muted-2); }
+
+    .sotd-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+    }
+    .sotd-header { display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.4rem; flex-wrap:wrap; }
+    .sotd-title-left { display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; }
+    .sotd-pill { background: var(--accent-soft); color: var(--accent); padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; border:1px solid rgba(63,191,127,0.26); }
+    .sotd-ticker { font-weight:600; letter-spacing:0.03em; font-size:0.9rem; }
+    .sotd-name { font-size:0.9rem; color:var(--muted-2); }
+    .sotd-exchange { font-size:0.8rem; color:var(--muted-2); }
+    .sotd-summary { font-size:0.9rem; line-height:1.45; color:rgba(255,255,255,0.9); margin-bottom:0.35rem; }
+
   </style>
 
 </head>
@@ -301,7 +414,7 @@
         </div>
       </div>
       <div class="nav-right">
-        <span class="muted">Live AI summaries · Not financial advice</span>
+        <span>Live AI summaries · Not financial advice</span>
         <a href="/" class="nav-home-link">Home</a>
       </div>
     </div>
@@ -316,8 +429,8 @@
   <section id="morningBrief" class="card">
     <div class="brief-header">
       <div>
-        <h2 class="no-margin">Morning Briefing</h2>
-        <div class="small muted" style="margin-top:0.35rem">A short note on what could move markets in Australia today.</div>
+        <h2 style="margin:0">Morning Briefing</h2>
+        <div style="color:var(--muted);font-size:0.92rem;margin-top:0.35rem">A short note on what could move markets in Australia today.</div>
       </div>
 
       <div class="brief-controls">
@@ -349,7 +462,7 @@
 
         <div style="flex:1"></div>
 
-        <div class="muted" style="font-size:0.88rem">
+        <div style="display:flex;align-items:center;gap:0.5rem;color:var(--muted);font-size:0.88rem">
           <span id="feedStatus">Live</span>
         </div>
       </div>
@@ -403,7 +516,7 @@
     } catch { return iso || ""; }
   }
 
-  /* ---------- Mates Morning Note & Stock of the Day loaders (unchanged content but templates use classes) ---------- */
+  /* ---------- Mates Morning Note & Stock of the Day loaders (unchanged) ---------- */
   async function loadMatesMorningNote() {
     const container = document.getElementById("matesMorningNote");
     const textBox = document.getElementById("matesNoteText");
@@ -485,13 +598,11 @@
     for (let i=0;i<count;i++){
       const div = document.createElement("div");
       div.className = "headline";
-      div.innerHTML = `<div class="meta-row">
-        <div class="meta-left">
-          <div class="meta-left-inner">
-            <div class="skeleton" style="height:14px;width:60%"></div>
-            <div style="height:8px"></div>
-            <div class="skeleton" style="height:12px;width:30%"></div>
-          </div>
+      div.innerHTML = `<div style="display:flex;align-items:center;gap:0.75rem">
+        <div style="flex:1">
+          <div class="skeleton" style="height:14px;width:60%"></div>
+          <div style="height:8px"></div>
+          <div class="skeleton" style="height:12px;width:30%"></div>
         </div>
       </div>`;
       newsList.appendChild(div);
@@ -518,7 +629,7 @@
     return "other";
   }
 
-  /* ---------- Rendering helpers (templates simplified to use classes rather than inline styles) ---------- */
+  /* ---------- Rendering market & mates mode (full) ---------- */
 
   function renderSummary(s) {
     if (!s) return `<div class="summary-block">No summary available.</div>`;
@@ -527,7 +638,7 @@
       <div class="summary-block">
         ${bullets ? `<strong>TL;DR</strong><ul class="tldr-list">${bullets}</ul>` : ""}
         <details open>
-          <summary style="cursor:pointer" class="muted-2">Full summary</summary>
+          <summary style="cursor:pointer;color:var(--muted-2)">Full summary</summary>
           <div style="margin-top:0.5rem">
             <p><strong>What's Happening:</strong><br>${escapeHtml(s.whatsHappening || "")}</p>
             <p><strong>Why It Matters:</strong><br>${escapeHtml(s.whyItMatters || "")}</p>
@@ -566,7 +677,7 @@
     return "🎯";
   }
 
-  /* ---------- Market / Mates Mode rendering (templates updated to avoid inline styles) ---------- */
+  /* ---------- Market / Mates Mode rendering (unchanged) ---------- */
   async function renderMarketMode() {
     sportFilterRow.style.display = "none";
     newsList.innerHTML = "";
@@ -575,7 +686,7 @@
     );
 
     if (!filtered.length) {
-      newsList.innerHTML = `<div class="headline"><small class="muted">No market headlines yet.</small></div>`;
+      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">No market headlines yet.</small></div>`;
       return;
     }
 
@@ -588,17 +699,17 @@
       item.innerHTML = `
         <div class="meta-row">
           <div class="meta-left">
-            <div class="meta-left-inner">
+            <div style="min-width:0">
               <h3 title="${escapeHtml(a.title || '')}">${escapeHtml(a.title || '')}</h3>
-              <small class="muted-2">${escapeHtml(a.source || "")} · ${escapeHtml(published)}</small>
+              <small>${escapeHtml(a.source || "")} · ${escapeHtml(published)}</small>
             </div>
           </div>
-          <div class="meta-right">
+          <div style="display:flex;gap:0.5rem;align-items:center">
             <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">Read original</a>
           </div>
         </div>
 
-        <div class="actions-row">
+        <div class="actions">
           <button class="btn" aria-label="Generate summary for article">MatesInvest summary</button>
         </div>
         <div class="summary-output"></div>
@@ -707,17 +818,17 @@
           div.innerHTML = `
             <div class="meta-row">
               <div class="meta-left" style="min-width:0">
-                <div class="meta-left-inner">
+                <div>
                   <h3>${escapeHtml(item.title || "")}</h3>
-                  <small class="muted-2">${icon} ${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
+                  <small>${icon} ${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
                 </div>
               </div>
-              <div class="meta-right">
+              <div style="display:flex;gap:0.5rem;align-items:center">
                 <span class="sport-tag">${sportBadge}</span>
               </div>
             </div>
 
-            <div class="actions-row">
+            <div class="actions">
               <button class="btn">MatesInvest summary</button>
               <button class="link-min" data-toggle-stats>Stats</button>
             </div>
@@ -771,17 +882,17 @@ Status: ${ev.status}
           div.innerHTML = `
             <div class="meta-row">
               <div class="meta-left">
-                <div class="meta-left-inner">
+                <div style="min-width:0">
                   <h3>${escapeHtml(item.title || "")}</h3>
-                  <small class="muted-2">${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
+                  <small>${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
                 </div>
               </div>
-              <div class="meta-right">
+              <div style="display:flex;gap:0.5rem;align-items:center">
                 <a class="link-min" href="${item.url || "#"}" target="_blank" rel="noopener">Read original</a>
               </div>
             </div>
 
-            <div class="actions-row">
+            <div class="actions">
               <button class="btn">MatesInvest summary</button>
             </div>
             <div class="summary-output"></div>
@@ -821,12 +932,12 @@ Status: ${ev.status}
       });
 
       if (!combined.length) {
-        newsList.innerHTML = `<div class="headline"><small class="muted">No items found.</small></div>`;
+        newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">No items found.</small></div>`;
       }
 
     } catch (err) {
       console.error("Error rendering MatesMode", err);
-      newsList.innerHTML = `<div class="headline"><small class="muted">Failed to load feed.</small></div>`;
+      newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
     }
   }
 
@@ -858,13 +969,13 @@ Status: ${ev.status}
     if (!lineupStr || !lineupStr.trim()) return '';
     const players = lineupStr.split(/, ?/).map(s => s.trim()).filter(Boolean);
     return `<div class="lineup-block" role="group" aria-label="${escapeHtml(title)}">
-      <strong class="muted">${escapeHtml(title)}</strong>
+      <strong style="color:var(--muted)">${escapeHtml(title)}</strong>
       <div style="margin-top:0.35rem">${players.map(p => `<div>${escapeHtml(p)}</div>`).join('')}</div>
     </div>`;
   }
 
   function renderBoxScoreAndPlayers(ev) {
-    if (!ev) return `<div class="summary-block muted">No stats available.</div>`;
+    if (!ev) return `<div style="color:var(--muted)">No stats available.</div>`;
 
     const home = escapeHtml(ev.home || '');
     const away = escapeHtml(ev.away || '');
@@ -891,7 +1002,7 @@ Status: ${ev.status}
     timelineItems.sort((a,b) => minuteToNumber(a.minute) - minuteToNumber(b.minute));
 
     const timelineHtml = timelineItems.length ? `
-      <div style="margin-top:0.45rem"><strong class="muted-2">Timeline</strong>
+      <div style="margin-top:0.45rem"><strong style="color:var(--muted-2)">Timeline</strong>
         <div class="event-timeline">
           ${timelineItems.map(it => `
             <div class="timeline-item">
@@ -904,14 +1015,24 @@ Status: ${ev.status}
         </div>
       </div>` : '';
 
-    const playersHtml = Array.isArray(ev.raw?.player) && ev.raw.player.length
-      ? `<div style="margin-top:0.5rem"><strong class="muted-2">Players</strong>
+    const homeLineupHtml = ev.homeLineupGoalkeeper || ev.homeLineupDefense || ev.homeLineupMidfield || ev.homeLineupForward
+      ? renderLineupSection('Home lineups', (ev.homeLineupGoalkeeper || '') + (ev.homeLineupDefense ? ', ' + ev.homeLineupDefense : '') + (ev.homeLineupMidfield ? ', ' + ev.homeLineupMidfield : '') + (ev.homeLineupForward ? ', ' + ev.homeLineupForward : ''))
+      : '';
+    const awayLineupHtml = ev.awayLineupGoalkeeper || ev.awayLineupDefense || ev.awayLineupMidfield || ev.awayLineupForward
+      ? renderLineupSection('Away lineups', (ev.awayLineupGoalkeeper || '') + (ev.awayLineupDefense ? ', ' + ev.awayLineupDefense : '') + (ev.awayLineupMidfield ? ', ' + ev.awayLineupMidfield : '') + (ev.awayLineupForward ? ', ' + ev.awayLineupForward : ''))
+      : '';
+
+    let playersHtml = '';
+    if (Array.isArray(ev.raw?.player) && ev.raw.player.length) {
+      playersHtml = `<div style="margin-top:0.5rem"><strong style="color:var(--muted-2)">Players</strong>
         <div style="margin-top:0.4rem">
           ${ev.raw.player.map(p => `<div style="display:flex;gap:0.8rem;align-items:center"><div style="width:36px">${escapeHtml(p.number || '')}</div><div><strong>${escapeHtml(p.name)}</strong> <div style="color:var(--muted-2);font-size:0.9rem">${escapeHtml(p.position || '')} ${p.goals ? `• Goals: ${escapeHtml(String(p.goals))}` : ''}</div></div></div>`).join('')}
-        </div></div>`
-      : `<div style="margin-top:0.35rem;color:var(--muted)">Per-player box stats not available from TheSportsDB for this event. Use a sport-specific provider (e.g. balldontlie for NBA) for full box scores.</div>`;
+        </div></div>`;
+    } else {
+      playersHtml = `<div style="margin-top:0.35rem;color:var(--muted)">Per-player box stats not available from TheSportsDB for this event. Use a sport-specific provider (e.g. balldontlie for NBA) for full box scores.</div>`;
+    }
 
-    const notesHtml = ev.description ? `<details style="margin-top:0.5rem"><summary style="cursor:pointer" class="muted-2">Match notes</summary><div style="margin-top:0.4rem;color:var(--muted-2)">${escapeHtml(ev.description)}</div></details>` : '';
+    const notesHtml = ev.description ? `<details style="margin-top:0.5rem"><summary style="cursor:pointer;color:var(--muted-2)">Match notes</summary><div style="margin-top:0.4rem;color:var(--muted-2)">${escapeHtml(ev.description)}</div></details>` : '';
 
     return `
       <div class="summary-block">
@@ -924,6 +1045,8 @@ Status: ${ev.status}
 
         ${shotsRow}
         ${timelineHtml}
+        ${homeLineupHtml}
+        ${awayLineupHtml}
         ${playersHtml}
         ${notesHtml}
       </div>
@@ -966,7 +1089,7 @@ function renderMorningBrief(payload) {
   }
 
   const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
-  const cachedHint = (payload._debug && payload._debug.cached) ? '<span class="muted"> · cached</span>' : '';
+  const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
 
   // Accept either payload.metals (old) or payload.symbols (snapshot-metals.js)
   const metalsObj = (payload.metals && typeof payload.metals === 'object')
@@ -976,30 +1099,30 @@ function renderMorningBrief(payload) {
       : null;
 
   // Top meta row + placeholders for Mates note and SOTD
-  const topMetaHtml = `<div class="brief-top-meta"><div></div><div class="center-right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
+  const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
 
   // Build placeholders for Mates Morning Note and Stock of the Day
   const matesPlaceholder = `
     <div id="matesMorningNote" class="mates-note" style="display:none;">
       <div class="mates-note-header">
-        <span class="pill-inline">Mates Morning Note</span>
-        <span id="matesNoteTimestamp" class="muted-2">Updated —</span>
+        <span class="pill">Mates Morning Note</span>
+        <span id="matesNoteTimestamp" class="timestamp">Updated —</span>
       </div>
-      <div id="matesNoteText" class="mates-note-body muted">Loading today’s note…</div>
+      <div id="matesNoteText" class="mates-note-body">Loading today’s note…</div>
     </div>
   `;
   const sotdPlaceholder = `
     <div id="stockOfDay" class="sotd-card" style="display:none;">
       <div class="sotd-header">
         <div class="sotd-title-left">
-          <span class="sotd-pill pill-inline">Stock of the Day</span>
+          <span class="sotd-pill">Stock of the Day</span>
           <span id="sotdTicker" class="sotd-ticker">—</span>
-          <span id="sotdName" class="sotd-name muted-2"></span>
+          <span id="sotdName" class="sotd-name"></span>
         </div>
-        <span id="sotdExchange" class="sotd-exchange muted-2">ASX</span>
+        <span id="sotdExchange" class="sotd-exchange">ASX</span>
       </div>
-      <div id="sotdSummary" class="sotd-summary muted">Loading today’s stock snapshot…</div>
-      <div class="sotd-disclaimer muted-2" style="font-size:0.78rem">General information only. Not financial advice.</div>
+      <div id="sotdSummary" class="sotd-summary">Loading today’s stock snapshot…</div>
+      <div class="sotd-disclaimer" style="font-size:0.78rem;color:var(--muted-2)">General information only. Not financial advice.</div>
     </div>
   `;
 
@@ -1028,16 +1151,16 @@ function renderMorningBrief(payload) {
 
       // optional trace: show original API USD (apiPriceUSD) small hint if present
       const apiUsdRaw = (typeof m.apiPriceUSD === 'number') ? m.apiPriceUSD : (typeof m.apiPriceUsd === 'number' ? m.apiPriceUsd : null);
-      const apiHint = (apiUsdRaw !== null) ? `<div class="muted-2" style="font-size:0.72rem;margin-top:6px">api: $${formatMoney(apiUsdRaw)} USD</div>` : '';
+      const apiHint = (apiUsdRaw !== null) ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:6px">api: $${formatMoney(apiUsdRaw)} USD</div>` : '';
 
       return `
         <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
           <div class="metal-head">
             <div>
-              <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small class="muted-2">(${escapeHtml(sym)})</small></div>
-              <div class="metal-price">${priceDisplay} <small class="metal-sub muted-2">/${escapeHtml(unit)}</small></div>
+              <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
+              <div class="metal-price">${priceDisplay} <small class="metal-sub" style="color:var(--muted);font-weight:600">${escapeHtml('/' + unit)}</small></div>
             </div>
-            <div class="center-right">
+            <div style="text-align:right">
               ${pctHtml}
             </div>
           </div>
@@ -1065,8 +1188,8 @@ function renderMorningBrief(payload) {
   const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
   const fallbackHtml = `
     ${topMetaHtml}
-    <div class="card-metal" style="padding:0.6rem;border-radius:8px;">
-      <div class="muted-2"><strong>Spot gold</strong></div>
+    <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
+      <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
       <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
     </div>
   `;
@@ -1185,7 +1308,7 @@ categoryRow.onclick = (e) => {
     // Note: Mates Morning Note and Stock of the Day are loaded when the morning brief is opened.
   } catch (err) {
     console.error(err);
-    newsList.innerHTML = `<div class="headline"><small class="muted">Failed to load initial feed.</small></div>`;
+    newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">Failed to load initial feed.</small></div>`;
     feedStatus.textContent = "Offline";
   }
 })();
