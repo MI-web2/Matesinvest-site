@@ -25,7 +25,9 @@ exports.handler = async (event) => {
 
     // Keep backward-compatible 'region' handling for quick presets (au/us/global)
     // but allow explicit 'countries' param from the UI to override region mapping.
-    const region = (qs.region || '').toLowerCase();
+    // Default region to AU so the site is Aussie-focused by default
+    const region = (qs.region || 'au').toLowerCase();
+
 
     // Map short region -> marketaux countries ISO codes
     const regionToCountries = {
@@ -104,10 +106,18 @@ exports.handler = async (event) => {
       !qs.entity_types;
 
     if (wantsDefaultAuBusiness) {
+      // Strong Aussie business preset:
+      //  - country = AU
+      //  - focus on equities + indices (company/market news)
+      //  - require entities (keeps it market-linked)
+      //  - filter + group similar stories to avoid clutter
       url.searchParams.set('countries', regionToCountries.au); // 'au'
       url.searchParams.set('entity_types', 'equity,index');
       url.searchParams.set('must_have_entities', 'true');
+      url.searchParams.set('filter_entities', 'true');
+      url.searchParams.set('group_similar', 'true');
     }
+
 
     // Forward whitelisted params from the UI with validation & sanitization
     for (const key of Object.keys(qs)) {
