@@ -757,173 +757,173 @@
   </div>
 
   <!-- All JS from your existing page, unchanged -->
-  <script>
-    /* ---------- Globals & helpers ---------- */
-    const newsList = document.getElementById("newsList");
-    const toggleMarket = document.getElementById("toggleMarket");
-    const toggleMates = document.getElementById("toggleMates");
-    const categoryRow = document.getElementById("categoryRow");
-    const feedStatus = document.getElementById("feedStatus");
-    const sportFilterRow = document.getElementById("sportFilterRow");
+<script>
+  /* ---------- Globals & helpers ---------- */
+  const newsList = document.getElementById("newsList");
+  const toggleMarket = document.getElementById("toggleMarket");
+  const toggleMates = document.getElementById("toggleMates");
+  const categoryRow = document.getElementById("categoryRow");
+  const feedStatus = document.getElementById("feedStatus");
+  const sportFilterRow = document.getElementById("sportFilterRow");
 
-    const openBriefBtn = document.getElementById("openBrief");
-    const briefContent = document.getElementById("briefContent");
-    const refreshBriefBtn = document.getElementById("refreshBrief");
-    const briefRegionSelect = document.getElementById("briefRegion");
+  const openBriefBtn = document.getElementById("openBrief");
+  const briefContent = document.getElementById("briefContent");
+  const refreshBriefBtn = document.getElementById("refreshBrief");
+  const briefRegionSelect = document.getElementById("briefRegion");
 
-    let allArticles = [];
-    let currentCategory = "all";
-    const selectedSports = new Set();
-    let briefLoadedFor = null; // tracks which region the brief was loaded for
+  let allArticles = [];
+  let currentCategory = "all";
+  const selectedSports = new Set();
+  let briefLoadedFor = null; // tracks which region the brief was loaded for
 
-    function escapeHtml(str = "") {
-      return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+  function escapeHtml(str = "") {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function formatTime(iso) {
+    try {
+      const d = new Date(iso);
+      if (isNaN(d)) return "";
+      return new Intl.DateTimeFormat(undefined, { dateStyle:'short', timeStyle:'short' }).format(d);
+    } catch { return iso || ""; }
+  }
+
+  /* ---------- Mates Morning Note & Stock of the Day loaders ---------- */
+  async function loadMatesMorningNote() {
+    const container = document.getElementById("matesMorningNote");
+    const textBox = document.getElementById("matesNoteText");
+    const timeBox = document.getElementById("matesNoteTimestamp");
+
+    if (!container || !textBox || !timeBox) return;
+
+    try {
+      const res = await fetch("/.netlify/functions/matesMorningNote");
+      const data = await res.json();
+
+      const note = data.note || "No update available.";
+      textBox.textContent = note;
+
+      const now = new Date();
+      timeBox.textContent =
+        "Updated " + now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+
+      container.style.display = "block";
+    } catch (err) {
+      console.error("Failed to load Morning Note", err);
+      if (textBox) textBox.textContent = "Unable to load today’s note.";
+      if (container) container.style.display = "block";
     }
+  }
 
-    function formatTime(iso) {
-      try {
-        const d = new Date(iso);
-        if (isNaN(d)) return "";
-        return new Intl.DateTimeFormat(undefined, { dateStyle:'short', timeStyle:'short' }).format(d);
-      } catch { return iso || ""; }
+  async function loadStockOfTheDay() {
+    const container = document.getElementById("stockOfDay");
+    if (!container) return;
+
+    const tickerEl = document.getElementById("sotdTicker");
+    const nameEl = document.getElementById("sotdName");
+    const exchEl = document.getElementById("sotdExchange");
+    const summaryEl = document.getElementById("sotdSummary");
+
+    if (!tickerEl || !nameEl || !exchEl || !summaryEl) return;
+
+    try {
+      const res = await fetch("/.netlify/functions/stockOfTheDay");
+      const data = await res.json();
+
+      tickerEl.textContent = data.ticker || "—";
+      nameEl.textContent = data.name || "";
+      exchEl.textContent = (data.exchange || "ASX").toUpperCase();
+      summaryEl.textContent = data.summary || "No snapshot available today.";
+
+      container.style.display = "block";
+    } catch (err) {
+      console.error("loadStockOfTheDay failed", err);
+      summaryEl.textContent = "Unable to load today’s Stock of the Day.";
+      container.style.display = "block";
     }
+  }
 
-    /* ---------- Mates Morning Note & Stock of the Day loaders ---------- */
-    async function loadMatesMorningNote() {
-      const container = document.getElementById("matesMorningNote");
-      const textBox = document.getElementById("matesNoteText");
-      const timeBox = document.getElementById("matesNoteTimestamp");
-
-      if (!container || !textBox || !timeBox) return;
-
-      try {
-        const res = await fetch("/.netlify/functions/matesMorningNote");
-        const data = await res.json();
-
-        const note = data.note || "No update available.";
-        textBox.textContent = note;
-
-        const now = new Date();
-        timeBox.textContent =
-          "Updated " + now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
-
-        container.style.display = "block";
-      } catch (err) {
-        console.error("Failed to load Morning Note", err);
-        if (textBox) textBox.textContent = "Unable to load today’s note.";
-        if (container) container.style.display = "block";
-      }
+  /* ---------- Feeds ---------- */
+  async function getMarketFeed() {
+    try {
+      const res = await fetch("/.netlify/functions/newsFeed");
+      const data = await res.json();
+      return data.articles || [];
+    } catch (e) {
+      console.warn("Market feed failed", e);
+      return [];
     }
+  }
 
-    async function loadStockOfTheDay() {
-      const container = document.getElementById("stockOfDay");
-      if (!container) return;
-
-      const tickerEl = document.getElementById("sotdTicker");
-      const nameEl = document.getElementById("sotdName");
-      const exchEl = document.getElementById("sotdExchange");
-      const summaryEl = document.getElementById("sotdSummary");
-
-      if (!tickerEl || !nameEl || !exchEl || !summaryEl) return;
-
-      try {
-        const res = await fetch("/.netlify/functions/stockOfTheDay");
-        const data = await res.json();
-
-        tickerEl.textContent = data.ticker || "—";
-        nameEl.textContent = data.name || "";
-        exchEl.textContent = (data.exchange || "ASX").toUpperCase();
-        summaryEl.textContent = data.summary || "No snapshot available today.";
-
-        container.style.display = "block";
-      } catch (err) {
-        console.error("loadStockOfTheDay failed", err);
-        summaryEl.textContent = "Unable to load today’s Stock of the Day.";
-        container.style.display = "block";
-      }
+  async function getSportsFeed() {
+    try {
+      const res = await fetch("/.netlify/functions/sports-test");
+      return await res.json();
+    } catch (e) {
+      console.warn("Sports feed failed", e);
+      return [];
     }
+  }
 
-    /* ---------- Feeds ---------- */
-    async function getMarketFeed() {
-      try {
-        const res = await fetch("/.netlify/functions/newsFeed");
-        const data = await res.json();
-        return data.articles || [];
-      } catch (e) {
-        console.warn("Market feed failed", e);
-        return [];
-      }
-    }
-
-    async function getSportsFeed() {
-      try {
-        const res = await fetch("/.netlify/functions/sports-test");
-        return await res.json();
-      } catch (e) {
-        console.warn("Sports feed failed", e);
-        return [];
-      }
-    }
-
-    function showSkeleton(count = 4) {
-      newsList.innerHTML = "";
-      for (let i=0;i<count;i++){
-        const div = document.createElement("div");
-        div.className = "headline";
-        div.innerHTML = `<div style="display:flex;align-items:center;gap:0.75rem">
-          <div style="flex:1">
-            <div class="skeleton" style="height:14px;width:60%"></div>
-            <div style="height:8px"></div>
-            <div class="skeleton" style="height:12px;width:30%"></div>
-          </div>
-        </div>`;
-        newsList.appendChild(div);
-      }
-    }
-
-    /* ---------- Mates/OpenAI summary helper ---------- */
-    async function callMatesSummary(payload) {
-      const res = await fetch("/.netlify/functions/matesSummary", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Summary request failed");
-      return res.json();
-    }
-
-    /* ---------- Category detection ---------- */
-    function categoryFromArticle(article) {
-      const title = (article.title || "").toLowerCase();
-      if (title.match(/energy|oil|coal|gas|mining/)) return "energy";
-      if (title.match(/tech|software|ai|chip|cloud/)) return "tech";
-      if (title.match(/inflation|rate|central bank|macro/)) return "macro";
-      return "other";
-    }
-
-    /* ---------- Rendering market & mates mode ---------- */
-    function renderSummary(s) {
-      if (!s) return `<div class="summary-block">No summary available.</div>`;
-      const bullets = (s.tldrBullets || []).map(b => `<li>${escapeHtml(b)}</li>`).join("");
-      return `
-        <div class="summary-block">
-          ${bullets ? `<strong>TL;DR</strong><ul class="tldr-list">${bullets}</ul>` : ""}
-          <details open>
-            <summary style="cursor:pointer;color:var(--muted-2)">Full summary</summary>
-            <div style="margin-top:0.5rem">
-              <p><strong>What's Happening:</strong><br>${escapeHtml(s.whatsHappening || "")}</p>
-              <p><strong>Why It Matters:</strong><br>${escapeHtml(s.whyItMatters || "")}</p>
-              <p><strong>Risks / Watch Outs:</strong><br>${escapeHtml(s.riskNote || "")}</p>
-              <p class="summary-meta" style="opacity:0.7">${escapeHtml(s.disclaimer || "")}</p>
-            </div>
-          </details>
+  function showSkeleton(count = 4) {
+    newsList.innerHTML = "";
+    for (let i=0;i<count;i++){
+      const div = document.createElement("div");
+      div.className = "headline";
+      div.innerHTML = `<div style="display:flex;align-items:center;gap:0.75rem">
+        <div style="flex:1">
+          <div class="skeleton" style="height:14px;width:60%"></div>
+          <div style="height:8px"></div>
+          <div class="skeleton" style="height:12px;width:30%"></div>
         </div>
-      `;
+      </div>`;
+      newsList.appendChild(div);
     }
+  }
+
+  /* ---------- Mates/OpenAI summary helper ---------- */
+  async function callMatesSummary(payload) {
+    const res = await fetch("/.netlify/functions/matesSummary", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Summary request failed");
+    return res.json();
+  }
+
+  /* ---------- Category detection ---------- */
+  function categoryFromArticle(article) {
+    const title = (article.title || "").toLowerCase();
+    if (title.match(/energy|oil|coal|gas|mining/)) return "energy";
+    if (title.match(/tech|software|ai|chip|cloud/)) return "tech";
+    if (title.match(/inflation|rate|central bank|macro/)) return "macro";
+    return "other";
+  }
+
+  /* ---------- Rendering helpers (renderSummary, etc.) ---------- */
+  function renderSummary(s) {
+    if (!s) return `<div class="summary-block">No summary available.</div>`;
+    const bullets = (s.tldrBullets || []).map(b => `<li>${escapeHtml(b)}</li>`).join("");
+    return `
+      <div class="summary-block">
+        ${bullets ? `<strong>TL;DR</strong><ul class="tldr-list">${bullets}</ul>` : ""}
+        <details open>
+          <summary style="cursor:pointer;color:var(--muted-2)">Full summary</summary>
+          <div style="margin-top:0.5rem">
+            <p><strong>What's Happening:</strong><br>${escapeHtml(s.whatsHappening || "")}</p>
+            <p><strong>Why It Matters:</strong><br>${escapeHtml(s.whyItMatters || "")}</p>
+            <p><strong>Risks / Watch Outs:</strong><br>${escapeHtml(s.riskNote || "")}</p>
+            <p class="summary-meta" style="opacity:0.7">${escapeHtml(s.disclaimer || "")}</p>
+          </div>
+        </details>
+      </div>
+    `;
+  }
 
     function renderSportsSummary(s, icon) {
       return `
