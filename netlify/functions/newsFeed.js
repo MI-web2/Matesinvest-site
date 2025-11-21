@@ -40,18 +40,25 @@ exports.handler = async (event) => {
 
     // Whitelist of params we allow the UI to forward to MarketAux
     // (these come from MarketAux docs — only include safe ones you trust)
-    const ALLOWED_PARAMS = new Set([
-      'symbols',       // comma-separated tickers
-      'countries',     // comma-separated ISO country codes
-      'industries',
-      'entity_types',
-      'language',
-      'sentiment_gte',
-      'sentiment_lte',
-      'page',
-      'per_page',
-      'sort_by' // e.g. published_at
-    ]);
+const ALLOWED_PARAMS = new Set([
+  'symbols',       // comma-separated tickers
+  'countries',     // comma-separated ISO country codes
+  'industries',
+  'entity_types',
+  'language',
+  'sentiment_gte',
+  'sentiment_lte',
+  'page',
+  'per_page',
+  'sort_by',          // e.g. published_at
+  'published_after',  // limit to fresh news (YYYY-MM-DD, UTC)
+  'filter_entities',
+  'must_have_entities',
+  'group_similar',
+  'search',
+  'domains'
+]);
+
 
     // Build the MarketAux URL and set the API token
     const base = 'https://api.marketaux.com/v1/news/all';
@@ -64,6 +71,9 @@ exports.handler = async (event) => {
     }
 
     url.searchParams.set('api_token', MARKETAUX_TOKEN);
+    // Default to newest-first unless the UI overrides it later
+url.searchParams.set('sort_by', 'published_at');
+
 
     // Default language to English for consistency
     url.searchParams.set('language', 'en');
@@ -153,6 +163,15 @@ exports.handler = async (event) => {
 
       // fallback: safe encode
       url.searchParams.set(key, String(val));
+    }
+    // If the caller didn't specify a date window, default to "today only" in UTC.
+    // This keeps the morning brief anchored to the latest session instead of mixing older stories.
+    if (!url.searchParams.has('published_after')) {
+      const now = new Date();
+      const y = now.getUTCFullYear();
+      const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(now.getUTCDate()).padStart(2, '0');
+      url.searchParams.set('published_after', `${y}-${m}-${d}`);
     }
 
     // Default page/per_page if not set
