@@ -49,15 +49,15 @@ exports.handler = async (event) => {
       'sentiment_gte',
       'sentiment_lte',
       'page',
-      'limit',            // <-- use limit instead of per_page
-      'sort',             // <-- correct name
-      'published_after',  // limit to fresh news (YYYY-MM-DD, UTC)
+      'per_page',      // back to original
+      'sort_by',       // back to original
       'filter_entities',
       'must_have_entities',
       'group_similar',
       'search',
       'domains'
     ]);
+
 
 
 
@@ -73,7 +73,8 @@ exports.handler = async (event) => {
 
     url.searchParams.set('api_token', MARKETAUX_TOKEN);
     // Default to newest-first unless the UI overrides it later
-    url.searchParams.set('sort', 'published_at');
+    url.searchParams.set('sort_by', 'published_at');
+
 
 
 
@@ -116,15 +117,14 @@ exports.handler = async (event) => {
 
       const val = qs[key];
 
-      if (key === 'limit') {
-        // clamp limit to [1, 100] (Standard plan allows up to 50 per request)
+      if (key === 'per_page') {
+        // clamp per_page to [1, 100]
         let n = parseInt(val, 10);
         if (isNaN(n) || n < 1) n = 1;
         if (n > 100) n = 100;
-        url.searchParams.set('limit', String(n));
+        url.searchParams.set('per_page', String(n));
         continue;
       }
-
 
       if (key === 'page') {
         let p = parseInt(val, 10);
@@ -167,19 +167,11 @@ exports.handler = async (event) => {
       // fallback: safe encode
       url.searchParams.set(key, String(val));
     }
-    // If the caller didn't specify a date window, default to "today only" in UTC.
-    // This keeps the morning brief anchored to the latest session instead of mixing older stories.
-    if (!url.searchParams.has('published_after')) {
-      const now = new Date();
-      const y = now.getUTCFullYear();
-      const m = String(now.getUTCMonth() + 1).padStart(2, '0');
-      const d = String(now.getUTCDate()).padStart(2, '0');
-      url.searchParams.set('published_after', `${y}-${m}-${d}`);
-    }
 
-    // Default page/limit if not set
+    // Default page/per_page if not set
     if (!url.searchParams.has('page')) url.searchParams.set('page', '1');
-    if (!url.searchParams.has('limit')) url.searchParams.set('limit', '20');
+    if (!url.searchParams.has('per_page')) url.searchParams.set('per_page', '20');
+
 
 
     // Perform the fetch with timeout
