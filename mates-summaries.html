@@ -12,17 +12,19 @@
 
   <style>
     :root{
-      --bg: #050814;
-      --card: linear-gradient(180deg, rgba(20,24,40,0.9), rgba(15,18,32,0.85));
-      --muted: rgba(255,255,255,0.66);
-      --muted-2: rgba(255,255,255,0.44);
-      --accent: #3fbf7f;
-      --accent-strong: #2ea668;
-      --accent-soft: rgba(63,191,127,0.12);
-      --border: rgba(255,255,255,0.06);
-      --card-border: rgba(255,255,255,0.03);
-      --glass: rgba(255,255,255,0.03);
-      --radius: 14px;
+      --navy: #002040;
+      --cyan: #00BFFF;
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --muted: #64748b;
+      --muted-2: #94a3b8;
+      --accent: var(--cyan);
+      --accent-strong: #0093cc;
+      --accent-soft: rgba(0,191,255,0.10);
+      --border: #e2e8f0;
+      --card-border: #e2e8f0;
+      --glass: rgba(255,255,255,0.9);
+      --radius: 18px;
       --gap: 1rem;
     }
 
@@ -31,8 +33,8 @@
     body{
       margin:0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      background: radial-gradient(circle at top left, #20274a 0, #050814 45%);
-      color:#fff;
+      background: radial-gradient(circle at top left, #e2ebff 0, #f5f7fb 55%);
+      color:#0b1220;
       -webkit-font-smoothing:antialiased;
       -moz-osx-font-smoothing:grayscale;
       line-height:1.4;
@@ -42,7 +44,26 @@
     .page-shell{
       max-width:1080px;
       margin:0 auto;
-      padding:1rem 1.25rem 3rem;
+      padding:1.5rem 1.25rem 3rem;
+      position:relative;
+    }
+
+    /* Decorative square pattern in top-right */
+    .corner-pattern {
+      position:absolute;
+      top:-18px;
+      right:0;
+      width:150px;
+      height:150px;
+      background:
+        linear-gradient(135deg, rgba(0,191,255,0.25), rgba(0,32,64,0.05)),
+        linear-gradient(90deg, rgba(148,163,184,0.35) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(148,163,184,0.35) 1px, transparent 1px);
+      background-size: 100% 100%, 18px 18px, 18px 18px;
+      border-radius: 24px;
+      opacity:0.7;
+      pointer-events:none;
+      z-index:-1;
     }
 
     /* Accessible visually-hidden utility (keeps H1 for SEO / screen readers) */
@@ -52,20 +73,20 @@
       width: 1px;
       overflow: hidden;
       clip: rect(1px, 1px, 1px, 1px);
-      white-space: nowrap; /* prevent line breaks */
+      white-space: nowrap;
       border: 0;
       padding: 0;
       margin: -1px;
     }
 
-    /* NAV */
+    /* NAV – aligned to main site/app */
     .nav{
       position:sticky;
       top:0;
       z-index:30;
       backdrop-filter: blur(12px);
-      background: linear-gradient(180deg, rgba(5,8,20,0.92), rgba(5,8,20,0.78));
-      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.96);
+      border-bottom: 1px solid #eef1f6;
     }
     .nav-inner{
       max-width:1080px;
@@ -74,95 +95,94 @@
       align-items:center;
       justify-content:space-between;
       gap:1rem;
-      padding:0.9rem 1.25rem;
+      padding:0.7rem 1.25rem;
     }
     .nav-left{display:flex;align-items:center;gap:0.75rem}
-    .nav-logo{height:44px;width:44px;border-radius:8px;object-fit:cover}
-    .nav-title{font-weight:600;font-size:1.05rem}
-    .nav-pill{padding:0.2rem 0.6rem;border-radius:999px;font-size:0.75rem;background:var(--accent-soft);color:var(--accent);border:1px solid rgba(63,191,127,0.26)}
-    .nav-right{font-size:0.82rem;color:var(--muted);display:flex;gap:0.75rem;align-items:center}
-    .nav-home-link{padding:0.35rem 0.8rem;border-radius:999px;border:1px solid var(--border);text-decoration:none;color:#fff;background:rgba(255,255,255,0.03)}
-    .nav-home-link:hover{background:rgba(255,255,255,0.06)}
-
-    /* Card */
-    .card { background: var(--card); border-radius: var(--radius); padding:1.25rem; margin-bottom:1rem; border:1px solid var(--card-border) }
-    .card-hero h1{margin:0;font-size:1.4rem}
-    .card-hero p{margin:0.35rem 0 0;color:var(--muted)}
-
-    /* Morning brief */
-    .brief-header { display:flex; align-items:center; gap:0.75rem; justify-content:space-between; }
-    .brief-controls { display:flex; gap:0.5rem; align-items:center; }
-    .brief-toggle { padding:0.36rem 0.7rem; border-radius:999px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer }
-    .brief-toggle.primary { background:var(--accent); color:#00110a; font-weight:700; border:1px solid rgba(0,0,0,0.06) }
-
-    .brief-content { margin-top:0.9rem; display:none; }
-    .brief-loading { color:var(--muted); font-size:0.95rem }
-
-    .brief-tldr { display:flex; gap:0.6rem; flex-direction:column; margin-top:0.5rem }
-    .brief-bullet { background:rgba(255,255,255,0.02); padding:0.45rem; border-radius:8px; border:1px solid rgba(255,255,255,0.03) }
-
-    /* Controls & chips (existing) */
-    .controls { display:flex; gap:var(--gap); align-items:center; flex-wrap:wrap; margin-top:0.6rem; }
-    .segmented { display:inline-flex; background:var(--glass); border-radius:999px; padding:3px; gap:4px; border:1px solid var(--border); }
-    .segmented button{ background:transparent; border:0; padding:0.45rem 0.85rem; color:var(--muted); border-radius:999px; cursor:pointer; font-size:0.88rem; transition: all .16s ease; }
-    .segmented button.active{ background: linear-gradient(180deg,var(--accent), var(--accent-strong)); color:#00110a; box-shadow: 0 6px 18px rgba(47,143,95,0.12), inset 0 -1px 0 rgba(0,0,0,0.06); }
-
-    .chip-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem}
-    .chip{ padding:0.32rem 0.7rem;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem; transition: all .14s ease; }
-    .chip:hover{background:rgba(255,255,255,0.02)}
-    .chip-active{background:var(--accent-soft);color:#fff;border-color:var(--accent)}
-
-    .sport-row{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem}
-    .sport-chip{ padding:0.28rem 0.6rem;border-radius:999px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted);cursor:pointer;font-size:0.82rem; }
-    .sport-chip.active{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:#fff;box-shadow:inset 0 -1px 0 rgba(0,0,0,0.05)}
-    .sport-tag{display:inline-block;padding:0.12rem 0.5rem;border-radius:999px;background:rgba(255,255,255,0.03);font-size:0.78rem;color:var(--muted);border:1px solid rgba(255,255,255,0.03) }
-
-    /* News list */
-    #newsList{margin-top:0.85rem; display:flex;flex-direction:column; gap:0.85rem}
-    .headline{ display:block; padding:0.95rem; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid var(--card-border); transition: transform .12s ease, box-shadow .12s ease; }
-    .headline:hover{ transform: translateY(-3px); box-shadow: 0 10px 30px rgba(2,6,23,0.55) }
-
-    .meta-row{ display:flex; align-items:center; gap:0.6rem; justify-content:space-between }
-    .meta-left{ display:flex; align-items:center; gap:0.65rem; min-width:0 }
-    .headline h3{ margin:0 0 0.25rem 0; font-size:1rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-    .headline small{ color:var(--muted-2); font-size:0.82rem; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-    .headline .actions{ display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem }
-
-    .btn{ background:var(--accent); border:none; padding:0.5rem 0.95rem; border-radius:999px; cursor:pointer; color:#00110a; font-weight:700; font-size:0.86rem; transition: transform .08s ease, opacity .12s ease; }
-    .btn:active{ transform: translateY(1px) }
-    .btn:disabled{ opacity:0.6; cursor:default }
-
-    .link-min{ background:transparent; border:1px solid var(--border); color:var(--muted); padding:0.42rem 0.7rem; border-radius:999px; text-decoration:none; font-size:0.83rem }
-    .link-min:hover{ background:rgba(255,255,255,0.02) }
-
-    .summary-output{ margin-top:0.65rem }
-
-    .summary-block{ margin-top:0.45rem; border-top:1px dashed rgba(255,255,255,0.04); padding-top:0.6rem; font-size:0.95rem; color: #fff; }
-    .summary-block p{margin:0.45rem 0}
-    .tldr-list{ margin:0.35rem 0 0 0.85rem; padding:0; list-style:none; color:var(--muted) }
-    .tldr-list li{ margin:0.25rem 0; position:relative; padding-left:1.05rem }
-    .tldr-list li::before{ content:""; width:8px;height:8px;border-radius:2px;background:var(--accent);position:absolute;left:0.15rem;top:0.55rem;box-shadow:0 1px 0 rgba(0,0,0,0.2) }
-
-    .summary-meta{ color:var(--muted-2); font-size:0.82rem; margin-top:0.45rem }
-
-    /* Timeline & stats styles */
-    .event-timeline { display:flex; flex-direction:column; gap:0.45rem; margin-top:0.4rem; }
-    .timeline-item { display:flex; gap:0.6rem; align-items:flex-start; font-size:0.92rem; color:var(--muted-2) }
-    .timeline-bullet { width:10px; height:10px; border-radius:999px; background:var(--accent); margin-top:4px; flex-shrink:0 }
-    .timeline-min { width:36px; color:var(--muted); font-weight:600 }
-    .lineup-block { background:rgba(255,255,255,0.02); padding:0.6rem; border-radius:8px; margin-top:0.5rem; color:var(--muted-2) }
-    .stat-row { display:flex; gap:1rem; flex-wrap:wrap; color:var(--muted-2); font-size:0.92rem; margin-top:0.45rem }
-    .stat-pill { padding:0.18rem 0.6rem; border-radius:999px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.02) }
-
-    .skeleton{ background:linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.06), rgba(255,255,255,0.03)); border-radius:8px; height:68px; animation: shimmer 1.2s linear infinite; }
-    @keyframes shimmer{ 0%{ background-position:-120px 0 } 100%{ background-position:220px 0 } }
-
-    @media (max-width:640px){
-      .meta-row{ flex-direction:column; align-items:flex-start; gap:0.5rem }
-      .headline h3{ white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
+    .nav-logo{height:40px;width:40px;border-radius:10px;object-fit:cover}
+    .nav-title{font-weight:700;font-size:1.05rem;color:var(--navy)}
+    .nav-pill{
+      padding:0.15rem 0.65rem;
+      border-radius:999px;
+      font-size:0.75rem;
+      background:#e7f7ff;
+      color:#083a59;
+      border:1px solid #c5e5ff;
+    }
+    .nav-right{
+      font-size:0.82rem;
+      color:var(--muted);
+      display:flex;
+      gap:0.75rem;
+      align-items:center
+    }
+    .nav-home-link{
+      padding:0.4rem 0.9rem;
+      border-radius:999px;
+      border:1px solid #cfd8e3;
+      text-decoration:none;
+      color:#0b1220;
+      background:#ffffff;
+      font-weight:600;
+      font-size:0.86rem;
+    }
+    .nav-home-link:hover{
+      background:#f3f6fb;
     }
 
-    /* === Morning brief: dark-card styles (inline so page doesn't depend on external stylesheet) === */
+    /* Generic card */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding:1.25rem 1.4rem;
+      margin-bottom:1.1rem;
+      border:1px solid var(--card-border);
+      box-shadow: 0 10px 30px rgba(15,23,42,0.08);
+    }
+    .card h2{
+      margin:0;
+      font-size:1.25rem;
+      color:var(--navy);
+    }
+
+    /* Morning brief header */
+    .brief-header {
+      display:flex;
+      align-items:center;
+      gap:0.75rem;
+      justify-content:space-between;
+    }
+    .brief-header small {
+      color:var(--muted);
+    }
+    .brief-controls {
+      display:flex;
+      gap:0.5rem;
+      align-items:center;
+    }
+    .brief-toggle {
+      padding:0.4rem 0.8rem;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#ffffff;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:0.85rem;
+    }
+    .brief-toggle.primary {
+      background:var(--accent);
+      color:#001220;
+      font-weight:700;
+      border:1px solid rgba(0,0,0,0.04);
+    }
+
+    .brief-content {
+      margin-top:0.9rem;
+      display:none;
+    }
+    .brief-loading {
+      color:var(--muted);
+      font-size:0.95rem;
+    }
 
     /* Top meta (As of / source) */
     .brief-top-meta {
@@ -171,7 +191,7 @@
       justify-content:space-between;
       gap:12px;
       margin-bottom:10px;
-      color:rgba(255,255,255,0.55); /* muted light on dark */
+      color:var(--muted);
       font-size:0.9rem;
     }
 
@@ -179,38 +199,34 @@
     .brief-badge {
       display:inline-block;
       padding:4px 8px;
-      border-radius:8px;
+      border-radius:999px;
       font-weight:700;
       font-size:0.9rem;
     }
-
     .brief-badge.up {
-      background:#052e1f;   /* very dark green background */
-      color:#6ee7b7;        /* green text */
-      border:1px solid rgba(110,231,183,0.14);
+      background:rgba(22,163,74,0.08);
+      color:#15803d;
+      border:1px solid rgba(22,163,74,0.25);
     }
-
     .brief-badge.down {
-      background:#2a0b0b;   /* very dark red */
-      color:#ffb4b4;        /* soft red text */
-      border:1px solid rgba(255,180,180,0.06);
+      background:rgba(220,38,38,0.06);
+      color:#b91c1c;
+      border:1px solid rgba(220,38,38,0.22);
     }
-
     .brief-badge.neutral {
-      background:rgba(255,255,255,0.03);
-      color:rgba(255,255,255,0.75);
+      background:rgba(148,163,184,0.1);
+      color:#475569;
     }
-
     .brief-badge.no-data {
       background:transparent;
-      color:rgba(255,255,255,0.6);
+      color:var(--muted);
       font-weight:600;
-      border-radius:6px;
+      border-radius:999px;
       padding:3px 6px;
-      opacity:0.95;
+      opacity:0.9;
     }
 
-    /* Horizontal-friendly grid: encourage multiple columns on desktop */
+    /* Morning brief grid & cards */
     .brief-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -219,7 +235,6 @@
       align-items: start;
     }
 
-    /* Top two cards (Mates note + Stock) layout inside brief */
     .brief-top-cards {
       display:grid;
       grid-template-columns: 1fr 1fr;
@@ -230,143 +245,54 @@
       .brief-top-cards { grid-template-columns: 1fr; }
     }
 
-    /* Card styling tuned for dark theme (clear border + soft shadow + hover lift) */
     .card-metal {
       padding: 0.9rem;
-      border-radius: 12px;
-      background: linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));
-      border: 1px solid rgba(255,255,255,0.04); /* subtle light border on dark bg */
+      border-radius: 14px;
+      background: radial-gradient(circle at top left, #0f172a, #020617);
+      border: 1px solid rgba(148,163,184,0.35);
       display: flex;
       flex-direction: column;
       gap: 8px;
       box-shadow:
-        0 12px 30px rgba(2,6,23,0.45), /* main drop */
-        0 1px 0 rgba(255,255,255,0.02) inset; /* tiny inset highlight */
+        0 18px 40px rgba(15,23,42,0.75),
+        0 1px 0 rgba(148,163,184,0.2) inset;
       min-height: 84px;
       transition: transform 160ms ease, box-shadow 160ms ease;
+      color:#e2e8f0;
     }
-
-    /* Little hover lift for desktop */
     .card-metal:hover {
-      transform: translateY(-6px);
+      transform: translateY(-4px);
       box-shadow:
-        0 18px 44px rgba(2,6,23,0.55),
-        0 2px 0 rgba(255,255,255,0.03) inset;
+        0 22px 50px rgba(15,23,42,0.85),
+        0 2px 0 rgba(148,163,184,0.25) inset;
     }
-
-    /* Head / price area inside card; align items center for neat horizontal layout */
     .metal-head {
       display:flex;
       justify-content:space-between;
-      align-items:center; /* center vertically */
+      align-items:center;
       gap:8px;
     }
-
-    /* Left column: name */
     .metal-name {
       font-size:0.92rem;
-      color:rgba(255,255,255,0.85); /* lighter heading */
+      color:#e2e8f0;
     }
-
-    /* Main price */
     .metal-price {
       font-weight:800;
       font-size:1.05rem;
-      color:#ffffff; /* main price white */
+      color:#f9fafb;
       margin-top:6px;
     }
-
-    /* Secondary text (units, USD) */
     .metal-sub {
       font-size:0.85rem;
-      color:rgba(255,255,255,0.55); /* muted */
+      color:rgba(148,163,184,0.85);
     }
 
-    /* USD secondary text styling */
-    .metal-sub.usd { color:rgba(255,255,255,0.46); font-weight:600; }
-
-    /* Optional compact narrative (kept small) */
-    .metal-note { color:rgba(255,255,255,0.6); font-size:0.92rem; }
-
-    /* Responsive behaviour:
-       - Very wide screens: grid uses the min width so multiple cards in a row
-       - Medium screens: two columns for a horizontal feel
-       - Small screens: single column and hide USD
-    */
-    @media (max-width: 1100px) and (min-width: 800px) {
-      .brief-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
-    }
-
-    @media (max-width: 799px) {
-      .brief-grid { grid-template-columns: 1fr; }
-      .metal-sub.usd { display: none; } /* keep mobile tidy */
-    }
-
-    /* =========================
-       MOBILE TIDY-UP (phones)
-       ========================= */
-    @media (max-width: 480px) {
-      /* make page tighter */
-      .page-shell { padding: 0.7rem 0.9rem 2rem; }
-
-      /* compact nav */
-      .nav-inner { padding: 0.5rem 0.9rem; gap:0.5rem; }
-      .nav-logo { height:34px; width:34px; }
-      .nav-title { font-size:0.98rem; }
-      .nav-pill { display:none; } /* hide prototype pill on small screens */
-      .nav-right { font-size:0.78rem; gap:0.5rem; }
-
-      /* stack brief header and controls vertically */
-      .brief-header { flex-direction: column; align-items:flex-start; gap:0.6rem; }
-      .brief-header > div:first-child { width:100%; }
-      .brief-controls { width:100%; display:flex; gap:0.45rem; justify-content:flex-start; flex-wrap:wrap; }
-      .brief-controls select { flex:0 0 auto; min-width:120px; }
-      .brief-controls .brief-toggle { flex:0 0 auto; padding:0.28rem 0.6rem; font-size:0.86rem; }
-
-      /* reduce card padding and card-metal padding */
-      .card { padding:0.85rem; border-radius:12px; }
-      .card-metal { padding:0.66rem; min-height:72px; }
-      .headline { padding:0.7rem; }
-
-      /* reduce font sizes for compactness */
-      .metal-name { font-size:0.86rem; }
-      .metal-price { font-size:0.98rem; }
-      .brief-top-meta { font-size:0.82rem; gap:8px; }
-
-      /* ensure chip row can scroll horizontally */
-      .chip-row { overflow-x:auto; -webkit-overflow-scrolling:touch; gap:0.5rem; padding-bottom:6px; }
-      .chip { white-space:nowrap; flex:0 0 auto; }
-
-      /* tighten grid gaps */
-      .brief-grid { gap:10px; }
-
-      /* ensure headline meta rows wrap nicely */
-      .meta-row { gap:0.4rem; align-items:flex-start; }
-
-      /* remove large left margins, keep rounded edges */
-      .summary-block { padding-top:0.45rem; }
-
-      /* reduce top spacing where possible */
-      .page-shell > section.card:first-of-type { margin-top: 0.4rem; }
-
-      /* make small buttons fit */
-      .btn, .link-min { padding:0.4rem 0.7rem; font-size:0.82rem; }
-
-      /* make sure modal-like brief-content can expand naturally */
-      .brief-content { margin-top:0.6rem; }
-
-      /* keep body bottom padding modest */
-      body { padding-bottom:2rem; }
-    }
-
-    /* ---------------------
-       Mates Morning Note & SOTD card styles (kept simple)
-    ---------------------- */
+    /* Mates Morning Note & SOTD cards */
     .mates-note {
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-      border: 1px solid rgba(255,255,255,0.04);
+      background:#f9fbff;
+      border: 1px solid #dbeafe;
       padding: 0.9rem 1rem;
-      border-radius: 12px;
+      border-radius: 14px;
     }
     .mates-note-header {
       display:flex;
@@ -376,30 +302,31 @@
     }
     .mates-note-header .pill {
       background: var(--accent-soft);
-      color: var(--accent);
+      color: var(--accent-strong);
       padding: 3px 10px;
       border-radius: 999px;
       font-size: 0.78rem;
-      border:1px solid rgba(63,191,127,0.26);
+      border:1px solid rgba(0,191,255,0.35);
     }
-    .mates-note-body { font-size:0.92rem; color:rgba(255,255,255,0.85); line-height:1.45; }
+    .mates-note-body { font-size:0.92rem; color:#0b1220; line-height:1.45; }
     .mates-note .timestamp { font-size:0.78rem; color: var(--muted-2); }
 
     .sotd-card {
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-      border: 1px solid rgba(255,255,255,0.04);
-      border-radius: 12px;
+      background:#f9fbff;
+      border: 1px solid #dbeafe;
+      border-radius: 14px;
       padding: 0.9rem 1rem;
     }
-    .sotd-header { display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.4rem; flex-wrap:wrap; }
+    .sotd-header { display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.4rem; }
     .sotd-title-left { display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; }
-    .sotd-pill { background: var(--accent-soft); color: var(--accent); padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; border:1px solid rgba(63,191,127,0.26); }
-    .sotd-ticker { font-weight:600; letter-spacing:0.03em; font-size:0.9rem; }
-    .sotd-name { font-size:0.9rem; color:var(--muted-2); }
+    .sotd-pill { background: var(--accent-soft); color: var(--accent-strong); padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; border:1px solid rgba(0,191,255,0.35); }
+    .sotd-ticker { font-weight:600; letter-spacing:0.04em; font-size:0.9rem; color:var(--navy); }
+    .sotd-name { font-size:0.9rem; color:var(--muted); }
     .sotd-exchange { font-size:0.8rem; color:var(--muted-2); }
-    .sotd-summary { font-size:0.9rem; line-height:1.45; color:rgba(255,255,255,0.9); margin-bottom:0.35rem; }
+    .sotd-summary { font-size:0.9rem; line-height:1.45; color:#0b1220; margin-bottom:0.35rem; }
+    .sotd-disclaimer { font-size:0.78rem;color:var(--muted-2); }
 
-    /* === New: Top performers UI inside Morning Brief === */
+    /* Top performers UI */
     .top-performers {
       margin-top: 12px;
       display: grid;
@@ -407,10 +334,10 @@
       gap: 10px;
     }
     .perf-card {
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-      border: 1px solid rgba(255,255,255,0.03);
+      background:#f9fafb;
+      border: 1px solid #e2e8f0;
       padding: 10px;
-      border-radius: 10px;
+      border-radius: 12px;
       display:flex;
       flex-direction:column;
       gap:6px;
@@ -418,15 +345,331 @@
       justify-content:center;
     }
     .perf-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-    .perf-symbol { font-weight:800; font-size:1rem; color:#fff; }
+    .perf-symbol { font-weight:800; font-size:1rem; color:#0f172a; }
     .perf-exch { font-size:0.78rem; color:var(--muted-2); }
-    .perf-last { font-size:0.95rem; font-weight:700; color:#fff; }
+    .perf-last { font-size:0.95rem; font-weight:700; color:#0f172a; }
     .perf-pct { font-weight:700; font-size:0.86rem; padding:4px 8px; border-radius:999px; align-self:flex-start; }
-    .perf-pct.up { background: rgba(110,231,183,0.12); color: #6ee7b7; border: 1px solid rgba(110,231,183,0.18); }
-    .perf-pct.down { background: rgba(255,180,180,0.06); color: #ffb4b4; border: 1px solid rgba(255,180,180,0.08); }
+    .perf-pct.up { background: rgba(22,163,74,0.06); color: #15803d; border: 1px solid rgba(22,163,74,0.22); }
+    .perf-pct.down { background: rgba(220,38,38,0.06); color: #b91c1c; border: 1px solid rgba(220,38,38,0.22); }
+    .perf-pct.neutral { background:rgba(148,163,184,0.08); color:#475569; }
     .perf-note { color:var(--muted-2); font-size:0.82rem; }
     @media (max-width:560px) {
       .top-performers { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Controls & chips */
+    .controls {
+      display:flex;
+      gap:var(--gap);
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top:0.6rem;
+    }
+    .segmented {
+      display:inline-flex;
+      background:#f1f5f9;
+      border-radius:999px;
+      padding:3px;
+      gap:4px;
+      border:1px solid var(--border);
+    }
+    .segmented button{
+      background:transparent;
+      border:0;
+      padding:0.45rem 0.85rem;
+      color:var(--muted);
+      border-radius:999px;
+      cursor:pointer;
+      font-size:0.88rem;
+      transition: all .16s ease;
+    }
+    .segmented button.active{
+      background: linear-gradient(180deg,var(--accent), var(--accent-strong));
+      color:#001220;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.2);
+    }
+
+    .chip-row{
+      display:flex;
+      gap:0.5rem;
+      flex-wrap:wrap;
+      margin-top:0.6rem;
+    }
+    .chip{
+      padding:0.32rem 0.7rem;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#ffffff;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:0.82rem;
+      transition: all .14s ease;
+    }
+    .chip:hover{background:#f8fafc}
+    .chip-active{
+      background:var(--accent-soft);
+      color:#001220;
+      border-color:var(--accent);
+      font-weight:600;
+    }
+
+    .sport-row{
+      display:flex;
+      gap:0.5rem;
+      flex-wrap:wrap;
+      margin-top:0.6rem;
+    }
+    .sport-chip{
+      padding:0.28rem 0.6rem;
+      border-radius:999px;
+      border:1px solid #e2e8f0;
+      background:#f9fafb;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:0.82rem;
+    }
+    .sport-chip.active{
+      background:#e0f2fe;
+      border-color:#bae6fd;
+      color:#0b1220;
+      box-shadow:0 1px 0 rgba(15,23,42,0.07);
+    }
+    .sport-tag{
+      display:inline-block;
+      padding:0.12rem 0.5rem;
+      border-radius:999px;
+      background:#e2e8f0;
+      font-size:0.78rem;
+      color:#475569;
+      border:1px solid #cbd5e1;
+    }
+
+    /* News list */
+    #newsList{
+      margin-top:0.85rem;
+      display:flex;
+      flex-direction:column;
+      gap:0.85rem;
+    }
+    .headline{
+      display:block;
+      padding:0.95rem;
+      border-radius:12px;
+      background:#f9fbff;
+      border:1px solid #e2e8f0;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .headline:hover{
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(15,23,42,0.18);
+      background:#ffffff;
+    }
+
+    .meta-row{
+      display:flex;
+      align-items:center;
+      gap:0.6rem;
+      justify-content:space-between;
+    }
+    .meta-left{
+      display:flex;
+      align-items:center;
+      gap:0.65rem;
+      min-width:0;
+    }
+    .headline h3{
+      margin:0 0 0.25rem 0;
+      font-size:1rem;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      color:#0b1220;
+    }
+    .headline small{
+      color:var(--muted-2);
+      font-size:0.82rem;
+      display:block;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .headline .actions{
+      display:flex;
+      gap:0.6rem;
+      align-items:center;
+      margin-top:0.6rem;
+    }
+
+    .btn{
+      background:var(--accent);
+      border:none;
+      padding:0.5rem 0.95rem;
+      border-radius:999px;
+      cursor:pointer;
+      color:#001220;
+      font-weight:700;
+      font-size:0.86rem;
+      transition: transform .08s ease, opacity .12s ease, box-shadow .12s ease;
+      box-shadow:0 5px 14px rgba(15,23,42,0.22);
+    }
+    .btn:active{ transform: translateY(1px) }
+    .btn:disabled{ opacity:0.6; cursor:default }
+
+    .link-min{
+      background:#ffffff;
+      border:1px solid var(--border);
+      color:#0b1220;
+      padding:0.42rem 0.7rem;
+      border-radius:999px;
+      text-decoration:none;
+      font-size:0.83rem;
+    }
+    .link-min:hover{ background:#f8fafc }
+
+    .summary-output{ margin-top:0.65rem }
+
+    .summary-block{
+      margin-top:0.45rem;
+      border-top:1px dashed #e2e8f0;
+      padding-top:0.6rem;
+      font-size:0.95rem;
+      color:#0b1220;
+    }
+    .summary-block p{margin:0.45rem 0}
+    .tldr-list{
+      margin:0.35rem 0 0 0.85rem;
+      padding:0;
+      list-style:none;
+      color:var(--muted);
+    }
+    .tldr-list li{
+      margin:0.25rem 0;
+      position:relative;
+      padding-left:1.05rem;
+    }
+    .tldr-list li::before{
+      content:"";
+      width:8px;height:8px;
+      border-radius:2px;
+      background:var(--accent);
+      position:absolute;
+      left:0.15rem;
+      top:0.55rem;
+      box-shadow:0 1px 0 rgba(15,23,42,0.25);
+    }
+
+    .summary-meta{
+      color:var(--muted-2);
+      font-size:0.82rem;
+      margin-top:0.45rem;
+    }
+
+    /* Timeline & stats styles */
+    .event-timeline {
+      display:flex;
+      flex-direction:column;
+      gap:0.45rem;
+      margin-top:0.4rem;
+    }
+    .timeline-item {
+      display:flex;
+      gap:0.6rem;
+      align-items:flex-start;
+      font-size:0.92rem;
+      color:var(--muted-2);
+    }
+    .timeline-bullet {
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      background:var(--accent);
+      margin-top:4px;
+      flex-shrink:0;
+    }
+    .timeline-min {
+      width:36px;
+      color:var(--muted);
+      font-weight:600;
+    }
+    .lineup-block {
+      background:#f9fafb;
+      padding:0.6rem;
+      border-radius:8px;
+      margin-top:0.5rem;
+      color:var(--muted-2);
+      border:1px solid #e2e8f0;
+    }
+    .stat-row {
+      display:flex;
+      gap:1rem;
+      flex-wrap:wrap;
+      color:var(--muted-2);
+      font-size:0.92rem;
+      margin-top:0.45rem;
+    }
+    .stat-pill {
+      padding:0.18rem 0.6rem;
+      border-radius:999px;
+      background:#f9fafb;
+      border:1px solid #e2e8f0;
+    }
+
+    .skeleton{
+      background:linear-gradient(90deg, #e5e7eb, #f3f4f6, #e5e7eb);
+      border-radius:8px;
+      height:68px;
+      animation: shimmer 1.2s linear infinite;
+      background-size:220px 100%;
+    }
+    @keyframes shimmer{
+      0%{ background-position:-120px 0 }
+      100%{ background-position:220px 0 }
+    }
+
+    @media (max-width:640px){
+      .meta-row{ flex-direction:column; align-items:flex-start; gap:0.5rem }
+      .headline h3{
+        white-space:normal;
+        display:-webkit-box;
+        -webkit-line-clamp:2;
+        -webkit-box-orient:vertical;
+        overflow:hidden;
+      }
+    }
+
+    /* MOBILE tidy-up */
+    @media (max-width: 480px) {
+      .page-shell { padding: 0.9rem 1rem 2rem; }
+
+      .nav-inner { padding: 0.55rem 1rem; gap:0.5rem; }
+      .nav-logo { height:32px; width:32px; }
+      .nav-title { font-size:0.98rem; }
+      .nav-pill { display:none; }
+      .nav-right { font-size:0.78rem; gap:0.5rem; }
+
+      .brief-header {
+        flex-direction: column;
+        align-items:flex-start;
+        gap:0.6rem;
+      }
+      .brief-controls {
+        width:100%;
+        flex-wrap:wrap;
+      }
+
+      .card { padding:1rem; border-radius:16px; }
+      .card-metal { padding:0.7rem; min-height:72px; }
+
+      .chip-row {
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+        padding-bottom:6px;
+      }
+      .chip { white-space:nowrap; }
+
+      .btn, .link-min { padding:0.42rem 0.75rem; font-size:0.82rem; }
+
+      body { padding-bottom:2rem; }
     }
   </style>
 
@@ -449,35 +692,38 @@
     </div>
   </div>
 
-<div class="page-shell">
+  <div class="page-shell">
+    <div class="corner-pattern" aria-hidden="true"></div>
 
-  <!-- HERO (kept for accessibility/SEO but visually hidden) -->
-  <h1 class="visually-hidden">MatesFeed</h1>
+    <!-- HERO (kept for accessibility/SEO but visually hidden) -->
+    <h1 class="visually-hidden">MatesFeed</h1>
 
-  <!-- MORNING BRIEF -->
-  <section id="morningBrief" class="card">
-    <div class="brief-header">
-      <div>
-        <h2 style="margin:0">Morning Briefing</h2>
-        <div style="color:var(--muted);font-size:0.92rem;margin-top:0.35rem">A short note on what could move markets in Australia today.</div>
+    <!-- MORNING BRIEF -->
+    <section id="morningBrief" class="card">
+      <div class="brief-header">
+        <div>
+          <h2 style="margin:0">Morning Briefing</h2>
+          <div style="color:var(--muted);font-size:0.92rem;margin-top:0.35rem">
+            A short note on what could move markets in Australia today.
+          </div>
+        </div>
+
+        <div class="brief-controls">
+          <select id="briefRegion" class="brief-toggle" aria-label="Region">
+            <option value="au" selected>Australia (ASX)</option>
+            <option value="us">US</option>
+            <option value="global">Global</option>
+          </select>
+
+          <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
+          <button id="refreshBrief" class="brief-toggle" title="Refresh">Refresh</button>
+        </div>
       </div>
 
-      <div class="brief-controls">
-        <select id="briefRegion" class="brief-toggle" aria-label="Region">
-          <option value="au" selected>Australia (ASX)</option>
-          <option value="us">US</option>
-          <option value="global">Global</option>
-        </select>
-
-        <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
-        <button id="refreshBrief" class="brief-toggle" title="Refresh">Refresh</button>
+      <div id="briefContent" class="brief-content" aria-live="polite">
+        <!-- injected by JS -->
       </div>
-    </div>
-
-    <div id="briefContent" class="brief-content" aria-live="polite">
-      <!-- injected by JS: will include placeholders for Mates Morning Note + Stock of the Day + metals grid + top performers -->
-    </div>
-  </section>
+    </section>
 
     <!-- LATEST HEADLINES -->
     <section id="news" class="card" aria-labelledby="latest-headlines">
@@ -510,6 +756,271 @@
     </section>
   </div>
 
+  <!-- All JS from your existing page, unchanged -->
+  <script>
+    /* ---------- Globals & helpers ---------- */
+    const newsList = document.getElementById("newsList");
+    const toggleMarket = document.getElementById("toggleMarket");
+    const toggleMates = document.getElementById("toggleMates");
+    const categoryRow = document.getElementById("categoryRow");
+    const feedStatus = document.getElementById("feedStatus");
+    const sportFilterRow = document.getElementById("sportFilterRow");
+
+    const openBriefBtn = document.getElementById("openBrief");
+    const briefContent = document.getElementById("briefContent");
+    const refreshBriefBtn = document.getElementById("refreshBrief");
+    const briefRegionSelect = document.getElementById("briefRegion");
+
+    let allArticles = [];
+    let currentCategory = "all";
+    const selectedSports = new Set();
+    let briefLoadedFor = null; // tracks which region the brief was loaded for
+
+    function escapeHtml(str = "") {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function formatTime(iso) {
+      try {
+        const d = new Date(iso);
+        if (isNaN(d)) return "";
+        return new Intl.DateTimeFormat(undefined, { dateStyle:'short', timeStyle:'short' }).format(d);
+      } catch { return iso || ""; }
+    }
+
+    /* ---------- Mates Morning Note & Stock of the Day loaders ---------- */
+    async function loadMatesMorningNote() {
+      const container = document.getElementById("matesMorningNote");
+      const textBox = document.getElementById("matesNoteText");
+      const timeBox = document.getElementById("matesNoteTimestamp");
+
+      if (!container || !textBox || !timeBox) return;
+
+      try {
+        const res = await fetch("/.netlify/functions/matesMorningNote");
+        const data = await res.json();
+
+        const note = data.note || "No update available.";
+        textBox.textContent = note;
+
+        const now = new Date();
+        timeBox.textContent =
+          "Updated " + now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+
+        container.style.display = "block";
+      } catch (err) {
+        console.error("Failed to load Morning Note", err);
+        if (textBox) textBox.textContent = "Unable to load today’s note.";
+        if (container) container.style.display = "block";
+      }
+    }
+
+    async function loadStockOfTheDay() {
+      const container = document.getElementById("stockOfDay");
+      if (!container) return;
+
+      const tickerEl = document.getElementById("sotdTicker");
+      const nameEl = document.getElementById("sotdName");
+      const exchEl = document.getElementById("sotdExchange");
+      const summaryEl = document.getElementById("sotdSummary");
+
+      if (!tickerEl || !nameEl || !exchEl || !summaryEl) return;
+
+      try {
+        const res = await fetch("/.netlify/functions/stockOfTheDay");
+        const data = await res.json();
+
+        tickerEl.textContent = data.ticker || "—";
+        nameEl.textContent = data.name || "";
+        exchEl.textContent = (data.exchange || "ASX").toUpperCase();
+        summaryEl.textContent = data.summary || "No snapshot available today.";
+
+        container.style.display = "block";
+      } catch (err) {
+        console.error("loadStockOfTheDay failed", err);
+        summaryEl.textContent = "Unable to load today’s Stock of the Day.";
+        container.style.display = "block";
+      }
+    }
+
+    /* ---------- Feeds ---------- */
+    async function getMarketFeed() {
+      try {
+        const res = await fetch("/.netlify/functions/newsFeed");
+        const data = await res.json();
+        return data.articles || [];
+      } catch (e) {
+        console.warn("Market feed failed", e);
+        return [];
+      }
+    }
+
+    async function getSportsFeed() {
+      try {
+        const res = await fetch("/.netlify/functions/sports-test");
+        return await res.json();
+      } catch (e) {
+        console.warn("Sports feed failed", e);
+        return [];
+      }
+    }
+
+    function showSkeleton(count = 4) {
+      newsList.innerHTML = "";
+      for (let i=0;i<count;i++){
+        const div = document.createElement("div");
+        div.className = "headline";
+        div.innerHTML = `<div style="display:flex;align-items:center;gap:0.75rem">
+          <div style="flex:1">
+            <div class="skeleton" style="height:14px;width:60%"></div>
+            <div style="height:8px"></div>
+            <div class="skeleton" style="height:12px;width:30%"></div>
+          </div>
+        </div>`;
+        newsList.appendChild(div);
+      }
+    }
+
+    /* ---------- Mates/OpenAI summary helper ---------- */
+    async function callMatesSummary(payload) {
+      const res = await fetch("/.netlify/functions/matesSummary", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Summary request failed");
+      return res.json();
+    }
+
+    /* ---------- Category detection ---------- */
+    function categoryFromArticle(article) {
+      const title = (article.title || "").toLowerCase();
+      if (title.match(/energy|oil|coal|gas|mining/)) return "energy";
+      if (title.match(/tech|software|ai|chip|cloud/)) return "tech";
+      if (title.match(/inflation|rate|central bank|macro/)) return "macro";
+      return "other";
+    }
+
+    /* ---------- Rendering market & mates mode ---------- */
+    function renderSummary(s) {
+      if (!s) return `<div class="summary-block">No summary available.</div>`;
+      const bullets = (s.tldrBullets || []).map(b => `<li>${escapeHtml(b)}</li>`).join("");
+      return `
+        <div class="summary-block">
+          ${bullets ? `<strong>TL;DR</strong><ul class="tldr-list">${bullets}</ul>` : ""}
+          <details open>
+            <summary style="cursor:pointer;color:var(--muted-2)">Full summary</summary>
+            <div style="margin-top:0.5rem">
+              <p><strong>What's Happening:</strong><br>${escapeHtml(s.whatsHappening || "")}</p>
+              <p><strong>Why It Matters:</strong><br>${escapeHtml(s.whyItMatters || "")}</p>
+              <p><strong>Risks / Watch Outs:</strong><br>${escapeHtml(s.riskNote || "")}</p>
+              <p class="summary-meta" style="opacity:0.7">${escapeHtml(s.disclaimer || "")}</p>
+            </div>
+          </details>
+        </div>
+      `;
+    }
+
+    function renderSportsSummary(s, icon) {
+      return `
+        <div class="summary-block">
+          <strong>${escapeHtml(s.oneLiner || "")}</strong>
+          <p><strong>What Actually Happened:</strong><br>${escapeHtml(s.whatsHappening || "")}</p>
+        </div>
+      `;
+    }
+
+    function getSportIcon(ev) {
+      const league = (ev.league || "").toLowerCase();
+      const sport = (ev.sport || "").toLowerCase();
+
+      if (league.includes("nrl") || sport.includes("league")) return "🏉";
+      if (league.includes("afl")) return "🏉";
+      if (league.includes("nba") || sport.includes("basketball")) return "🏀";
+      if (league.includes("epl") || league.includes("premier") || sport.includes("soccer")) return "⚽";
+      if (sport.includes("cricket") || league.includes("bbl")) return "🏏";
+      if (league.includes("mlb") || sport.includes("baseball")) return "⚾";
+      if (league.includes("nfl") || sport.includes("football")) return "🏈";
+      if (league.includes("nhl") || sport.includes("hockey")) return "🏒";
+      if (sport.includes("f1") || sport.includes("formula")) return "🏎️";
+      if (sport.includes("tennis")) return "🎾";
+      if (sport.includes("golf")) return "⛳";
+      return "🎯";
+    }
+
+    async function renderMarketMode() {
+      sportFilterRow.style.display = "none";
+      newsList.innerHTML = "";
+      const filtered = allArticles.filter(a =>
+        currentCategory === "all" || categoryFromArticle(a) === currentCategory
+      );
+
+      if (!filtered.length) {
+        newsList.innerHTML = `<div class="headline"><small style="color:var(--muted)">No market headlines yet.</small></div>`;
+        return;
+      }
+
+      filtered.forEach(a => {
+        const item = document.createElement("div");
+        item.className = "headline";
+
+        const published = formatTime(a.publishedAt || a.published || "");
+
+        item.innerHTML = `
+          <div class="meta-row">
+            <div class="meta-left">
+              <div style="min-width:0">
+                <h3 title="${escapeHtml(a.title || '')}">${escapeHtml(a.title || '')}</h3>
+                <small>${escapeHtml(a.source || "")} · ${escapeHtml(published)}</small>
+              </div>
+            </div>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">Read original</a>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn" aria-label="Generate summary for article">MatesInvest summary</button>
+          </div>
+          <div class="summary-output"></div>
+        `;
+
+        const btn = item.querySelector("button");
+        const output = item.querySelector(".summary-output");
+        let busy = false;
+
+        btn.addEventListener("click", async () => {
+          if (busy) return;
+          busy = true;
+          btn.disabled = true;
+          const origText = btn.textContent;
+          btn.textContent = "Summarising…";
+
+          try {
+            const summary = await callMatesSummary({
+              text: `${a.title}\n\n${a.description || ""}`,
+              sourceType: "news_article",
+              headline: a.title,
+            });
+
+            output.innerHTML = renderSummary(summary);
+          } catch (err) {
+            console.error(err);
+            output.textContent = "Summary failed.";
+          } finally {
+            btn.disabled = false;
+            btn.textContent = origText;
+            busy = false;
+          }
+        });
+
+        newsList.appendChild(item);
+      });
+    }
 <script>
   /* ---------- Globals & helpers ---------- */
   const newsList = document.getElementById("newsList");
