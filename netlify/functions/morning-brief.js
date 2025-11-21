@@ -444,6 +444,25 @@ exports.handler = async function (event) {
 
           const cleaned = results.filter(Boolean);
           cleaned.sort((a, b) => b.pctGain - a.pctGain);
+// Load today's mcaps
+const rawMcap = await redisGet("mcaps:latest");
+let mcaps = [];
+if (rawMcap) mcaps = JSON.parse(rawMcap);
+
+// Convert to map for fast lookup
+const mcapMap = {};
+for (const item of mcaps) {
+  mcapMap[item.code.replace(".AU","")] = item.mcap;
+}
+
+// Apply threshold
+const MIN_MCAP = 300_000_000;
+
+topPerformers = topPerformers.filter(tp => {
+  const mc = mcapMap[tp.symbol] || 0;
+  return mc >= MIN_MCAP;
+});
+
           topPerformers = cleaned.slice(0, 5);
           eodhdDebug.steps.push({
             source: "computed",
