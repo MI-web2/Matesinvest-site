@@ -1383,7 +1383,6 @@ function renderMorningBrief(payload) {
           <div class="perf-top">
             <div>
               <div class="perf-symbol">${escapeHtml(tp.symbol || '')}</div>
-              <div class="perf-exch">${escapeHtml(tp.exchange || '')}</div>
             </div>
             <div>
               <div class="perf-last">${lastClose}</div>
@@ -1445,7 +1444,10 @@ function renderMorningBrief(payload) {
       const unitFromSnapshot = (m.unit || m.unit === '' ? m.unit : (m.unitName || '')).toString().trim();
       const unit = unitFromSnapshot || ((sym === 'XAU' || sym === 'XAG') ? 'oz' : (sym === 'IRON' ? 'tonne' : 'unit'));
 
-      const priceDisplay = priceAUDraw !== null ? `$${formatMoney(priceAUDraw)} AUD` : '<span style="color:#ffd166">Unavailable</span>';
+const priceDisplay = priceAUDraw !== null 
+    ? `$${formatMoney(priceAUDraw)}`
+    : '<span style="color:#ffd166">Unavailable</span>';
+
 
       // pct badge
       let pctHtml = `<span class="brief-badge no-data" aria-hidden="true">—</span>`;
