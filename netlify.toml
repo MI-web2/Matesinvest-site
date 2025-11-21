@@ -1,4 +1,7 @@
-[[functions]]
-  # Run snapshot-metals.js every day at 7pm UTC (6am AEST)
+[functions]
+  directory = "netlify/functions"
+
+[functions."snapshot-metals"]
+  # Run once a day at 19:00 UTC
+  # (which is 6am AEDT / 5am AEST the next day – good enough for a daily snapshot)
   schedule = "0 19 * * *"
-  path = "netlify/functions/snapshot-metals.js"
