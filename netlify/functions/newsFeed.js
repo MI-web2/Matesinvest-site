@@ -40,24 +40,25 @@ exports.handler = async (event) => {
 
     // Whitelist of params we allow the UI to forward to MarketAux
     // (these come from MarketAux docs — only include safe ones you trust)
-const ALLOWED_PARAMS = new Set([
-  'symbols',       // comma-separated tickers
-  'countries',     // comma-separated ISO country codes
-  'industries',
-  'entity_types',
-  'language',
-  'sentiment_gte',
-  'sentiment_lte',
-  'page',
-  'per_page',
-  'sort_by',          // e.g. published_at
-  'published_after',  // limit to fresh news (YYYY-MM-DD, UTC)
-  'filter_entities',
-  'must_have_entities',
-  'group_similar',
-  'search',
-  'domains'
-]);
+    const ALLOWED_PARAMS = new Set([
+      'symbols',       // comma-separated tickers
+      'countries',     // comma-separated ISO country codes
+      'industries',
+      'entity_types',
+      'language',
+      'sentiment_gte',
+      'sentiment_lte',
+      'page',
+      'limit',            // <-- use limit instead of per_page
+      'sort',             // <-- correct name
+      'published_after',  // limit to fresh news (YYYY-MM-DD, UTC)
+      'filter_entities',
+      'must_have_entities',
+      'group_similar',
+      'search',
+      'domains'
+    ]);
+
 
 
     // Build the MarketAux URL and set the API token
@@ -72,7 +73,8 @@ const ALLOWED_PARAMS = new Set([
 
     url.searchParams.set('api_token', MARKETAUX_TOKEN);
     // Default to newest-first unless the UI overrides it later
-url.searchParams.set('sort_by', 'published_at');
+    url.searchParams.set('sort', 'published_at');
+
 
 
     // Default language to English for consistency
@@ -114,14 +116,15 @@ url.searchParams.set('sort_by', 'published_at');
 
       const val = qs[key];
 
-      if (key === 'per_page') {
-        // clamp per_page to [1, 100] (MarketAux may allow different limits per plan)
+      if (key === 'limit') {
+        // clamp limit to [1, 100] (Standard plan allows up to 50 per request)
         let n = parseInt(val, 10);
         if (isNaN(n) || n < 1) n = 1;
         if (n > 100) n = 100;
-        url.searchParams.set('per_page', String(n));
+        url.searchParams.set('limit', String(n));
         continue;
       }
+
 
       if (key === 'page') {
         let p = parseInt(val, 10);
@@ -174,9 +177,10 @@ url.searchParams.set('sort_by', 'published_at');
       url.searchParams.set('published_after', `${y}-${m}-${d}`);
     }
 
-    // Default page/per_page if not set
+    // Default page/limit if not set
     if (!url.searchParams.has('page')) url.searchParams.set('page', '1');
-    if (!url.searchParams.has('per_page')) url.searchParams.set('per_page', '20');
+    if (!url.searchParams.has('limit')) url.searchParams.set('limit', '20');
+
 
     // Perform the fetch with timeout
     const timeoutMs = 9000;
