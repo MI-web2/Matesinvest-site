@@ -706,16 +706,10 @@
           </div>
         </div>
 
-        <div class="brief-controls">
-          <select id="briefRegion" class="brief-toggle" aria-label="Region">
-            <option value="au" selected>Australia (ASX)</option>
-            <option value="us">US</option>
-            <option value="global">Global</option>
-          </select>
+<div class="brief-controls">
+  <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
+</div>
 
-          <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
-          <button id="refreshBrief" class="brief-toggle" title="Refresh">Refresh</button>
-        </div>
       </div>
 
       <div id="briefContent" class="brief-content" aria-live="polite">
@@ -764,10 +758,9 @@
     const feedStatus = document.getElementById("feedStatus");
     const sportFilterRow = document.getElementById("sportFilterRow");
 
-    const openBriefBtn = document.getElementById("openBrief");
-    const briefContent = document.getElementById("briefContent");
-    const refreshBriefBtn = document.getElementById("refreshBrief");
-    const briefRegionSelect = document.getElementById("briefRegion");
+const openBriefBtn = document.getElementById("openBrief");
+const briefContent = document.getElementById("briefContent");
+
 
     let allArticles = [];
     let currentCategory = "all";
@@ -1508,7 +1501,7 @@ const priceDisplay = priceAUDraw !== null
 
 /* ---------- open / refresh handlers (updated to load Mates note + SOTD after rendering) ---------- */
 openBriefBtn.addEventListener("click", async () => {
-  const region = briefRegionSelect.value || "au";
+  const region = "au";
   if (briefContent.style.display === "block") {
     briefContent.style.display = "none";
     openBriefBtn.textContent = "Open morning brief";
@@ -1535,29 +1528,6 @@ openBriefBtn.addEventListener("click", async () => {
   } catch (err) {
     console.error('Morning brief failed', err);
     briefContent.innerHTML = `<div class="brief-loading">Failed to load morning brief.</div>`;
-  }
-});
-
-refreshBriefBtn.addEventListener("click", async () => {
-  if (briefContent.style.display !== "block") {
-    openBriefBtn.click();
-    return;
-  }
-  try {
-    briefContent.innerHTML = `<div class="brief-loading">Refreshing briefing…</div>`;
-    const region = briefRegionSelect.value || "au";
-    const res = await fetch(`/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`);
-    if (!res.ok) throw new Error('Refresh failed');
-    const payload = await res.json();
-    renderMorningBrief(payload);
-
-    // refresh the two extra cards as well
-    loadMatesMorningNote();
-    loadStockOfTheDay();
-
-  } catch (err) {
-    console.error('Refresh failed', err);
-    briefContent.innerHTML = `<div class="brief-loading">Failed to refresh morning brief.</div>`;
   }
 });
 
