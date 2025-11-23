@@ -1,10 +1,10 @@
 // netlify/functions/snapshot-mcaps.js
-// Daily snapshot of all ASX symbols + their market caps from EODHD
+// Daily snapshot of all ASX symbols + their market caps from EODHD Screener.
 // Saved as: mcaps:YYYY-MM-DD and mcaps:latest
 //
-// This version includes a debug mode (?debug=1) that returns a small sample
-// of symbols + fundamentals and does NOT write to Upstash. Use that to
-// quickly verify EODHD responses and environment variables.
+// Debug mode:
+//   /.netlify/functions/snapshot-mcaps?debug=1
+//   -> fetches data but does NOT write to Upstash, returns a sample payload.
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -12,142 +12,197 @@ const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN;
 
-async function redisSet(key, value) {
-  if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-    throw new Error("Upstash env variables missing (UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN)");
+// ---------- Simple helpers ----------
+
+async function fetchJson(url, opts = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    const text = await res.text().catch(() => "");
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch (e) {
+      json = null;
+    }
+    return { ok: res.ok, status: res.status, json, text };
+  } catch (err) {
+    return { ok: false, status: 0, json: null, text: String(err && err.message || err) };
+  } finally {
+    clearTimeout(id);
   }
-  const res = await fetch(`${UPSTASH_URL}/set/${encodeURIComponent(key)}`, {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${UPSTASH_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ value })
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(()=>"");
-    throw new Error(`Upstash set failed ${res.status} ${text}`);
-  }
-  const j = await res.json().catch(()=>null);
-  return j;
 }
 
-async function fetchJson(url) {
-  const res = await fetch(url);
-  const txt = await res.text().catch(()=>"");
-  try { return JSON.parse(txt); } catch { return { _rawText: txt }; }
+async function redisSet(key, value) {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) {
+    console.warn("redisSet skipped, Upstash env vars missing");
+    return false;
+  }
+
+  const payload = encodeURIComponent(JSON.stringify(value));
+  const url = `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${payload}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    console.error("redisSet failed:", key, res.status, txt);
+    return false;
+  }
+  return true;
 }
+
+// ---------- Main handler ----------
 
 exports.handler = async (event) => {
   try {
-    // --- Quick checks & debug mode ---
-    const qs = (event && event.queryStringParameters) ? event.queryStringParameters : {};
-    const isDebug = qs.debug === '1' || qs.debug === 'true';
+    const qs = (event && event.queryStringParameters) || {};
+    const isDebug = qs.debug === "1" || qs.debug === "true";
 
-    if (isDebug) {
-      // Diagnostic path: fetch list and sample fundamentals (no writes)
-      if (!EODHD_API_TOKEN) {
-        return { statusCode: 500, body: JSON.stringify({ error: "EODHD_API_TOKEN missing in environment" }, null, 2) };
-      }
-
-      const listUrl = `https://eodhd.com/api/exchange-symbol-list/AU?api_token=${EODHD_API_TOKEN}&fmt=json`;
-      const list = await fetchJson(listUrl);
-
-      if (!Array.isArray(list)) {
-        return { statusCode: 500, body: JSON.stringify({ error: "Failed to load ASX symbol list", list }, null, 2) };
-      }
-
-      const sample = list.slice(0, 10);
-      const out = [];
-      for (const item of sample) {
-        const symbol = item.Code || item.code || item.symbol;
-        const name = item.Name || item.name || "";
-        if (!symbol) {
-          out.push({ raw: item, note: "no symbol field" });
-          continue;
-        }
-        const full = `${symbol}.AU`;
-        const fundamentalsUrl = `https://eodhd.com/api/fundamentals/${encodeURIComponent(full)}?api_token=${EODHD_API_TOKEN}&fmt=json`;
-        const fundamentals = await fetchJson(fundamentalsUrl);
-        // heuristics for market cap fields
-        let mcap = null;
-        if (fundamentals && typeof fundamentals === "object") {
-          mcap = fundamentals?.Highlights?.MarketCapitalization ?? fundamentals?.marketCap ?? fundamentals?.MarketCap ?? fundamentals?.mktCap ?? null;
-        }
-        out.push({ code: full, name, mcap: mcap ?? null, fundamentalsPreview: fundamentals && typeof fundamentals === "object" ? Object.keys(fundamentals).slice(0,6) : fundamentals });
-        // polite pause (avoid bursting EODHD)
-        await new Promise(r => setTimeout(r, 200));
-      }
-
-      return { statusCode: 200, body: JSON.stringify({ debug: true, sample: out, note: "debug mode: no Upstash writes performed" }, null, 2) };
-    }
-
-    // --- Normal scheduled run path ---
-    // Basic env checks
     if (!EODHD_API_TOKEN) {
       const msg = "EODHD_API_TOKEN missing in environment";
       console.error(msg);
       return { statusCode: 500, body: JSON.stringify({ error: msg }) };
     }
+
     if (!UPSTASH_URL || !UPSTASH_TOKEN) {
       const msg = "Upstash env variables missing (UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN)";
       console.error(msg);
-      return { statusCode: 500, body: JSON.stringify({ error: msg }) };
+      if (!isDebug) {
+        return { statusCode: 500, body: JSON.stringify({ error: msg }) };
+      }
     }
 
-    const today = new Date().toISOString().slice(0,10);
+    const today = new Date().toISOString().slice(0, 10);
     console.log("snapshot-mcaps: starting snapshot for", today);
 
-    // 1) Load all ASX symbols
-    const listUrl = `https://eodhd.com/api/exchange-symbol-list/AU?api_token=${EODHD_API_TOKEN}&fmt=json`;
-    const list = await fetchJson(listUrl);
-    if (!Array.isArray(list)) {
-      console.error("Failed to fetch ASX list", list);
-      return { statusCode: 500, body: JSON.stringify({ error: "Failed to load ASX symbol list", list }) };
-    }
-    console.log("Loaded ASX symbol list length:", list.length);
+    // -------- 1) Page through EODHD Screener for ASX --------
+    const LIMIT = 100; // Screener max per call
+    let offset = 0;
+    const all = [];
 
-    // 2) For each symbol fetch fundamentals (serial - rate-limited)
-    const snapshot = [];
-    let processed = 0;
-    for (const item of list) {
-      const symbol = item.Code || item.code || item.symbol;
-      if (!symbol) continue;
+    while (true) {
+      const filters = '[["exchange","=","AU"]]';
+      const url =
+        `https://eodhd.com/api/screener?` +
+        `api_token=${encodeURIComponent(EODHD_API_TOKEN)}` +
+        `&filters=${encodeURIComponent(filters)}` +
+        `&sort=market_capitalization.desc` +
+        `&limit=${LIMIT}` +
+        `&offset=${offset}`;
 
-      const full = `${symbol}.AU`;
-      const fundamentalsUrl = `https://eodhd.com/api/fundamentals/${encodeURIComponent(full)}?api_token=${EODHD_API_TOKEN}&fmt=json`;
-      const fundamentals = await fetchJson(fundamentalsUrl);
-      // attempt a few likely fields for market cap
-      let mcap = null;
-      if (fundamentals && typeof fundamentals === "object") {
-        mcap = fundamentals?.Highlights?.MarketCapitalization ?? fundamentals?.marketCap ?? fundamentals?.MarketCap ?? fundamentals?.mktCap ?? null;
+      const { ok, status, json, text } = await fetchJson(url, {}, 15000);
+
+      if (!ok || !Array.isArray(json)) {
+        console.error("Screener call failed", { status, text });
+        return {
+          statusCode: 500,
+          body: JSON.stringify(
+            { error: "Failed to load screener data", status, text },
+            null,
+            2
+          )
+        };
       }
-      snapshot.push({
-        code: full,
-        mcap: (typeof mcap === "number" && Number.isFinite(mcap)) ? mcap : (typeof mcap === "string" ? Number(String(mcap).replace(/[^\d.-]/g,'')) : null),
-        name: item.Name || item.name || "",
-        sector: (fundamentals && fundamentals?.General && fundamentals.General.Sector) ? fundamentals.General.Sector : (item.sector || "")
-      });
 
-      processed++;
-      if (processed % 50 === 0) console.log(`Processed ${processed} symbols...`);
-      // Rate-limit safety pause; adjust if your plan allows higher rates
-      await new Promise(r => setTimeout(r, 300));
+      if (json.length === 0) {
+        console.log("No more screener rows at offset", offset);
+        break;
+      }
+
+      console.log(`Fetched ${json.length} screener rows at offset ${offset}`);
+
+      for (const row of json) {
+        const code =
+          (row.code || row.Code || row.symbol || row.Symbol || "").toString().trim();
+        if (!code) continue;
+
+        const name =
+          (row.name || row.Name || row.companyName || row.CompanyName || "").toString().trim();
+        const exchange =
+          (row.exchange || row.Exchange || "AU").toString().trim().toUpperCase();
+
+        const rawMcap =
+          row.market_capitalization ??
+          row.MarketCapitalization ??
+          row.market_cap ??
+          row.MarketCap ??
+          null;
+
+        const marketCap = rawMcap !== null ? Number(rawMcap) : null;
+
+        all.push({
+          code: code.toUpperCase(),   // e.g. "CBA"
+          name,
+          exchange,                   // e.g. "AU"
+          marketCap                   // USD, as provided by EODHD
+        });
+      }
+
+      if (json.length < LIMIT) {
+        // last page
+        break;
+      }
+
+      offset += LIMIT;
+
+      // Safety stop so we don’t loop forever if something weird happens
+      if (offset > 5000) {
+        console.warn("Stopping screener pagination early at offset", offset);
+        break;
+      }
     }
 
-    console.log("Fetched fundamentals for", snapshot.length, "symbols. Writing to Upstash...");
+    console.log("Total rows collected:", all.length);
 
-    // 3) Write snapshots to Upstash
+    // -------- 2) Debug mode: return sample, no writes --------
+    if (isDebug) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify(
+          {
+            date: today,
+            count: all.length,
+            sample: all.slice(0, 25)
+          },
+          null,
+          2
+        )
+      };
+    }
+
+    // -------- 3) Persist to Upstash --------
     try {
-      await redisSet(`mcaps:${today}`, snapshot);
-      await redisSet("mcaps:latest", snapshot);
-      console.log("Saved snapshots to Upstash:", `mcaps:${today}`, "mcaps:latest");
+      const keyToday = `mcaps:${today}`;
+      await redisSet(keyToday, all);
+      await redisSet("mcaps:latest", all);
+      console.log("Saved snapshots to Upstash:", keyToday, "and mcaps:latest");
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ saved: all.length, key: keyToday }, null, 2)
+      };
     } catch (e) {
       console.error("Failed to write to Upstash:", e && e.message);
-      return { statusCode: 500, body: JSON.stringify({ error: "Upstash write failed", detail: String(e && e.message || e) }) };
+      return {
+        statusCode: 500,
+        body: JSON.stringify(
+          { error: "Upstash write failed", detail: String(e && e.message || e) },
+          null,
+          2
+        )
+      };
     }
-
-    return { statusCode: 200, body: JSON.stringify({ saved: snapshot.length, key: `mcaps:${today}` }, null, 2) };
-
   } catch (err) {
     console.error("snapshot-mcaps error:", err && (err.stack || err.message || err));
-    return { statusCode: 500, body: JSON.stringify({ error: (err && err.message) || String(err) }) };
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: (err && err.message) || String(err) })
+    };
   }
 };
