@@ -73,6 +73,7 @@ exports.handler = async (event) => {
     if (!UPSTASH_URL || !UPSTASH_TOKEN) {
       const msg = "Upstash env variables missing (UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN)";
       console.error(msg);
+      // In debug we still allow reading to inspect payload
       if (!isDebug) {
         return { statusCode: 500, body: JSON.stringify({ error: msg }) };
       }
@@ -98,8 +99,8 @@ exports.handler = async (event) => {
 
       const { ok, status, json, text } = await fetchJson(url, {}, 15000);
 
-      if (!ok || !Array.isArray(json)) {
-        console.error("Screener call failed", { status, text });
+      if (!ok) {
+        console.error("Screener HTTP error", { status, text });
         return {
           statusCode: 500,
           body: JSON.stringify(
@@ -110,14 +111,31 @@ exports.handler = async (event) => {
         };
       }
 
-      if (json.length === 0) {
+      // EODHD screener can return either an array or { data: [...] }
+      const rows = Array.isArray(json)
+        ? json
+        : (json && Array.isArray(json.data) ? json.data : null);
+
+      if (!rows) {
+        console.error("Unexpected screener JSON shape", { status, text });
+        return {
+          statusCode: 500,
+          body: JSON.stringify(
+            { error: "Unexpected screener JSON shape", status, text },
+            null,
+            2
+          )
+        };
+      }
+
+      if (rows.length === 0) {
         console.log("No more screener rows at offset", offset);
         break;
       }
 
-      console.log(`Fetched ${json.length} screener rows at offset ${offset}`);
+      console.log(`Fetched ${rows.length} screener rows at offset ${offset}`);
 
-      for (const row of json) {
+      for (const row of rows) {
         const code =
           (row.code || row.Code || row.symbol || row.Symbol || "").toString().trim();
         if (!code) continue;
@@ -140,11 +158,11 @@ exports.handler = async (event) => {
           code: code.toUpperCase(),   // e.g. "CBA"
           name,
           exchange,                   // e.g. "AU"
-          marketCap                   // USD, as provided by EODHD
+          marketCap                   // usually in local currency (A$ for AU)
         });
       }
 
-      if (json.length < LIMIT) {
+      if (rows.length < LIMIT) {
         // last page
         break;
       }
