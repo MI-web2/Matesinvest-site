@@ -1432,7 +1432,7 @@ const cachedHint = (payload._debug && payload._debug.cached)
 
   if (metalsObj) {
     const symbols = Object.keys(metalsObj);
-    const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron', 'LITH-CAR':'Lithium (LCE)', NI: 'Nickel', URANIUM: 'Uranium' };
+    const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron Ore 62% Fe', 'LITH-CAR':'Lithium Carbonate', NI: 'Nickel', URANIUM: 'Uranium' };
 
     const cards = symbols.map(sym => {
       const m = metalsObj[sym] || {};
