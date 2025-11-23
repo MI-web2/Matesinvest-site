@@ -1354,8 +1354,14 @@ function renderMorningBrief(payload) {
     return;
   }
 
-  const sourceNote = (payload._debug && payload._debug.fxSource) ? `Source: Metals-API · FX: ${payload._debug.fxSource}` : 'Source: Metals-API';
-  const cachedHint = (payload._debug && payload._debug.cached) ? '<span style="color:var(--muted);font-size:0.9rem"> · cached</span>' : '';
+const sourceNote = (payload._debug && payload._debug.fxSource)
+  ? `<span style="font-size:0.78rem;color:var(--muted-2);opacity:0.85;">Source: Metals-API · FX: ${payload._debug.fxSource}</span>`
+  : `<span style="font-size:0.78rem;color:var(--muted-2);opacity:0.85;">Source: Metals-API</span>`;
+
+const cachedHint = (payload._debug && payload._debug.cached)
+  ? `<span style="font-size:0.75rem;color:var(--muted);opacity:0.6;"> · cached</span>`
+  : '';
+
 
   // Accept either payload.metals (old) or payload.symbols (snapshot-metals.js)
   const metalsObj = (payload.metals && typeof payload.metals === 'object')
