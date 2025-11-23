@@ -783,32 +783,32 @@ const briefContent = document.getElementById("briefContent");
       } catch { return iso || ""; }
     }
 
-    /* ---------- Mates Morning Note & Stock of the Day loaders ---------- */
-    async function loadMatesMorningNote() {
-      const container = document.getElementById("matesMorningNote");
-      const textBox = document.getElementById("matesNoteText");
-      const timeBox = document.getElementById("matesNoteTimestamp");
+/* ---------- Mates Morning Note & Stock of the Day loaders ---------- */
+async function loadMatesMorningNote() {
+  const container = document.getElementById("matesMorningNote");
+  const textBox = document.getElementById("matesNoteText");
+  const timeBox = document.getElementById("matesNoteTimestamp");
 
-      if (!container || !textBox || !timeBox) return;
+  if (!container || !textBox || !timeBox) return;
 
-      try {
-        const res = await fetch("/.netlify/functions/matesMorningNote");
-        const data = await res.json();
+  try {
+    const res = await fetch("/.netlify/functions/matesMorningNote");
+    const data = await res.json();
 
-        const note = data.note || "No update available.";
-        textBox.textContent = note;
+    const note = data.note || "No update available.";
+    textBox.textContent = note;
 
-        const now = new Date();
-        timeBox.textContent =
-          "Updated " + now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    // FIXED DAILY TIMESTAMP (matches scheduled 6am AEST generation)
+    timeBox.textContent = "Updated 6:00am AEST";
 
-        container.style.display = "block";
-      } catch (err) {
-        console.error("Failed to load Morning Note", err);
-        if (textBox) textBox.textContent = "Unable to load today’s note.";
-        if (container) container.style.display = "block";
-      }
-    }
+    container.style.display = "block";
+  } catch (err) {
+    console.error("Failed to load Morning Note", err);
+    if (textBox) textBox.textContent = "Unable to load today’s note.";
+    if (container) container.style.display = "block";
+  }
+}
+
 
     async function loadStockOfTheDay() {
       const container = document.getElementById("stockOfDay");
