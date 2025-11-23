@@ -142,42 +142,59 @@ exports.handler = async function (event) {
     }
 
     // ------------------------------
-    // 1b) Yesterday snapshot for pct change
-    // ------------------------------
-    let yesterdayData = null;
-    try {
-      const d = new Date();
-      const yd = new Date(
-        Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - 1)
-      );
-      const key = `metals:${yd.toISOString().slice(0, 10)}`; // metals:YYYY-MM-DD
-      const val = await redisGet(key);
-      if (val) {
-        if (typeof val === "string") {
-          try {
-            yesterdayData = JSON.parse(val);
-          } catch (e) {
-            yesterdayData = null;
-            debug.steps.push({
-              source: "parse-yesterday-failed",
-              error: e && e.message,
-            });
-          }
-        } else if (typeof val === "object") {
-          yesterdayData = val;
-        }
+// 1b) Yesterday snapshot for pct change
+// ------------------------------
+let yesterdayData = null;
+try {
+  // Work out "yesterday" relative to the time the latest snapshot was taken,
+  // not the server's current clock. This avoids UTC vs AEST date mismatches.
+  let keyDate;
+
+  if (latestSnapshot && (latestSnapshot.snappedAt || latestSnapshot.priceTimestamp)) {
+    const base = new Date(
+      latestSnapshot.snappedAt || latestSnapshot.priceTimestamp
+    );
+    base.setUTCDate(base.getUTCDate() - 1);
+    keyDate = base.toISOString().slice(0, 10);
+  } else {
+    // Fallback: one calendar day before current UTC date
+    const d = new Date();
+    const yd = new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - 1)
+    );
+    keyDate = yd.toISOString().slice(0, 10);
+  }
+
+  const key = `metals:${keyDate}`; // metals:YYYY-MM-DD
+  const val = await redisGet(key);
+
+  if (val) {
+    if (typeof val === "string") {
+      try {
+        yesterdayData = JSON.parse(val);
+      } catch (e) {
+        yesterdayData = null;
+        debug.steps.push({
+          source: "parse-yesterday-failed",
+          error: e && e.message,
+        });
       }
-      debug.steps.push({
-        source: "redis-get-yesterday",
-        key,
-        found: !!yesterdayData,
-      });
-    } catch (e) {
-      debug.steps.push({
-        source: "redis-get-error",
-        error: e && e.message,
-      });
+    } else if (typeof val === "object") {
+      yesterdayData = val;
     }
+  }
+
+  debug.steps.push({
+    source: "redis-get-yesterday",
+    key,
+    found: !!yesterdayData,
+  });
+} catch (e) {
+  debug.steps.push({
+    source: "redis-get-error",
+    error: e && e.message,
+  });
+}
 
     // assemble per-symbol result
     const metals = {};
