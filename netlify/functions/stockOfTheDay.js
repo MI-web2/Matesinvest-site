@@ -60,8 +60,7 @@ function pickIndexForDate(dateStr, max) {
 
 
 // -------------------------------
-// Static ASX stock pool for now
-// (you can tweak this list easily)
+// Static ASX stock pool (fallback)
 // -------------------------------
 const STOCK_POOL = [
   {
@@ -136,7 +135,7 @@ const STOCK_POOL = [
   }
 ];
 
-function pickStockForToday(dateStr) {
+function pickStockForTodayFromPool(dateStr) {
   const index = pickIndexForDate(dateStr, STOCK_POOL.length);
   return STOCK_POOL[index];
 }
@@ -172,13 +171,23 @@ with no extra text, no markdown, no additional fields.
 // -------------------------------
 // MAIN HANDLER
 // -------------------------------
-exports.handler = async function (event, context) {
+exports.handler = async function (event) {
   try {
-    const region =
-      (event.queryStringParameters && event.queryStringParameters.region) || "au";
+    const qs = event.queryStringParameters || {};
+
+    const region = (qs.region || "au").toLowerCase();
+
+    // If the frontend passes a top performer, use that as the stock
+    const paramTicker =
+      (qs.ticker || qs.symbol || "").toString().trim().toUpperCase();
+    const paramName = (qs.name || "").toString().trim();
+    const paramExchange = (qs.exchange || "ASX").toString().trim().toUpperCase();
 
     const todayAEST = getAussieDateString();
-    const cacheKey = `stockOfTheDay:${region}:${todayAEST}`;
+
+    // Cache key now includes ticker so we don’t mix stocks on the same day
+    const cacheKeyBase = paramTicker || "pool";
+    const cacheKey = `stockOfTheDay:${region}:${todayAEST}:${cacheKeyBase}`;
 
     // 1) Check cache
     const cached = await redisGet(cacheKey);
@@ -191,10 +200,25 @@ exports.handler = async function (event, context) {
       };
     }
 
-    // 2) Pick today's stock
-    const stock = pickStockForToday(todayAEST);
+    // 2) Build stock descriptor
+    let stock;
+    let source = "pool";
 
-    // If no OpenAI key, basic fallback summary
+    if (paramTicker && paramName) {
+      // Chosen from top performers (frontend will pass ticker & name)
+      stock = {
+        ticker: paramTicker,
+        name: paramName,
+        exchange: paramExchange || "ASX",
+        blurb: `${paramName} (${paramTicker}) is an ASX-listed company that has recently been among the strongest performers on the market.`
+      };
+      source = "top-performer";
+    } else {
+      // Fallback: deterministic pick from static pool
+      stock = pickStockForTodayFromPool(todayAEST);
+    }
+
+    // 3) If no OpenAI key, basic fallback summary
     if (!OPENAI_API_KEY) {
       const fallbackSummary = `${stock.name} (${stock.ticker}) is ${stock.blurb} This summary is a general description only and not a recommendation.`;
 
@@ -205,7 +229,7 @@ exports.handler = async function (event, context) {
         exchange: stock.exchange,
         summary: fallbackSummary,
         generatedAt: new Date().toISOString(),
-        _debug: { usedFallback: true }
+        _debug: { usedFallback: true, source }
       };
 
       return {
@@ -215,7 +239,7 @@ exports.handler = async function (event, context) {
       };
     }
 
-    // 3) Call OpenAI
+    // 4) Call OpenAI
     const prompt = buildPrompt(stock);
 
     const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -264,7 +288,8 @@ exports.handler = async function (event, context) {
       summary,
       generatedAt: new Date().toISOString(),
       _debug: {
-        usedFallback: false
+        usedFallback: false,
+        source
       }
     };
 

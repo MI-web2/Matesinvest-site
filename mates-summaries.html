@@ -810,33 +810,58 @@ async function loadMatesMorningNote() {
 }
 
 
-    async function loadStockOfTheDay() {
-      const container = document.getElementById("stockOfDay");
-      if (!container) return;
+async function loadStockOfTheDay() {
+  const container = document.getElementById("stockOfDay");
+  const tickerEl = document.getElementById("sotdTicker");
+  const nameEl = document.getElementById("sotdName");
+  const summaryEl = document.getElementById("sotdSummary");
 
-      const tickerEl = document.getElementById("sotdTicker");
-      const nameEl = document.getElementById("sotdName");
-      const exchEl = document.getElementById("sotdExchange");
-      const summaryEl = document.getElementById("sotdSummary");
+  if (!container || !tickerEl || !nameEl || !summaryEl) return;
 
-      if (!tickerEl || !nameEl || !exchEl || !summaryEl) return;
-
-      try {
-        const res = await fetch("/.netlify/functions/stockOfTheDay");
-        const data = await res.json();
-
-        tickerEl.textContent = data.ticker || "—";
-        nameEl.textContent = data.name || "";
-        exchEl.textContent = (data.exchange || "ASX").toUpperCase();
-        summaryEl.textContent = data.summary || "No snapshot available today.";
-
-        container.style.display = "block";
-      } catch (err) {
-        console.error("loadStockOfTheDay failed", err);
-        summaryEl.textContent = "Unable to load today’s Stock of the Day.";
-        container.style.display = "block";
-      }
+  try {
+    // Choose one of the top 5 performers
+    let chosen = null;
+    if (window._topPerformers && window._topPerformers.length) {
+const n = Math.min(5, window._topPerformers.length);
+const idx = Math.floor(Math.random() * n);
+chosen = window._topPerformers[idx];
+ // or Math.floor(Math.random() * Math.min(5, window._topPerformers.length))
     }
+
+    let url = "/.netlify/functions/stockOfTheDay";
+
+    if (chosen) {
+      const rawSymbol = chosen.symbol || "";
+      // strip .AU / .AX etc if present for display
+      const displayTicker = rawSymbol.replace(/\.A.*/i, "") || rawSymbol;
+
+      const params = new URLSearchParams({
+        ticker: displayTicker,
+        name: chosen.name || displayTicker,
+        exchange: "ASX"
+      });
+
+      url += `?${params.toString()}`;
+
+      // Make the header match the chosen stock
+      tickerEl.textContent = displayTicker;
+      nameEl.textContent = chosen.name || "";
+    }
+
+    summaryEl.textContent = "Loading today’s snapshot…";
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    summaryEl.textContent = data.summary || "No summary available.";
+    container.style.display = "block";
+  } catch (err) {
+    console.error("Failed to load Stock of the Day", err);
+    summaryEl.textContent =
+      "Unable to load today’s Stock of the Day.";
+    container.style.display = "block";
+  }
+}
 
     /* ---------- Feeds ---------- */
     async function getMarketFeed() {

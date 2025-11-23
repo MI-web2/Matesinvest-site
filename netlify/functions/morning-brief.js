@@ -1,7 +1,8 @@
 // netlify/functions/morning-brief.js
 // Morning brief for multiple metals + top performers across ASX (AU) using EODHD.
 // - Metals prices: snapshot-only from Upstash (no live metals/FX fetches)
-// - Top performers: EODHD-backed 5-business-day % gain for AU exchange
+// - Top performers: EODHD-backed 5-business-day % gain for AU exchange,
+//   filtered by market cap using Upstash "mcaps:latest".
 //
 // Required env:
 //   UPSTASH_REDIS_REST_URL
@@ -10,13 +11,16 @@
 // Optional env:
 //   EODHD_MAX_SYMBOLS_PER_EXCHANGE (default 500)
 //   EODHD_CONCURRENCY (default 8)
-//   EODHD_MIN_MARKET_CAP (not used in this simple scan, reserved for future)
+//   EODHD_MIN_MARKET_CAP (default 300_000_000)
 
 const fetch = (...args) => global.fetch(...args);
 
 exports.handler = async function (event) {
   const nowIso = new Date().toISOString();
 
+  // -------------------------------
+  // Helpers
+  // -------------------------------
   async function fetchWithTimeout(url, opts = {}, timeout = 9000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
@@ -142,59 +146,59 @@ exports.handler = async function (event) {
     }
 
     // ------------------------------
-// 1b) Yesterday snapshot for pct change
-// ------------------------------
-let yesterdayData = null;
-try {
-  // Work out "yesterday" relative to the time the latest snapshot was taken,
-  // not the server's current clock. This avoids UTC vs AEST date mismatches.
-  let keyDate;
+    // 1b) Yesterday snapshot for pct change
+    // ------------------------------
+    let yesterdayData = null;
+    try {
+      // Work out "yesterday" relative to the time the latest snapshot was taken,
+      // not the server's current clock. This avoids UTC vs AEST date mismatches.
+      let keyDate;
 
-  if (latestSnapshot && (latestSnapshot.snappedAt || latestSnapshot.priceTimestamp)) {
-    const base = new Date(
-      latestSnapshot.snappedAt || latestSnapshot.priceTimestamp
-    );
-    base.setUTCDate(base.getUTCDate() - 1);
-    keyDate = base.toISOString().slice(0, 10);
-  } else {
-    // Fallback: one calendar day before current UTC date
-    const d = new Date();
-    const yd = new Date(
-      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - 1)
-    );
-    keyDate = yd.toISOString().slice(0, 10);
-  }
-
-  const key = `metals:${keyDate}`; // metals:YYYY-MM-DD
-  const val = await redisGet(key);
-
-  if (val) {
-    if (typeof val === "string") {
-      try {
-        yesterdayData = JSON.parse(val);
-      } catch (e) {
-        yesterdayData = null;
-        debug.steps.push({
-          source: "parse-yesterday-failed",
-          error: e && e.message,
-        });
+      if (latestSnapshot && (latestSnapshot.snappedAt || latestSnapshot.priceTimestamp)) {
+        const base = new Date(
+          latestSnapshot.snappedAt || latestSnapshot.priceTimestamp
+        );
+        base.setUTCDate(base.getUTCDate() - 1);
+        keyDate = base.toISOString().slice(0, 10);
+      } else {
+        // Fallback: one calendar day before current UTC date
+        const d = new Date();
+        const yd = new Date(
+          Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - 1)
+        );
+        keyDate = yd.toISOString().slice(0, 10);
       }
-    } else if (typeof val === "object") {
-      yesterdayData = val;
-    }
-  }
 
-  debug.steps.push({
-    source: "redis-get-yesterday",
-    key,
-    found: !!yesterdayData,
-  });
-} catch (e) {
-  debug.steps.push({
-    source: "redis-get-error",
-    error: e && e.message,
-  });
-}
+      const key = `metals:${keyDate}`; // metals:YYYY-MM-DD
+      const val = await redisGet(key);
+
+      if (val) {
+        if (typeof val === "string") {
+          try {
+            yesterdayData = JSON.parse(val);
+          } catch (e) {
+            yesterdayData = null;
+            debug.steps.push({
+              source: "parse-yesterday-failed",
+              error: e && e.message,
+            });
+          }
+        } else if (typeof val === "object") {
+          yesterdayData = val;
+        }
+      }
+
+      debug.steps.push({
+        source: "redis-get-yesterday",
+        key,
+        found: !!yesterdayData,
+      });
+    } catch (e) {
+      debug.steps.push({
+        source: "redis-get-error",
+        error: e && e.message,
+      });
+    }
 
     // assemble per-symbol result
     const metals = {};
@@ -253,13 +257,14 @@ try {
     }
 
     // --------------------------------------------------
-    // 2) EODHD top performers (AU exchange)
+    // 2) EODHD top performers (AU exchange) + market cap filter
     // --------------------------------------------------
     const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
     const MAX_PER_EXCHANGE = Number(
       process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500
     ); // safety cap
     const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
+    const MIN_MCAP = Number(process.env.EODHD_MIN_MARKET_CAP || 300000000);
     const FIVE_DAYS = 5;
 
     const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
@@ -323,7 +328,9 @@ try {
       if (!r.ok || !Array.isArray(r.json)) {
         return { ok: false, data: null, error: r.text || `HTTP ${r.status}` };
       }
-      const arr = r.json.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+      const arr = r.json
+        .slice()
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
       return { ok: true, data: arr };
     }
 
@@ -359,8 +366,10 @@ try {
     let topPerformers = [];
     if (EODHD_TOKEN) {
       try {
-        const qs = event && event.queryStringParameters ? event.queryStringParameters : {};
-        const requestedSymbolsParam = qs.symbols && String(qs.symbols).trim();
+        const qs =
+          (event && event.queryStringParameters) || {};
+        const requestedSymbolsParam =
+          qs.symbols && String(qs.symbols).trim();
 
         const days = getLastBusinessDays(FIVE_DAYS);
         const from = days[0];
@@ -369,7 +378,11 @@ try {
         let symbolRequests = [];
 
         if (requestedSymbolsParam) {
-          const sarr = requestedSymbolsParam.split(",").map((x) => x.trim()).filter(Boolean);
+          // Explicit list of symbols (dev / debugging)
+          const sarr = requestedSymbolsParam
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean);
           sarr.forEach((sym) => {
             const parts = sym.split(".");
             if (parts.length === 1) {
@@ -384,9 +397,12 @@ try {
               });
             }
           });
-          eodhdDebug.steps.push({ source: "symbols-param", count: symbolRequests.length });
+          eodhdDebug.steps.push({
+            source: "symbols-param",
+            count: symbolRequests.length,
+          });
         } else {
-          // AU only – list AU exchange (match the URL you shared)
+          // AU only – list AU exchange fully, then trim to MAX_PER_EXCHANGE
           const exchanges = ["AU"];
           for (const ex of exchanges) {
             const res = await listSymbolsForExchange(ex);
@@ -407,12 +423,26 @@ try {
                 if (typeof it === "string") {
                   return { code: it, name: "" };
                 }
-                const code = it.code || it.Code || it.symbol || it.Symbol || (it[0] || "");
-                const name = it.name || it.Name || it.companyName || it.CompanyName || (it[1] || "");
+                const code =
+                  it.code ||
+                  it.Code ||
+                  it.symbol ||
+                  it.Symbol ||
+                  it[0] ||
+                  "";
+                const name =
+                  it.name ||
+                  it.Name ||
+                  it.companyName ||
+                  it.CompanyName ||
+                  it[1] ||
+                  "";
                 return { code, name };
               })
               .filter(Boolean)
-              .filter((x) => x.code && !x.code.includes("^") && !x.code.includes("/"));
+              .filter(
+                (x) => x.code && !x.code.includes("^") && !x.code.includes("/")
+              );
 
             const limited = normalized.slice(0, MAX_PER_EXCHANGE);
 
@@ -439,7 +469,12 @@ try {
             symbolRequests,
             async (req) => {
               const sym = req.symbol;
-              const r = await fetchEodForSymbol(sym, req.exchange || "AU", from, to);
+              const r = await fetchEodForSymbol(
+                sym,
+                req.exchange || "AU",
+                from,
+                to
+              );
               if (!r.ok || !Array.isArray(r.data) || r.data.length < FIVE_DAYS) {
                 return null;
               }
@@ -453,7 +488,6 @@ try {
                 firstClose: r.data[0].close,
                 lastClose: r.data[r.data.length - 1].close,
                 pricesCount: r.data.length,
-                mcap: req.mcap || null,
               };
             },
             EODHD_CONCURRENCY
@@ -461,30 +495,66 @@ try {
 
           const cleaned = results.filter(Boolean);
           cleaned.sort((a, b) => b.pctGain - a.pctGain);
-// Load today's mcaps
-const rawMcap = await redisGet("mcaps:latest");
-let mcaps = [];
-if (rawMcap) mcaps = JSON.parse(rawMcap);
 
-// Convert to map for fast lookup
-const mcapMap = {};
-for (const item of mcaps) {
-  mcapMap[item.code.replace(".AU","")] = item.mcap;
-}
+          // -----------------------------
+          // Load today's market caps from Upstash
+          // -----------------------------
+          let mcapMap = {};
+          try {
+            const rawMcap = await redisGet("mcaps:latest");
+            if (rawMcap) {
+              const arr =
+                typeof rawMcap === "string" ? JSON.parse(rawMcap) : rawMcap;
+              if (Array.isArray(arr)) {
+                for (const item of arr) {
+                  if (!item || !item.code) continue;
+                  const base = String(item.code).replace(/\.AU$/i, "");
+                  const mc =
+                    typeof item.mcap === "number"
+                      ? item.mcap
+                      : Number(item.mcap);
+                  if (!Number.isNaN(mc)) mcapMap[base] = mc;
+                }
+              }
+            }
+            eodhdDebug.steps.push({
+              source: "mcaps-loaded",
+              count: Object.keys(mcapMap).length,
+              minMcap: MIN_MCAP,
+            });
+          } catch (err) {
+            console.warn("Failed to load mcaps", err);
+            eodhdDebug.steps.push({
+              source: "mcaps-error",
+              error: err && err.message,
+            });
+          }
 
-// Apply threshold
-const MIN_MCAP = 300_000_000;
+          // -----------------------------
+          // Apply minimum market cap filter BEFORE slicing
+          // -----------------------------
+          let filtered = cleaned;
+          if (Object.keys(mcapMap).length > 0) {
+            filtered = cleaned.filter((tp) => {
+              const base = String(tp.symbol).replace(/\.AU$/i, "");
+              const mc = mcapMap[base];
+              return typeof mc === "number" && mc >= MIN_MCAP;
+            });
+          }
 
-topPerformers = topPerformers.filter(tp => {
-  const mc = mcapMap[tp.symbol] || 0;
-  return mc >= MIN_MCAP;
-});
+          // If filter nukes everything (eg. missing mcaps), fall back to cleaned
+          const sourceArray = filtered.length ? filtered : cleaned;
 
-          topPerformers = cleaned.slice(0, 5);
+          topPerformers = sourceArray.slice(0, 5);
+
           eodhdDebug.steps.push({
-            source: "computed",
+            source: "computed-with-mcap",
             evaluated: cleaned.length,
-            top5: topPerformers.map((x) => ({ symbol: x.symbol, pct: x.pctGain })),
+            afterMcapFilter: filtered.length,
+            top5: topPerformers.map((x) => ({
+              symbol: x.symbol,
+              pct: x.pctGain,
+            })),
           });
         } else {
           eodhdDebug.steps.push({ source: "no-symbols" });
@@ -520,7 +590,10 @@ topPerformers = topPerformers.filter(tp => {
 
     return { statusCode: 200, body: JSON.stringify(payload) };
   } catch (err) {
-    console.error("morning-brief multi error", err && (err.stack || err.message || err));
+    console.error(
+      "morning-brief multi error",
+      err && (err.stack || err.message || err)
+    );
     return {
       statusCode: 500,
       body: JSON.stringify({
