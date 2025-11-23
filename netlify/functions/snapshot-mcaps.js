@@ -1,226 +1,194 @@
 // netlify/functions/snapshot-mcaps.js
-// Daily snapshot of all ASX symbols + their market caps from EODHD Screener.
-// Saved as: mcaps:YYYY-MM-DD and mcaps:latest
 //
-// Debug mode:
-//   /.netlify/functions/snapshot-mcaps?debug=1
-//   -> fetches data but does NOT write to Upstash, returns a sample payload.
+// Nightly snapshot of ASX market caps using EODHD Screener API.
+// Stores into Upstash as:
+//   mcaps:YYYY-MM-DD  (daily)
+//   mcaps:latest      (alias for today's snapshot)
+//
+// Env required:
+//   EODHD_API_TOKEN
+//   UPSTASH_REDIS_REST_URL
+//   UPSTASH_REDIS_REST_TOKEN
+//
+// This function is intended to run on a Netlify schedule
+// (e.g. 0 20 * * *  =>  6am AEST next day for you).
 
-const fetch = (...args) => global.fetch(...args);
+const LIMIT = 100;        // screener max per docs
+const MAX_OFFSET = 900;   // <= 999 to avoid 422 error
 
-const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
-const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN;
+// ---------- Small helpers ----------
 
-// ---------- Simple helpers ----------
-
-async function fetchJson(url, opts = {}, timeoutMs = 10000) {
+const fetchWithTimeout = (url, opts = {}, timeoutMs = 12000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...opts, signal: controller.signal })
+    .finally(() => clearTimeout(id));
+};
 
-  try {
-    const res = await fetch(url, { ...opts, signal: controller.signal });
-    const text = await res.text().catch(() => "");
-    let json = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch (e) {
-      json = null;
-    }
-    return { ok: res.ok, status: res.status, json, text };
-  } catch (err) {
-    return { ok: false, status: 0, json: null, text: String(err && err.message || err) };
-  } finally {
-    clearTimeout(id);
-  }
-}
+const aussieDateString = () => {
+  const now = new Date();
+  const syd = new Date(
+    now.toLocaleString("en-US", { timeZone: "Australia/Sydney" })
+  );
+  const y = syd.getFullYear();
+  const m = String(syd.getMonth() + 1).padStart(2, "0");
+  const d = String(syd.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+// ---------- Upstash helpers ----------
+
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || null;
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
 
 async function redisSet(key, value) {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-    console.warn("redisSet skipped, Upstash env vars missing");
+    console.warn("snapshot-mcaps: missing Upstash env");
     return false;
   }
 
-  const payload = encodeURIComponent(JSON.stringify(value));
-  const url = `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${payload}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    console.error("redisSet failed:", key, res.status, txt);
+  try {
+    const payload = encodeURIComponent(JSON.stringify(value));
+    const res = await fetchWithTimeout(
+      `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${payload}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
+      },
+      8000
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("snapshot-mcaps: redisSet failed", key, res.status, txt);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("snapshot-mcaps: redisSet error", key, err && err.message);
     return false;
   }
-  return true;
 }
 
-// ---------- Main handler ----------
+// ---------- Screener fetch ----------
 
-exports.handler = async (event) => {
+async function fetchScreenerPage(token, offset) {
+  // Filters: AU exchange only
+  const filters = encodeURIComponent(
+    JSON.stringify([["exchange", "=", "AU"]])
+  );
+
+  const url = `https://eodhd.com/api/screener` +
+    `?api_token=${encodeURIComponent(token)}` +
+    `&sort=market_capitalization.desc` +
+    `&filters=${filters}` +
+    `&limit=${LIMIT}` +
+    `&offset=${offset}` +
+    `&fmt=json`;
+
+  const res = await fetchWithTimeout(url, {}, 15000);
+  const text = await res.text().catch(() => "");
+
+  if (!res.ok) {
+    console.error("Screener HTTP error", { status: res.status, text });
+    return { ok: false, data: null };
+  }
+
+  let json = null;
   try {
-    const qs = (event && event.queryStringParameters) || {};
-    const isDebug = qs.debug === "1" || qs.debug === "true";
-
-    if (!EODHD_API_TOKEN) {
-      const msg = "EODHD_API_TOKEN missing in environment";
-      console.error(msg);
-      return { statusCode: 500, body: JSON.stringify({ error: msg }) };
-    }
-
-    if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-      const msg = "Upstash env variables missing (UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN)";
-      console.error(msg);
-      // In debug we still allow reading to inspect payload
-      if (!isDebug) {
-        return { statusCode: 500, body: JSON.stringify({ error: msg }) };
-      }
-    }
-
-    const today = new Date().toISOString().slice(0, 10);
-    console.log("snapshot-mcaps: starting snapshot for", today);
-
-    // -------- 1) Page through EODHD Screener for ASX --------
-    const LIMIT = 100; // Screener max per call
-    let offset = 0;
-    const all = [];
-
-    while (true) {
-      const filters = '[["exchange","=","AU"]]';
-      const url =
-        `https://eodhd.com/api/screener?` +
-        `api_token=${encodeURIComponent(EODHD_API_TOKEN)}` +
-        `&filters=${encodeURIComponent(filters)}` +
-        `&sort=market_capitalization.desc` +
-        `&limit=${LIMIT}` +
-        `&offset=${offset}`;
-
-      const { ok, status, json, text } = await fetchJson(url, {}, 15000);
-
-      if (!ok) {
-        console.error("Screener HTTP error", { status, text });
-        return {
-          statusCode: 500,
-          body: JSON.stringify(
-            { error: "Failed to load screener data", status, text },
-            null,
-            2
-          )
-        };
-      }
-
-      // EODHD screener can return either an array or { data: [...] }
-      const rows = Array.isArray(json)
-        ? json
-        : (json && Array.isArray(json.data) ? json.data : null);
-
-      if (!rows) {
-        console.error("Unexpected screener JSON shape", { status, text });
-        return {
-          statusCode: 500,
-          body: JSON.stringify(
-            { error: "Unexpected screener JSON shape", status, text },
-            null,
-            2
-          )
-        };
-      }
-
-      if (rows.length === 0) {
-        console.log("No more screener rows at offset", offset);
-        break;
-      }
-
-      console.log(`Fetched ${rows.length} screener rows at offset ${offset}`);
-
-      for (const row of rows) {
-        const code =
-          (row.code || row.Code || row.symbol || row.Symbol || "").toString().trim();
-        if (!code) continue;
-
-        const name =
-          (row.name || row.Name || row.companyName || row.CompanyName || "").toString().trim();
-        const exchange =
-          (row.exchange || row.Exchange || "AU").toString().trim().toUpperCase();
-
-        const rawMcap =
-          row.market_capitalization ??
-          row.MarketCapitalization ??
-          row.market_cap ??
-          row.MarketCap ??
-          null;
-
-        const marketCap = rawMcap !== null ? Number(rawMcap) : null;
-
-        all.push({
-          code: code.toUpperCase(),   // e.g. "CBA"
-          name,
-          exchange,                   // e.g. "AU"
-          marketCap                   // usually in local currency (A$ for AU)
-        });
-      }
-
-      if (rows.length < LIMIT) {
-        // last page
-        break;
-      }
-
-      offset += LIMIT;
-
-      // Safety stop so we don’t loop forever if something weird happens
-      if (offset > 5000) {
-        console.warn("Stopping screener pagination early at offset", offset);
-        break;
-      }
-    }
-
-    console.log("Total rows collected:", all.length);
-
-    // -------- 2) Debug mode: return sample, no writes --------
-    if (isDebug) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify(
-          {
-            date: today,
-            count: all.length,
-            sample: all.slice(0, 25)
-          },
-          null,
-          2
-        )
-      };
-    }
-
-    // -------- 3) Persist to Upstash --------
-    try {
-      const keyToday = `mcaps:${today}`;
-      await redisSet(keyToday, all);
-      await redisSet("mcaps:latest", all);
-      console.log("Saved snapshots to Upstash:", keyToday, "and mcaps:latest");
-
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ saved: all.length, key: keyToday }, null, 2)
-      };
-    } catch (e) {
-      console.error("Failed to write to Upstash:", e && e.message);
-      return {
-        statusCode: 500,
-        body: JSON.stringify(
-          { error: "Upstash write failed", detail: String(e && e.message || e) },
-          null,
-          2
-        )
-      };
-    }
+    json = text ? JSON.parse(text) : null;
   } catch (err) {
-    console.error("snapshot-mcaps error:", err && (err.stack || err.message || err));
+    console.error("Screener JSON parse error", err && err.message);
+    return { ok: false, data: null };
+  }
+
+  if (!json || !Array.isArray(json.data)) {
+    console.error("Screener unexpected body", json);
+    return { ok: false, data: null };
+  }
+
+  return { ok: true, data: json.data };
+}
+
+// ---------- MAIN HANDLER ----------
+
+exports.handler = async function () {
+  const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
+
+  if (!EODHD_TOKEN) {
+    console.error("snapshot-mcaps: missing EODHD_API_TOKEN");
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: (err && err.message) || String(err) })
+      body: JSON.stringify({ error: "Missing EODHD_API_TOKEN" })
     };
   }
+
+  const today = aussieDateString();
+  console.info(`snapshot-mcaps: starting snapshot for ${today}`);
+
+  const allRows = [];
+  let offset = 0;
+
+  while (offset <= MAX_OFFSET) {
+    const { ok, data } = await fetchScreenerPage(EODHD_TOKEN, offset);
+    if (!ok) {
+      // Stop on first error – don’t partially snapshot
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: "Screener call failed" })
+      };
+    }
+
+    console.info(`Fetched ${data.length} screener rows at offset ${offset}`);
+    if (!data.length) break;
+
+    allRows.push(...data);
+
+    if (data.length < LIMIT) {
+      // No more pages
+      break;
+    }
+
+    offset += LIMIT;
+  }
+
+  // Normalise to a compact structure we’ll use later
+  const normalized = allRows.map((row) => ({
+    code: row.code,
+    name: row.name || "",
+    exchange: row.exchange || "AU",
+    currency_symbol: row.currency_symbol || "",
+    last_day_data_date: row.last_day_data_date || null,
+    market_cap: typeof row.market_capitalization === "number"
+      ? row.market_capitalization
+      : null,
+    sector: row.sector || "",
+    industry: row.industry || "",
+    avgvol_1d: typeof row.avgvol_1d === "number" ? row.avgvol_1d : null,
+    avgvol_200d: typeof row.avgvol_200d === "number" ? row.avgvol_200d : null,
+  }));
+
+  const snapshot = {
+    snappedAt: new Date().toISOString(),
+    exchange: "AU",
+    rows: normalized
+  };
+
+  const dailyKey = `mcaps:${today}`;
+  const okDaily = await redisSet(dailyKey, snapshot);
+  const okLatest = await redisSet("mcaps:latest", snapshot);
+
+  console.info("snapshot-mcaps: finished", {
+    count: normalized.length,
+    okDaily,
+    okLatest
+  });
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      ok: okDaily && okLatest,
+      count: normalized.length,
+      key: dailyKey
+    })
+  };
 };
