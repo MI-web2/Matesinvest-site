@@ -810,58 +810,50 @@ async function loadMatesMorningNote() {
 }
 
 
-async function loadStockOfTheDay() {
-  const container = document.getElementById("stockOfDay");
-  const tickerEl = document.getElementById("sotdTicker");
-  const nameEl = document.getElementById("sotdName");
-  const summaryEl = document.getElementById("sotdSummary");
+  async function loadStockOfTheDay() {
+    const container = document.getElementById("stockOfDay");
+    if (!container) return;
 
-  if (!container || !tickerEl || !nameEl || !summaryEl) return;
+    const tickerEl = document.getElementById("sotdTicker");
+    const nameEl = document.getElementById("sotdName");
+    const exchEl = document.getElementById("sotdExchange");
+    const summaryEl = document.getElementById("sotdSummary");
 
-  try {
-    // Choose one of the top 5 performers
-    let chosen = null;
-    if (window._topPerformers && window._topPerformers.length) {
-const n = Math.min(5, window._topPerformers.length);
-const idx = Math.floor(Math.random() * n);
-chosen = window._topPerformers[idx];
- // or Math.floor(Math.random() * Math.min(5, window._topPerformers.length))
+    if (!tickerEl || !nameEl || !exchEl || !summaryEl) return;
+
+    // Use the same stock that was chosen in renderMorningBrief()
+    const candidate = window._mates_sotd || null;
+    if (!candidate || !candidate.symbol) {
+      // Nothing selected – hide the card quietly
+      container.style.display = "none";
+      return;
     }
 
-    let url = "/.netlify/functions/stockOfTheDay";
+    try {
+      const params = new URLSearchParams();
+      params.set("symbol", candidate.symbol);
+      if (candidate.name) params.set("name", candidate.name);
+      params.set("exchange", "ASX");
 
-    if (chosen) {
-      const rawSymbol = chosen.symbol || "";
-      // strip .AU / .AX etc if present for display
-      const displayTicker = rawSymbol.replace(/\.A.*/i, "") || rawSymbol;
+      const res = await fetch(
+        "/.netlify/functions/stockOfTheDay?" + params.toString()
+      );
+      const data = await res.json();
 
-      const params = new URLSearchParams({
-        ticker: displayTicker,
-        name: chosen.name || displayTicker,
-        exchange: "ASX"
-      });
+      tickerEl.textContent = data.ticker || candidate.symbol || "—";
+      nameEl.textContent = data.name || candidate.name || "";
+      exchEl.textContent = (data.exchange || "ASX").toUpperCase();
+      summaryEl.textContent =
+        data.summary || "No snapshot available today.";
 
-      url += `?${params.toString()}`;
-
-      // Make the header match the chosen stock
-      tickerEl.textContent = displayTicker;
-      nameEl.textContent = chosen.name || "";
+      container.style.display = "block";
+    } catch (err) {
+      console.error("loadStockOfTheDay failed", err);
+      summaryEl.textContent =
+        "Unable to load today’s Stock of the Day.";
+      container.style.display = "block"; // still show the card with message
     }
-
-    summaryEl.textContent = "Loading today’s snapshot…";
-
-    const res = await fetch(url);
-    const data = await res.json();
-
-    summaryEl.textContent = data.summary || "No summary available.";
-    container.style.display = "block";
-  } catch (err) {
-    console.error("Failed to load Stock of the Day", err);
-    summaryEl.textContent =
-      "Unable to load today’s Stock of the Day.";
-    container.style.display = "block";
   }
-}
 
     /* ---------- Feeds ---------- */
     async function getMarketFeed() {
@@ -1429,6 +1421,15 @@ const cachedHint = (payload._debug && payload._debug.cached)
 
   // Top meta row + placeholders for Mates note and SOTD
   const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
+  // Choose "Stock of the Day" candidate from top performers (if any)
+  let sotdCandidate = null;
+  if (Array.isArray(payload.topPerformers) && payload.topPerformers.length) {
+    const pool = payload.topPerformers.slice(0, 5); // only the first 5
+    const idx = Math.floor(Math.random() * pool.length); // or 0 if you always want #1
+    sotdCandidate = pool[idx] || pool[0];
+  }
+  // Expose globally so loadStockOfTheDay() can use the same stock
+  window._mates_sotd = sotdCandidate;
 
   // Build placeholders for Mates Morning Note and Stock of the Day
   const matesPlaceholder = `
@@ -1445,14 +1446,20 @@ const cachedHint = (payload._debug && payload._debug.cached)
       <div class="sotd-header">
         <div class="sotd-title-left">
           <span class="sotd-pill">Stock of the Day</span>
-          <span id="sotdTicker" class="sotd-ticker">—</span>
-          <span id="sotdName" class="sotd-name"></span>
+          <span id="sotdTicker" class="sotd-ticker">${
+            sotdCandidate && (sotdCandidate.symbol || sotdCandidate.ticker)
+              ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker)
+              : '—'
+          }</span>
+          <span id="sotdName" class="sotd-name">${
+            sotdCandidate && sotdCandidate.name
+              ? escapeHtml(sotdCandidate.name)
+              : ''
+          }</span>
         </div>
         <span id="sotdExchange" class="sotd-exchange">ASX</span>
       </div>
-      <div id="sotdSummary" class="sotd-summary">Loading today’s stock snapshot…</div>
-      <div class="sotd-disclaimer" style="font-size:0.78rem;color:var(--muted-2)">General information only. Not financial advice.</div>
-    </div>
+
   `;
 
   if (metalsObj) {

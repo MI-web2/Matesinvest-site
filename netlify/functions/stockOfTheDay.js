@@ -169,58 +169,71 @@ with no extra text, no markdown, no additional fields.
 
 
 // -------------------------------
-// MAIN HANDLER
+// -------------------------------
+// MAIN HANDLER (Updated)
 // -------------------------------
 exports.handler = async function (event) {
   try {
     const qs = event.queryStringParameters || {};
-
     const region = (qs.region || "au").toLowerCase();
 
-    // If the frontend passes a top performer, use that as the stock
-    const paramTicker =
-      (qs.ticker || qs.symbol || "").toString().trim().toUpperCase();
+    // Frontend-selected top performer
+    const paramTicker = (qs.ticker || qs.symbol || "")
+      .toString()
+      .trim()
+      .toUpperCase();
+
     const paramName = (qs.name || "").toString().trim();
-    const paramExchange = (qs.exchange || "ASX").toString().trim().toUpperCase();
+    const paramExchange = (qs.exchange || "ASX")
+      .toString()
+      .trim()
+      .toUpperCase();
 
     const todayAEST = getAussieDateString();
 
-    // Cache key now includes ticker so we don’t mix stocks on the same day
+    // Cache key: different per region + day + ticker (so each chosen stock is cached)
     const cacheKeyBase = paramTicker || "pool";
     const cacheKey = `stockOfTheDay:${region}:${todayAEST}:${cacheKeyBase}`;
 
-    // 1) Check cache
+    // -------------------------------------------------------
+    // 1) Use cached version if available
+    // -------------------------------------------------------
     const cached = await redisGet(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed)
+        body: JSON.stringify(parsed),
       };
     }
 
-    // 2) Build stock descriptor
+    // -------------------------------------------------------
+    // 2) Build "selected stock" object
+    // -------------------------------------------------------
     let stock;
     let source = "pool";
 
     if (paramTicker && paramName) {
-      // Chosen from top performers (frontend will pass ticker & name)
+      // Provided by frontend from top performers
       stock = {
         ticker: paramTicker,
         name: paramName,
-        exchange: paramExchange || "ASX",
-        blurb: `${paramName} (${paramTicker}) is an ASX-listed company that has recently been among the strongest performers on the market.`
+        exchange: paramExchange,
+        blurb: `${paramName} (${paramTicker}) is an ASX-listed company recently among the market’s top performers.`,
       };
       source = "top-performer";
     } else {
-      // Fallback: deterministic pick from static pool
+      // Fallback to deterministic pool selection
       stock = pickStockForTodayFromPool(todayAEST);
+      source = "fallback-pool";
     }
 
-    // 3) If no OpenAI key, basic fallback summary
+    // -------------------------------------------------------
+    // 3) Fallback summary if no OpenAI key
+    // -------------------------------------------------------
     if (!OPENAI_API_KEY) {
-      const fallbackSummary = `${stock.name} (${stock.ticker}) is ${stock.blurb} This summary is a general description only and not a recommendation.`;
+      const fallbackSummary = `${stock.name} (${stock.ticker}) is ${stock.blurb} This is a general description only.`;
 
       const payload = {
         region,
@@ -229,35 +242,91 @@ exports.handler = async function (event) {
         exchange: stock.exchange,
         summary: fallbackSummary,
         generatedAt: new Date().toISOString(),
-        _debug: { usedFallback: true, source }
+        _debug: { usedFallback: true, source },
       };
 
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       };
     }
 
-    // 4) Call OpenAI
-    const prompt = buildPrompt(stock);
+    // -------------------------------------------------------
+    // 4) OpenAI Summary
+    // -------------------------------------------------------
+    const prompt = buildPromptForStock(stock);
 
     const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "You write short, balanced company snapshots for Australian retail investors." },
-          { role: "user", content: prompt }
+          {
+            role: "system",
+            content:
+              "You write short, clear company summaries for everyday Australian investors.",
+          },
+          { role: "user", content: prompt },
         ],
         temperature: 0.4,
-        max_tokens: 220
-      })
+        max_tokens: 180,
+      }),
     });
+
+    const aiJson = await aiRes.json();
+    let summary =
+      aiJson.choices?.[0]?.message?.content?.trim() ||
+      `${stock.name} (${stock.ticker}) is an actively watched ASX company today.`;
+
+    // Clean unwanted markdown
+    summary = summary.replace(/^\*+|\*+$/g, "");
+    summary = summary.trim();
+
+    // -------------------------------------------------------
+    // 5) Build & store payload
+    // -------------------------------------------------------
+    const payload = {
+      region,
+      ticker: stock.ticker,
+      name: stock.name,
+      exchange: stock.exchange,
+      summary,
+      generatedAt: new Date().toISOString(),
+      _debug: { usedFallback: false, source },
+    };
+
+    // Cache for the full day (26 hours)
+    await redisSetEx(cacheKey, JSON.stringify(payload), 26 * 60 * 60);
+
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    };
+  } catch (err) {
+    console.error("stockOfTheDay ERROR:", err);
+
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ticker: "N/A",
+        name: "Unknown",
+        exchange: "ASX",
+        summary:
+          "Unable to load today's Stock of the Day. Market data is temporarily unavailable.",
+        generatedAt: new Date().toISOString(),
+        _debug: { error: err.message || String(err) },
+      }),
+    };
+  }
+};
+
 
     const aiJson = await aiRes.json();
     let raw = aiJson.choices?.[0]?.message?.content?.trim() || "";
