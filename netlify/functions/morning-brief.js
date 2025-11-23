@@ -61,6 +61,25 @@ exports.handler = async function (event) {
     }
   }
 
+  async function redisSet(key, value) {
+    if (!UPSTASH_URL || !UPSTASH_TOKEN) return false;
+    try {
+      const res = await fetchWithTimeout(
+        `${UPSTASH_URL}/set/${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ value }),
+        },
+        8000
+      );
+      return !!res.ok;
+    } catch (e) {
+      console.warn("redisSet error", e && e.message);
+      return false;
+    }
+  }
+
   // metals symbols we show
   const symbols = ["XAU", "XAG", "IRON", "LITH-CAR", "NI", "URANIUM"];
   const debug = { steps: [] };
@@ -556,6 +575,19 @@ exports.handler = async function (event) {
               pct: x.pctGain,
             })),
           });
+
+          // -----------------------------
+          // Persist topPerformers to Upstash (best-effort)
+          // -----------------------------
+          try {
+            const today = new Date().toISOString().slice(0,10);
+            await redisSet("topPerformers:latest", JSON.stringify(topPerformers));
+            await redisSet(`topPerformers:${today}`, JSON.stringify(topPerformers));
+            eodhdDebug.steps.push({ source: "topperformers-saved", count: topPerformers.length });
+          } catch (e) {
+            eodhdDebug.steps.push({ source: "topperformers-save-failed", error: e && e.message });
+          }
+
         } else {
           eodhdDebug.steps.push({ source: "no-symbols" });
         }
