@@ -810,6 +810,8 @@ async function loadMatesMorningNote() {
 }
 
 
+// replace the start of loadStockOfTheDay() with this version
+
   async function loadStockOfTheDay() {
     const container = document.getElementById("stockOfDay");
     if (!container) return;
@@ -822,7 +824,19 @@ async function loadMatesMorningNote() {
     if (!tickerEl || !nameEl || !exchEl || !summaryEl) return;
 
     // Use the same stock that was chosen in renderMorningBrief()
-    const candidate = window._mates_sotd || null;
+    // Try the global first, then fall back to data- attributes on the placeholder
+    let candidate = window._mates_sotd || null;
+    if (!candidate || !candidate.symbol) {
+      // fallback: read from placeholder dataset
+      const ds = container.dataset || {};
+      if (ds.symbol) {
+        candidate = {
+          symbol: ds.symbol,
+          name: ds.name || ""
+        };
+      }
+    }
+
     if (!candidate || !candidate.symbol) {
       // Nothing selected – hide the card quietly
       container.style.display = "none";
@@ -854,7 +868,6 @@ async function loadMatesMorningNote() {
       container.style.display = "block"; // still show the card with message
     }
   }
-
     /* ---------- Feeds ---------- */
     async function getMarketFeed() {
       try {
@@ -1422,6 +1435,8 @@ const items = payload.topPerformers.map(tp => {
 
   // Top meta row + placeholders for Mates note and SOTD
   const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
+// inside renderMorningBrief(), replace the existing sotdPlaceholder creation with this
+
   // Choose "Stock of the Day" candidate from top performers (if any)
   let sotdCandidate = null;
   if (Array.isArray(payload.topPerformers) && payload.topPerformers.length) {
@@ -1442,25 +1457,23 @@ const items = payload.topPerformers.map(tp => {
       <div id="matesNoteText" class="mates-note-body">Loading today’s note…</div>
     </div>
   `;
+
+  // Include chosen candidate data on the placeholder as data- attributes (robust fallback)
+  const sotdTickerText = sotdCandidate && (sotdCandidate.symbol || sotdCandidate.ticker) ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker) : '—';
+  const sotdNameText = sotdCandidate && sotdCandidate.name ? escapeHtml(sotdCandidate.name) : '';
   const sotdPlaceholder = `
-    <div id="stockOfDay" class="sotd-card" style="display:none;">
+    <div id="stockOfDay" class="sotd-card" style="display:none;"
+         data-symbol="${sotdCandidate ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker || '') : ''}"
+         data-name="${sotdCandidate ? escapeHtml(sotdCandidate.name || '') : ''}">
       <div class="sotd-header">
         <div class="sotd-title-left">
           <span class="sotd-pill">Stock of the Day</span>
-          <span id="sotdTicker" class="sotd-ticker">${
-            sotdCandidate && (sotdCandidate.symbol || sotdCandidate.ticker)
-              ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker)
-              : '—'
-          }</span>
-          <span id="sotdName" class="sotd-name">${
-            sotdCandidate && sotdCandidate.name
-              ? escapeHtml(sotdCandidate.name)
-              : ''
-          }</span>
+          <span id="sotdTicker" class="sotd-ticker">${sotdTickerText}</span>
+          <span id="sotdName" class="sotd-name">${sotdNameText}</span>
         </div>
         <span id="sotdExchange" class="sotd-exchange">ASX</span>
       </div>
-
+  `;
   `;
 
   if (metalsObj) {

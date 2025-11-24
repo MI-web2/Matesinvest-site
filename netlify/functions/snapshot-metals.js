@@ -7,16 +7,29 @@
 // - UPSTASH_REDIS_REST_TOKEN
 //
 // Symbols stored: XAU, XAG, IRON, LITH-CAR, NI, URANIUM
-// Notes:
-// - We use Metals-API's unit parameter so prices are returned in realistic market units:
-//     XAU, XAG              -> USD per troy_ounce
-//     IRON, LITH-CAR, NI    -> USD per ton (metric tonne)
-//     URANIUM               -> USD per pound
-// - We convert to AUD using FX and store priceAUD, but keep priceUSD for reference.
+//
+// How this works:
+// - We call Metals-API /latest with base=USD and the correct unit parameter:
+//     XAU, XAG              -> unit=troy_ounce  (USD per oz target)
+//     IRON, LITH-CAR, NI    -> unit=ton         (USD per tonne target)
+//     URANIUM               -> unit=pound       (USD per lb target)
+// - Metals-API returns a "rate" that may represent either:
+//     * metal units per 1 USD   (e.g. 0.00049 XAU for 1 USD)
+//     * or USD per 1 metal unit
+//   The docs + examples are inconsistent, so we interpret both possibilities.
+// - For each symbol we compute TWO candidates:
+//     candDirect  = rate (as USD per unit)
+//     candInverse = 1 / rate (USD per unit)
+//   Then we pick whichever candidate falls into a realistic USD range for that symbol.
+//   If neither looks realistic, we treat the price as unavailable (null).
+// - We convert USD -> AUD via FX and store priceAUD for the app.
 
 exports.handler = async function (event) {
   const nowIso = new Date().toISOString();
 
+  // -----------------------------
+  // Helpers
+  // -----------------------------
   async function fetchWithTimeout(url, opts = {}, timeout = 9000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
@@ -45,32 +58,89 @@ exports.handler = async function (event) {
         },
         8000
       );
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        console.warn("redisSet failed", key, res.status, txt.slice(0, 300));
+      }
       return res.ok;
     } catch (e) {
-      console.warn("redisSet error", e && e.message);
+      console.warn("redisSet error", key, e && e.message);
       return false;
     }
   }
 
-  // formatting helper
   const fmt = (n) =>
     typeof n === "number" && Number.isFinite(n) ? Number(n.toFixed(2)) : null;
 
-  // Map Metals-API "unit" parameter -> human-facing unit label
+  // Map Metals-API unit -> human label for UI
   const UNIT_LABELS = {
     troy_ounce: "oz",
     ounce: "oz",
+    Ounce: "oz",
+    "Troy Ounce": "oz",
     pound: "lb",
+    Pound: "lb",
     gram: "g",
+    Gram: "g",
     kilogram: "kg",
+    KG: "kg",
+    kilogramme: "kg",
     ton: "tonne",
+    Ton: "tonne",
   };
 
-  // With the unit parameter enabled, Metals-API returns USD per unit directly.
-  // We no longer invert small values (that was causing crazy prices).
-  function parseUsdFromRate(v) {
-    if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return null;
-    return v; // USD per unit
+  // Rough sanity ranges in USD per unit for each symbol.
+  // These are intentionally wide – we're just filtering out absurd values.
+  const VALID_RANGES = {
+    XAU: { min: 800, max: 4000 }, // per oz
+    XAG: { min: 5, max: 150 }, // per oz
+    IRON: { min: 30, max: 500 }, // per tonne
+    "LITH-CAR": { min: 3000, max: 150000 }, // per tonne
+    NI: { min: 8000, max: 150000 }, // per tonne
+    URANIUM: { min: 10, max: 500 }, // per lb
+  };
+
+  // Given a raw Metals-API "rate" and a symbol, choose a realistic USD-per-unit price
+  function chooseUsdPerUnitFromRate(symbol, rateRaw) {
+    if (typeof rateRaw !== "number" || !Number.isFinite(rateRaw) || rateRaw <= 0)
+      return { priceUSD: null, mode: "invalid_rate" };
+
+    const range = VALID_RANGES[symbol];
+    const candDirect = rateRaw; // interpret as USD per unit
+    const candInverse = 1 / rateRaw; // interpret as unit price inverted
+
+    if (!range) {
+      // If we don't have a range, default to the inverse behaviour Metals-API documents for base=USD
+      return { priceUSD: candInverse, mode: "inverse_no_range" };
+    }
+
+    const inRange = (v) => v >= range.min && v <= range.max;
+
+    const directOK = inRange(candDirect);
+    const inverseOK = inRange(candInverse);
+
+    if (directOK && !inverseOK) {
+      return { priceUSD: candDirect, mode: "direct" };
+    }
+    if (inverseOK && !directOK) {
+      return { priceUSD: candInverse, mode: "inverse" };
+    }
+    if (directOK && inverseOK) {
+      // Both somehow in range – pick the one closer to the midpoint
+      const mid = (range.min + range.max) / 2;
+      const distDirect = Math.abs(candDirect - mid);
+      const distInverse = Math.abs(candInverse - mid);
+      return distDirect <= distInverse
+        ? { priceUSD: candDirect, mode: "direct_both_ok" }
+        : { priceUSD: candInverse, mode: "inverse_both_ok" };
+    }
+
+    // Neither candidate looks realistic – drop it.
+    return {
+      priceUSD: null,
+      mode: "out_of_range",
+      debug: { candDirect, candInverse, range },
+    };
   }
 
   try {
@@ -87,30 +157,31 @@ exports.handler = async function (event) {
     // -------------------------------
     const groups = [
       {
-        unitParam: "troy_ounce",
+        unitParam: "Troy Ounce", // docs accept title-cased as well
         symbols: ["XAU", "XAG"],
       },
       {
-        unitParam: "ton",
+        unitParam: "Ton",
         symbols: ["IRON", "LITH-CAR", "NI"],
       },
       {
-        unitParam: "pound",
+        unitParam: "Pound",
         symbols: ["URANIUM"],
       },
     ];
 
-    const allRates = {};
+    const allRates = {}; // symbol -> { rawRate, unitParam }
     let anyTimestamp = null;
     const previews = [];
 
     for (const group of groups) {
       const { unitParam, symbols } = group;
-      const url = `https://metals-api.com/api/latest?access_key=${encodeURIComponent(
-        METALS_API_KEY
-      )}&base=USD&symbols=${encodeURIComponent(
-        symbols.join(",")
-      )}&unit=${encodeURIComponent(unitParam)}`;
+      const url =
+        `https://metals-api.com/api/latest` +
+        `?access_key=${encodeURIComponent(METALS_API_KEY)}` +
+        `&base=USD` +
+        `&symbols=${encodeURIComponent(symbols.join(","))}` +
+        `&unit=${encodeURIComponent(unitParam)}`;
 
       const res = await fetchWithTimeout(url, {}, 10000);
       const txt = await res.text().catch(() => "");
@@ -127,19 +198,23 @@ exports.handler = async function (event) {
         json = null;
       }
 
+      if (!json || json.success === false) {
+        console.warn("metals-api group failure", unitParam, json && json.error);
+        continue;
+      }
+
       const rates = json && json.rates ? json.rates : null;
       if (!rates) continue;
 
-      if (json && typeof json.timestamp === "number") {
+      if (typeof json.timestamp === "number") {
         const ts = new Date(json.timestamp * 1000).toISOString();
         if (!anyTimestamp || ts > anyTimestamp) anyTimestamp = ts;
       }
 
       for (const s of symbols) {
         const rv = rates[s];
-        const usdPerUnit = parseUsdFromRate(rv);
         allRates[s] = {
-          usdPerUnit: usdPerUnit,
+          rawRate: typeof rv === "number" ? rv : null,
           unitParam,
         };
       }
@@ -192,35 +267,46 @@ exports.handler = async function (event) {
     }
 
     // -------------------------------
-    // 3) Build snapshot payload
+    // 3) Build snapshot payload (with sanity checks)
     // -------------------------------
     const outputSymbols = ["XAU", "XAG", "IRON", "LITH-CAR", "NI", "URANIUM"];
 
     const snapshot = {
       snappedAt: nowIso,
-      usdToAud: usdToAud,
+      usdToAud,
       symbols: {},
+      sanity: {
+        issues: [],
+      },
     };
 
     const priceTimestamp = anyTimestamp;
 
     for (const s of outputSymbols) {
       const entry = allRates[s] || {};
-      const usdPerUnit =
-        typeof entry.usdPerUnit === "number" ? entry.usdPerUnit : null;
-      const unitParam = entry.unitParam || "troy_ounce";
+      const rawRate = entry.rawRate;
+      const unitParam = entry.unitParam || "Troy Ounce";
       const unitLabel = UNIT_LABELS[unitParam] || unitParam;
 
-      const priceUSD =
-        usdPerUnit !== null ? Number(usdPerUnit.toFixed(2)) : null;
-      const priceAUD =
+      const interpretation = chooseUsdPerUnitFromRate(s, rawRate);
+      let priceUSD = interpretation.priceUSD;
+      let priceAUD =
         priceUSD !== null && usdToAud !== null
           ? fmt(priceUSD * usdToAud)
           : null;
 
+      if (priceUSD === null && interpretation.mode !== "invalid_rate") {
+        snapshot.sanity.issues.push({
+          symbol: s,
+          mode: interpretation.mode,
+          ...(interpretation.debug || {}),
+          rawRate,
+        });
+      }
+
       snapshot.symbols[s] = {
         apiPriceUSD: priceUSD,
-        priceUSD,
+        priceUSD: priceUSD === null ? null : fmt(priceUSD),
         priceAUD,
         usdToAud: usdToAud === null ? null : Number(usdToAud.toFixed(6)),
         priceTimestamp,
