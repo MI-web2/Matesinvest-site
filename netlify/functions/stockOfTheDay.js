@@ -3,7 +3,7 @@
 // - Picks from today's ASX top performers (5-day window) as shown in morning-brief
 // - If the frontend passes an explicit ticker/name (from the top performers row),
 //   we use that directly.
-// - Otherwise we call the morning-brief function and randomly choose one of its
+// - Otherwise we call the morning-brief function and choose one of its
 //   `topPerformers`.
 // - We cache the generated summary per day + ticker in Upstash so OpenAI is
 //   only called once each morning for a given stock.
@@ -26,6 +26,7 @@ async function redisGet(key) {
     });
     if (!res.ok) return null;
     const data = await res.json().catch(() => null);
+    // Upstash returns { result: "<value>" }
     return data && typeof data.result !== "undefined" ? data.result : null;
   } catch (err) {
     console.warn("stockOfTheDay redisGet error", err && err.message);
@@ -112,6 +113,42 @@ function hashString(str) {
 }
 
 // -------------------------------
+// Helper: normalise topPerformers from morning-brief
+// Handles: array, JSON string, { value: [...] }, { value: "[]"}.
+// -------------------------------
+function normaliseTopPerformers(raw) {
+  if (!raw) return [];
+
+  // Already a proper array
+  if (Array.isArray(raw)) return raw;
+
+  // Old style: { value: ... }
+  if (typeof raw === "object") {
+    if (Array.isArray(raw.value)) return raw.value;
+    if (typeof raw.value === "string") {
+      try {
+        const parsed = JSON.parse(raw.value);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (_) {
+        // ignore
+      }
+    }
+  }
+
+  // Stringified JSON: "[]", "[{...}]"
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  return [];
+}
+
+// -------------------------------
 // MAIN HANDLER
 // -------------------------------
 exports.handler = async function (event) {
@@ -145,16 +182,19 @@ exports.handler = async function (event) {
           "localhost:8888";
         const proto = event.headers["x-forwarded-proto"] || "https";
         const baseUrl = process.env.URL || `${proto}://${host}`;
-        const mbUrl = `${baseUrl.replace(/\/$/, "")}/.netlify/functions/morning-brief?region=${encodeURIComponent(
-          region
-        )}`;
+        const mbUrl = `${baseUrl.replace(
+          /\/$/,
+          ""
+        )}/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`;
 
         const mbRes = await fetchFn(mbUrl);
         if (mbRes.ok) {
           const mbJson = await mbRes.json().catch(() => null);
-          const tps = Array.isArray(mbJson && mbJson.topPerformers)
-            ? mbJson.topPerformers
-            : [];
+
+          // 👇 Robust handling of old / new shapes
+          const tps = normaliseTopPerformers(
+            mbJson && mbJson.topPerformers
+          );
 
           if (tps.length > 0) {
             // deterministic-ish pick based on date so it doesn't change all day
