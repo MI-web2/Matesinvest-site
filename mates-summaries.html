@@ -1394,14 +1394,12 @@ const items = payload.topPerformers.map(tp => {
   const pct = (typeof tp.pctGain === 'number') ? tp.pctGain : (tp.pctGain ? Number(tp.pctGain) : null);
   const pctClass = (pct === null) ? 'perf-pct neutral' : (pct > 0 ? 'perf-pct up' : (pct < 0 ? 'perf-pct down' : 'perf-pct neutral'));
   const lastClose = (typeof tp.lastClose === 'number') ? `$${formatMoney(tp.lastClose)}` : (tp.lastClose ? escapeHtml(String(tp.lastClose)) : '—');
-  // Company name (smaller text under ticker)
-  const company = tp.name ? `<div style="font-size:0.78rem;color:var(--muted);font-weight:600;margin-top:6px">${escapeHtml(tp.name)}</div>` : '';
+  // NOTE: removed the small company name under the ticker (kept perf-note at bottom)
   return `
     <div class="perf-card" role="article" aria-label="Top performer ${escapeHtml(tp.symbol || '')}">
       <div class="perf-top">
         <div>
           <div class="perf-symbol">${escapeHtml(tp.symbol || '')}</div>
-          ${company}
         </div>
         <div>
           <div class="perf-last">${lastClose}</div>
