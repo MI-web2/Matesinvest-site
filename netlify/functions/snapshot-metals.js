@@ -92,7 +92,7 @@ exports.handler = async function (event) {
   // Rough sanity ranges in USD per unit for each symbol.
   // These are intentionally wide – we're just filtering out absurd values.
   const VALID_RANGES = {
-    XAU: { min: 800, max: 4000 }, // per oz
+    XAU: { min: 800, max: 7000 }, // per oz
     XAG: { min: 5, max: 150 }, // per oz
     IRON: { min: 30, max: 500 }, // per tonne
     "LITH-CAR": { min: 3000, max: 150000 }, // per tonne
