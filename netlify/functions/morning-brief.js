@@ -1,8 +1,9 @@
 // netlify/functions/morning-brief.js
-// Morning brief for multiple metals + top performers across ASX (AU) using EODHD.
+// Morning brief for multiple metals + top performers across ASX (AU).
 // - Metals prices: snapshot-only from Upstash (no live metals/FX fetches)
-// - Top performers: EODHD-backed 5-business-day % gain for AU exchange,
-//   (Note: market-cap filtering removed — we compute top performers across the exchange list)
+// - Top performers: now read from Upstash key `asx200:latest` and pick the TOP_N
+//   largest percent gain from the most recent business day snapshot.
+//   (This avoids EODHD calls and uses the asx200 snapshot you already produce.)
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -224,7 +225,7 @@ exports.handler = async function (event) {
       });
     }
 
-    // assemble per-symbol result
+    // assemble per-symbol result for metals
     const metals = {};
     for (const s of symbols) {
       const todayUSD = typeof currentUsd[s] === "number" ? currentUsd[s] : null;
@@ -281,315 +282,92 @@ exports.handler = async function (event) {
     }
 
     // --------------------------------------------------
-    // 2) EODHD top performers (AU exchange) — NO MARKET CAP FILTER
+    // 2) TOP PERFORMERS: use asx200:latest from Upstash and pick top N gainers for last business day
     // --------------------------------------------------
-    const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
-    const MAX_PER_EXCHANGE = Number(
-      process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500
-    ); // how many exchange-symbol-list entries to use
-    const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
-    const FIVE_DAYS = 5;
-    const TOP_N = Number(process.env.TOP_N || 6); // return top 6 by default
-
-    const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
-
-    function getLastBusinessDays(n) {
-      const days = [];
-      let d = new Date();
-      while (days.length < n) {
-        const dow = d.getDay(); // 0 Sun, 6 Sat
-        if (dow !== 0 && dow !== 6) {
-          days.push(new Date(d));
-        }
-        d.setDate(d.getDate() - 1);
-      }
-      return days.reverse().map((dt) => dt.toISOString().slice(0, 10));
-    }
-
-    async function fetchJson(url, opts = {}, timeout = 12000) {
-      try {
-        const res = await fetchWithTimeout(url, opts, timeout);
-        const text = await res.text().catch(() => "");
-        try {
-          return {
-            ok: res.ok,
-            status: res.status,
-            json: text ? JSON.parse(text) : null,
-            text,
-          };
-        } catch (e) {
-          return { ok: res.ok, status: res.status, json: null, text };
-        }
-      } catch (err) {
-        return {
-          ok: false,
-          status: 0,
-          json: null,
-          text: String((err && err.message) || err),
-        };
-      }
-    }
-
-    async function listSymbolsForExchange(exchangeCode) {
-      const url = `https://eodhd.com/api/exchange-symbol-list/${encodeURIComponent(
-        exchangeCode
-      )}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`;
-      const r = await fetchJson(url, {}, 12000);
-      if (!r.ok || !Array.isArray(r.json)) {
-        return { ok: false, data: [], error: r.text || `HTTP ${r.status}` };
-      }
-      return { ok: true, data: r.json };
-    }
-
-    // Basic single-call EOD fetch (returns r.json array or null)
-    async function fetchEodSingle(fullCode, from, to) {
-      const url = `https://eodhd.com/api/eod/${encodeURIComponent(
-        fullCode
-      )}?api_token=${encodeURIComponent(
-        EODHD_TOKEN
-      )}&period=d&from=${from}&to=${to}&fmt=json`;
-      const r = await fetchJson(url, {}, 12000);
-      if (!r.ok || !Array.isArray(r.json)) {
-        return { ok: false, data: null, text: r.text || null, status: r.status || 0 };
-      }
-      const arr = r.json.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
-      return { ok: true, data: arr, text: null, status: 200 };
-    }
-
-    // Tries multiple suffixes for symbols that don't already include a dot.
-    async function fetchEodWithSuffixes(symbol, from, to) {
-      if (symbol.includes(".")) {
-        const r = await fetchEodSingle(symbol, from, to);
-        return { ...r, usedSuffix: symbol.includes(".") ? symbol.split(".").slice(1).join(".") : null, attempts: [symbol] };
-      }
-
-      const suffixes = ["AU", "AX", "ASX"];
-      const attempts = [];
-      let lastText = null;
-      let lastStatus = 0;
-
-      for (const sfx of suffixes) {
-        const fullCode = `${symbol}.${sfx}`;
-        attempts.push(fullCode);
-        const r = await fetchEodSingle(fullCode, from, to);
-        if (r.ok && Array.isArray(r.data) && r.data.length >= FIVE_DAYS) {
-          return { ok: true, data: r.data, usedSuffix: sfx, attempts, lastText: null, lastStatus: r.status };
-        }
-        lastText = r.text || lastText;
-        lastStatus = r.status || lastStatus;
-      }
-
-      return { ok: false, data: null, usedSuffix: null, attempts, lastText, lastStatus };
-    }
-
-    function pctGainFromPrices(prices) {
-      if (!Array.isArray(prices) || prices.length < 2) return null;
-      const first = prices[0].close;
-      const last = prices[prices.length - 1].close;
-      if (typeof first !== "number" || typeof last !== "number" || first === 0)
-        return null;
-      return ((last - first) / first) * 100;
-    }
-
-    async function mapWithConcurrency(items, fn, concurrency = EODHD_CONCURRENCY) {
-      const results = new Array(items.length);
-      let idx = 0;
-      const workers = new Array(Math.min(concurrency, items.length))
-        .fill(null)
-        .map(async () => {
-          while (true) {
-            const i = idx++;
-            if (i >= items.length) return;
-            try {
-              results[i] = await fn(items[i], i);
-            } catch (err) {
-              results[i] = { error: err.message || String(err) };
-            }
-          }
-        });
-      await Promise.all(workers);
-      return results;
-    }
-
+    const TOP_N = Number(process.env.TOP_N || 6); // default 6
     let topPerformers = [];
-    if (EODHD_TOKEN) {
-      try {
-        const qs = (event && event.queryStringParameters) || {};
-        const requestedSymbolsParam = qs.symbols && String(qs.symbols).trim();
-
-        const days = getLastBusinessDays(FIVE_DAYS);
-        const from = days[0];
-        const to = days[days.length - 1];
-
-        let symbolRequests = [];
-
-        if (requestedSymbolsParam) {
-          // Explicit list of symbols (dev / debugging)
-          const sarr = requestedSymbolsParam
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean);
-          sarr.forEach((sym) => {
-            const parts = sym.split(".");
-            if (parts.length === 1) {
-              symbolRequests.push({
-                symbol: parts[0].toUpperCase(),
-                exchange: "AU",
-              });
-            } else {
-              symbolRequests.push({
-                symbol: sym,
-                exchange: "AU",
-              });
-            }
-          });
-          eodhdDebug.steps.push({
-            source: "symbols-param",
-            count: symbolRequests.length,
-          });
-        } else {
-          // Build universe from EODHD exchange-symbol-list (AU), limited to MAX_PER_EXCHANGE
-          const res = await listSymbolsForExchange("AU");
-          if (res.ok && Array.isArray(res.data)) {
-            // Normalize items returned by the exchange-symbol-list
-            const normalized = res.data
-              .map((it) => {
-                if (!it) return null;
-                if (typeof it === "string") return { code: it, name: "" };
-                const code =
-                  it.code ||
-                  it.Code ||
-                  it.symbol ||
-                  it.Symbol ||
-                  it[0] ||
-                  "";
-                const name =
-                  it.name ||
-                  it.Name ||
-                  it.companyName ||
-                  it.CompanyName ||
-                  it[1] ||
-                  "";
-                return { code, name };
-              })
-              .filter(Boolean)
-              .filter((x) => x.code && !x.code.includes("^") && !x.code.includes("/"));
-
-            const limited = normalized.slice(0, MAX_PER_EXCHANGE);
-
-            limited.forEach((it) =>
-              symbolRequests.push({
-                symbol: it.code.toUpperCase(),
-                exchange: "AU",
-                name: it.name || ""
-              })
-            );
-
-            eodhdDebug.steps.push({
-              source: "universe-from-exchange-list",
-              totalFound: normalized.length,
-              used: limited.length,
-            });
-          } else {
-            eodhdDebug.steps.push({ source: "list-symbols-failed", error: res.error || "unknown" });
-          }
-        }
-
-        if (symbolRequests.length > 0) {
-          // track fallback successes & failures for debug
-          let fallbackSuccesses = 0;
-          const failureSamples = [];
-
-          const results = await mapWithConcurrency(
-            symbolRequests,
-            async (req) => {
-              const sym = req.symbol;
-              const r = await fetchEodWithSuffixes(sym, from, to);
-
-              if (!r.ok || !Array.isArray(r.data) || r.data.length < FIVE_DAYS) {
-                if (failureSamples.length < 10) {
-                  failureSamples.push({
-                    symbol: sym,
-                    attempts: r.attempts || [],
-                    lastStatus: r.lastStatus || 0,
-                    lastTextSnippet:
-                      typeof r.lastText === "string"
-                        ? (r.lastText || "").slice(0, 800)
-                        : null,
-                  });
-                }
-                return null;
-              }
-
-              if (r.usedSuffix) fallbackSuccesses++;
-
-              const pct = pctGainFromPrices(r.data);
-              if (pct === null || Number.isNaN(pct)) return null;
-              return {
-                symbol: sym,
-                exchange: "AU",
-                name: req.name || "",
-                pctGain: Number(pct.toFixed(2)),
-                firstClose: r.data[0].close,
-                lastClose: r.data[r.data.length - 1].close,
-                pricesCount: r.data.length,
-                usedSuffix: r.usedSuffix || null,
-              };
-            },
-            EODHD_CONCURRENCY
-          );
-
-          const cleaned = results.filter(Boolean);
-          cleaned.sort((a, b) => b.pctGain - a.pctGain);
-
-          // Debug info
-          eodhdDebug.cleanedCount = cleaned.length;
-          eodhdDebug.fallbackSuccesses = fallbackSuccesses || 0;
-          eodhdDebug.failureSamples = failureSamples;
-          eodhdDebug.symbolRequestsCount = symbolRequests.length;
-          eodhdDebug.symbolRequestsSample = symbolRequests.slice(0, 20).map((s) => (s && s.symbol) || null);
-
-          // top performers (no market-cap filtering) — return TOP_N highest
-          topPerformers = cleaned.slice(0, TOP_N);
-
-          eodhdDebug.steps.push({
-            source: "computed-top-performers",
-            evaluated: cleaned.length,
-            topN: TOP_N,
-            top: topPerformers.map((x) => ({ symbol: x.symbol, pct: x.pctGain })),
-          });
-
-          // Persist topPerformers to Upstash (best-effort)
+    try {
+      const raw = await redisGet("asx200:latest");
+      let asxRows = null;
+      if (raw) {
+        if (typeof raw === "string") {
           try {
-            const today = new Date().toISOString().slice(0, 10);
-            await redisSet("topPerformers:latest", topPerformers);
-            await redisSet(`topPerformers:${today}`, topPerformers);
-
-            eodhdDebug.steps.push({
-              source: "topperformers-saved",
-              count: topPerformers.length,
-            });
+            asxRows = JSON.parse(raw);
           } catch (e) {
-            eodhdDebug.steps.push({
-              source: "topperformers-save-failed",
-              error: e && e.message,
-            });
+            // if parse fails, try to continue treating as null
+            debug.steps.push({ source: "parse-asx200-latest-failed", error: e && e.message });
+            asxRows = null;
           }
+        } else if (Array.isArray(raw)) {
+          asxRows = raw;
+        } else if (typeof raw === "object" && Array.isArray(raw.result)) {
+          // defensive: some Upstash returns wrap in { result: [...] }
+          asxRows = raw.result;
         } else {
-          eodhdDebug.steps.push({ source: "no-symbols" });
+          asxRows = raw;
         }
-
-        eodhdDebug.window = {
-          from: new Date(from).toISOString().slice(0, 10),
-          to: new Date(to).toISOString().slice(0, 10),
-        };
-        debug.eodhd = eodhdDebug;
-      } catch (err) {
-        debug.eodhd = debug.eodhd || {};
-        debug.eodhd.error = (err && err.message) || String(err);
       }
-    } else {
-      debug.eodhd = { active: false, note: "EODHD_API_TOKEN missing" };
+
+      if (!Array.isArray(asxRows)) {
+        debug.steps.push({ source: "asx200-latest-missing-or-invalid", found: !!asxRows });
+      } else {
+        // compute pctChange if not present and filter valid rows
+        const cleaned = asxRows
+          .map((r) => {
+            const last = typeof r.lastPrice === "number" ? r.lastPrice : (r.lastPrice ? Number(r.lastPrice) : null);
+            const prev = typeof r.yesterdayPrice === "number" ? r.yesterdayPrice : (r.yesterdayPrice ? Number(r.yesterdayPrice) : null);
+            let pct = null;
+            if (last !== null && prev !== null && prev !== 0) {
+              pct = ((last - prev) / prev) * 100;
+            } else if (typeof r.pctChange === "number") {
+              pct = r.pctChange;
+            }
+            return {
+              code: normalizeCode(r.code || r.fullCode || r.symbol || ""),
+              fullCode: r.fullCode || r.full_code || r.full || r.code || null,
+              name: r.name || r.companyName || "",
+              lastDate: r.lastDate || r.date || null,
+              lastPrice: typeof last === "number" && !Number.isNaN(last) ? Number(last) : null,
+              yesterdayDate: r.yesterdayDate || null,
+              yesterdayPrice: typeof prev === "number" && !Number.isNaN(prev) ? Number(prev) : null,
+              pctChange: typeof pct === "number" && Number.isFinite(pct) ? Number(pct) : null,
+              raw: r
+            };
+          })
+          .filter((x) => x && x.lastPrice !== null && x.yesterdayPrice !== null && x.pctChange !== null);
+
+        cleaned.sort((a, b) => b.pctChange - a.pctChange);
+
+        topPerformers = cleaned.slice(0, TOP_N).map((x) => ({
+          code: x.code,
+          fullCode: x.fullCode,
+          name: x.name,
+          lastDate: x.lastDate,
+          lastPrice: x.lastPrice,
+          yesterdayDate: x.yesterdayDate,
+          yesterdayPrice: x.yesterdayPrice,
+          pctChange: Number(x.pctChange.toFixed(4)),
+        }));
+
+        debug.steps.push({
+          source: "computed-top-performers-from-asx200-latest",
+          available: cleaned.length,
+          topN: TOP_N,
+          topSample: topPerformers.map((t) => ({ code: t.code, pct: t.pctChange })),
+        });
+
+        // persist topPerformers to Upstash (best-effort)
+        try {
+          const today = new Date().toISOString().slice(0, 10);
+          await redisSet("topPerformers:latest", topPerformers);
+          await redisSet(`topPerformers:${today}`, topPerformers);
+          debug.steps.push({ source: "top-performers-saved", count: topPerformers.length });
+        } catch (e) {
+          debug.steps.push({ source: "top-performers-save-failed", error: e && e.message });
+        }
+      }
+    } catch (e) {
+      debug.steps.push({ source: "top-performers-error", error: e && e.message });
     }
 
     // --------------------------------------------------
@@ -604,6 +382,7 @@ exports.handler = async function (event) {
       _debug: {
         ...debug,
         metalsDataSource,
+        topSource: "asx200:latest"
       },
     };
 
