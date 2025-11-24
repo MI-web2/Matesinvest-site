@@ -21,7 +21,7 @@
 //   BACKOFF_BASE_MS (default 300)
 //   TRY_SUFFIXES (default "AU,AX,ASX")
 //   EOD_LOOKBACK_DAYS (default 2)  <-- now defaults to 2 business days (most recent + previous)
-//   NOTE: EOD_LOOKBACK_DAYS can still be set via env if you want to change later.
+//
 
 const fs = require("fs");
 const path = require("path");
@@ -143,13 +143,13 @@ exports.handler = async function (event) {
     tickers = tickers.slice(0, Math.min(QUICK_LIMIT, tickers.length));
   }
 
-  // prepare date window: last 2 business days (most recent trading day + prior trading day)
+  // prepare date window: last EOD_LOOKBACK_DAYS business days (default 2)
   const days = getLastBusinessDays(EOD_LOOKBACK_DAYS);
   if (days.length < 2) {
     return { statusCode: 500, body: JSON.stringify({ error: "Not enough business days in lookback window", days }) };
   }
   const from = days[0];
-  const to = days[days.length - 1]; // should be the most recent business day
+  const to = days[days.length - 1];
 
   // helpers for EOD and fundamentals
   async function fetchEod(fullCode) {
@@ -189,6 +189,7 @@ exports.handler = async function (event) {
   }
 
   async function fetchFund(fullCode) {
+    // try a few endpoints; return raw JSON when available
     const endpoints = [
       `https://eodhd.com/api/fundamental/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
       `https://eodhd.com/api/fundamentals/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
@@ -269,4 +270,111 @@ exports.handler = async function (event) {
         if (m2) {
           const num = Number(m2[1]);
           const suf = (m2[2] || "").toUpperCase();
-          if (suf === "B")
+          if (suf === "B") return num * 1e9;
+          if (suf === "M") return num * 1e6;
+          return num;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  // try suffixes if symbol lacks dot
+  async function getSymbolData(symbol) {
+    if (symbol.includes(".")) {
+      const eod = await fetchEod(symbol);
+      const fund = await fetchFund(symbol);
+      return { symbol, eod, fund, attempts: [symbol] };
+    }
+    const attempts = [];
+    for (const sfx of TRY_SUFFIXES) {
+      const full = `${symbol}.${sfx}`;
+      attempts.push(full);
+      const eod = await fetchEod(full);
+      if (!eod.ok || !Array.isArray(eod.data) || eod.data.length === 0) continue;
+      const fund = await fetchFund(full);
+      return { symbol, eod, fund, attempts };
+    }
+    return { symbol, eod: { ok: false }, fund: { ok: false }, attempts };
+  }
+
+  // parallel map with limited concurrency
+  const results = [];
+  let idx = 0;
+  const workers = new Array(Math.min(CONCURRENCY, tickers.length)).fill(null).map(async () => {
+    while (true) {
+      const i = idx++;
+      if (i >= tickers.length) return;
+      const t = tickers[i];
+      try {
+        const data = await getSymbolData(t);
+        results.push({ requested: t, ...data });
+      } catch (err) {
+        results.push({ requested: t, eod: { ok: false, error: err && err.message }, fund: { ok: false }, attempts: [] });
+      }
+    }
+  });
+  await Promise.all(workers);
+
+  // build rows using the two business days only
+  const rows = [];
+  const failures = [];
+  for (const res of results) {
+    const symbol = res.symbol;
+    const attempts = res.attempts || [];
+    if (!res.eod || !res.eod.ok || !Array.isArray(res.eod.data) || res.eod.data.length === 0) {
+      failures.push({ code: symbol, attempts, reason: "no-eod" });
+      continue;
+    }
+    const arr = res.eod.data;
+    // Expect arr to contain up to EOD_LOOKBACK_DAYS entries for the last business days; use the last entry and previous valid one.
+    const last = arr[arr.length - 1];
+    let prev = null;
+    for (let k = arr.length - 2; k >= 0; k--) {
+      if (arr[k] && typeof arr[k].close !== "undefined" && arr[k].close !== null) {
+        prev = arr[k];
+        break;
+      }
+    }
+    const lastPrice = last && typeof last.close === "number" ? last.close : Number(last && last.close);
+    const yesterdayPrice = prev ? (typeof prev.close === "number" ? prev.close : Number(prev.close)) : null;
+    const pctChange = (yesterdayPrice !== null && yesterdayPrice !== 0) ? ((lastPrice - yesterdayPrice) / yesterdayPrice) * 100 : null;
+
+    let marketCap = null;
+    if (res.fund && res.fund.ok && res.fund.data) {
+      marketCap = extractMarketCapFromFund(res.fund.data);
+    }
+
+    rows.push({
+      code: normalizeCode(symbol),
+      fullCode: symbol,
+      lastDate: last && last.date ? last.date : null,
+      lastPrice: typeof lastPrice === "number" && !Number.isNaN(lastPrice) ? Number(lastPrice) : null,
+      yesterdayDate: prev && prev.date ? prev.date : null,
+      yesterdayPrice: typeof yesterdayPrice === "number" && !Number.isNaN(yesterdayPrice) ? Number(yesterdayPrice) : null,
+      pctChange: typeof pctChange === "number" && Number.isFinite(pctChange) ? Number(pctChange.toFixed(6)) : null,
+      marketCap: typeof marketCap === "number" && Number.isFinite(marketCap) ? Math.round(marketCap) : null,
+      attempts
+    });
+  }
+
+  // persist to Upstash
+  const todayKey = `asx200:daily:${new Date().toISOString().slice(0, 10)}`;
+  const latestKey = `asx200:latest`;
+  const okDaily = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, todayKey, rows);
+  const okLatest = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, latestKey, rows);
+
+  const payload = {
+    ok: okDaily && okLatest,
+    savedDailyKey: todayKey,
+    savedLatestKey: latestKey,
+    requested: tickers.length,
+    rowsCollected: rows.length,
+    failures: failures.slice(0, 30),
+    elapsedMs: Date.now() - start
+  };
+
+  return { statusCode: 200, body: JSON.stringify(payload) };
+};
