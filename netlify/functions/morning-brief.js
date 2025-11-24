@@ -338,22 +338,30 @@ exports.handler = async function (event) {
 
         cleaned.sort((a, b) => b.pctChange - a.pctChange);
 
+        // Create mapping that includes both UI-expected keys (symbol, lastClose, pctGain)
+        // and the snapshot-style keys (code, lastPrice, pctChange) so existing client HTML works.
         topPerformers = cleaned.slice(0, TOP_N).map((x) => ({
-          code: x.code,
-          fullCode: x.fullCode,
-          name: x.name,
-          lastDate: x.lastDate,
-          lastPrice: x.lastPrice,
-          yesterdayDate: x.yesterdayDate,
-          yesterdayPrice: x.yesterdayPrice,
-          pctChange: Number(x.pctChange.toFixed(4)),
+          // UI-friendly names used by mates-summaries.html
+          symbol: x.code || null,
+          lastClose: typeof x.lastPrice === "number" ? x.lastPrice : null,
+          pctGain: typeof x.pctChange === "number" ? Number(x.pctChange.toFixed(4)) : null,
+          name: x.name || "",
+
+          // snapshot-style names preserved for downstream consumers
+          code: x.code || null,
+          fullCode: x.fullCode || null,
+          lastDate: x.lastDate || null,
+          lastPrice: typeof x.lastPrice === "number" ? x.lastPrice : null,
+          yesterdayDate: x.yesterdayDate || null,
+          yesterdayPrice: typeof x.yesterdayPrice === "number" ? x.yesterdayPrice : null,
+          pctChange: typeof x.pctChange === "number" ? Number(x.pctChange.toFixed(4)) : null,
         }));
 
         debug.steps.push({
           source: "computed-top-performers-from-asx200-latest",
           available: cleaned.length,
           topN: TOP_N,
-          topSample: topPerformers.map((t) => ({ code: t.code, pct: t.pctChange })),
+          topSample: topPerformers.map((t) => ({ symbol: t.symbol, pct: t.pctGain })),
         });
 
         // persist topPerformers to Upstash (best-effort)
@@ -385,6 +393,9 @@ exports.handler = async function (event) {
         topSource: "asx200:latest"
       },
     };
+
+    // small helpful console log for browser debug when opening brief
+    try { console.log("[morning-brief] payload sample:", { topPerformers: payload.topPerformers && payload.topPerformers.slice(0,6), debug: payload._debug }); } catch (e) {}
 
     return { statusCode: 200, body: JSON.stringify(payload) };
   } catch (err) {
