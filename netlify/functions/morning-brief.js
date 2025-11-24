@@ -2,16 +2,7 @@
 // Morning brief for multiple metals + top performers across ASX (AU) using EODHD.
 // - Metals prices: snapshot-only from Upstash (no live metals/FX fetches)
 // - Top performers: EODHD-backed 5-business-day % gain for AU exchange,
-//   filtered by market cap using Upstash "mcaps:latest".
-//
-// Required env:
-//   UPSTASH_REDIS_REST_URL
-//   UPSTASH_REDIS_REST_TOKEN
-//   EODHD_API_TOKEN
-// Optional env:
-//   EODHD_MAX_SYMBOLS_PER_EXCHANGE (default 500)
-//   EODHD_CONCURRENCY (default 8)
-//   EODHD_MIN_MARKET_CAP (default 300_000_000)
+//   (Note: market-cap filtering removed — we compute top performers across the exchange list)
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -36,6 +27,11 @@ exports.handler = async function (event) {
 
   const fmt = (n) =>
     typeof n === "number" && Number.isFinite(n) ? Number(n.toFixed(2)) : null;
+
+  // Normalize symbol / code (strip dot-suffix and uppercase) — still useful for reporting/debug.
+  function normalizeCode(code) {
+    return String(code || "").replace(/\.[A-Z0-9]{1,6}$/i, "").toUpperCase();
+  }
 
   // ---------- Upstash helpers ----------
   const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || null;
@@ -63,19 +59,33 @@ exports.handler = async function (event) {
 
   async function redisSet(key, value) {
     if (!UPSTASH_URL || !UPSTASH_TOKEN) return false;
+
     try {
+      const valString =
+        typeof value === "string" ? value : JSON.stringify(value);
+
+      const url =
+        `${UPSTASH_URL}/set/` +
+        `${encodeURIComponent(key)}/` +
+        `${encodeURIComponent(valString)}`;
+
       const res = await fetchWithTimeout(
-        `${UPSTASH_URL}/set/${encodeURIComponent(key)}`,
+        url,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ value }),
+          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
         },
         8000
       );
-      return !!res.ok;
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        console.warn("redisSet failed", key, res.status, txt);
+        return false;
+      }
+      return true;
     } catch (e) {
-      console.warn("redisSet error", e && e.message);
+      console.warn("redisSet error", key, e && e.message);
       return false;
     }
   }
@@ -169,10 +179,7 @@ exports.handler = async function (event) {
     // ------------------------------
     let yesterdayData = null;
     try {
-      // Work out "yesterday" relative to the time the latest snapshot was taken,
-      // not the server's current clock. This avoids UTC vs AEST date mismatches.
       let keyDate;
-
       if (latestSnapshot && (latestSnapshot.snappedAt || latestSnapshot.priceTimestamp)) {
         const base = new Date(
           latestSnapshot.snappedAt || latestSnapshot.priceTimestamp
@@ -180,7 +187,6 @@ exports.handler = async function (event) {
         base.setUTCDate(base.getUTCDate() - 1);
         keyDate = base.toISOString().slice(0, 10);
       } else {
-        // Fallback: one calendar day before current UTC date
         const d = new Date();
         const yd = new Date(
           Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - 1)
@@ -276,14 +282,13 @@ exports.handler = async function (event) {
     }
 
     // --------------------------------------------------
-    // 2) EODHD top performers (AU exchange) + market cap filter
+    // 2) EODHD top performers (AU exchange) — NO MARKET CAP FILTER
     // --------------------------------------------------
     const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
     const MAX_PER_EXCHANGE = Number(
       process.env.EODHD_MAX_SYMBOLS_PER_EXCHANGE || 500
-    ); // safety cap
+    ); // how many exchange-symbol-list entries to use
     const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
-    const MIN_MCAP = Number(process.env.EODHD_MIN_MARKET_CAP || 300000000);
     const FIVE_DAYS = 5;
 
     const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
@@ -336,8 +341,8 @@ exports.handler = async function (event) {
       return { ok: true, data: r.json };
     }
 
-    async function fetchEodForSymbol(symbol, exchange, from, to) {
-      const fullCode = symbol.includes(".") ? symbol : `${symbol}.${exchange}`;
+    // Basic single-call EOD fetch (returns r.json array or null)
+    async function fetchEodSingle(fullCode, from, to) {
       const url = `https://eodhd.com/api/eod/${encodeURIComponent(
         fullCode
       )}?api_token=${encodeURIComponent(
@@ -345,12 +350,36 @@ exports.handler = async function (event) {
       )}&period=d&from=${from}&to=${to}&fmt=json`;
       const r = await fetchJson(url, {}, 12000);
       if (!r.ok || !Array.isArray(r.json)) {
-        return { ok: false, data: null, error: r.text || `HTTP ${r.status}` };
+        return { ok: false, data: null, text: r.text || null, status: r.status || 0 };
       }
-      const arr = r.json
-        .slice()
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
-      return { ok: true, data: arr };
+      const arr = r.json.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+      return { ok: true, data: arr, text: null, status: 200 };
+    }
+
+    // Tries multiple suffixes for symbols that don't already include a dot.
+    async function fetchEodWithSuffixes(symbol, from, to) {
+      if (symbol.includes(".")) {
+        const r = await fetchEodSingle(symbol, from, to);
+        return { ...r, usedSuffix: symbol.includes(".") ? symbol.split(".").slice(1).join(".") : null, attempts: [symbol] };
+      }
+
+      const suffixes = ["AU", "AX", "ASX"];
+      const attempts = [];
+      let lastText = null;
+      let lastStatus = 0;
+
+      for (const sfx of suffixes) {
+        const fullCode = `${symbol}.${sfx}`;
+        attempts.push(fullCode);
+        const r = await fetchEodSingle(fullCode, from, to);
+        if (r.ok && Array.isArray(r.data) && r.data.length >= FIVE_DAYS) {
+          return { ok: true, data: r.data, usedSuffix: sfx, attempts, lastText: null, lastStatus: r.status };
+        }
+        lastText = r.text || lastText;
+        lastStatus = r.status || lastStatus;
+      }
+
+      return { ok: false, data: null, usedSuffix: null, attempts, lastText, lastStatus };
     }
 
     function pctGainFromPrices(prices) {
@@ -385,10 +414,8 @@ exports.handler = async function (event) {
     let topPerformers = [];
     if (EODHD_TOKEN) {
       try {
-        const qs =
-          (event && event.queryStringParameters) || {};
-        const requestedSymbolsParam =
-          qs.symbols && String(qs.symbols).trim();
+        const qs = (event && event.queryStringParameters) || {};
+        const requestedSymbolsParam = qs.symbols && String(qs.symbols).trim();
 
         const days = getLastBusinessDays(FIVE_DAYS);
         const from = days[0];
@@ -421,27 +448,14 @@ exports.handler = async function (event) {
             count: symbolRequests.length,
           });
         } else {
-          // AU only – list AU exchange fully, then trim to MAX_PER_EXCHANGE
-          const exchanges = ["AU"];
-          for (const ex of exchanges) {
-            const res = await listSymbolsForExchange(ex);
-            if (!res.ok) {
-              eodhdDebug.steps.push({
-                source: "list-symbols-failed",
-                exchange: ex,
-                error: res.error || "unknown",
-              });
-              continue;
-            }
-
-            const items = res.data;
-
-            const normalized = items
+          // Build universe from EODHD exchange-symbol-list (AU), limited to MAX_PER_EXCHANGE
+          const res = await listSymbolsForExchange("AU");
+          if (res.ok && Array.isArray(res.data)) {
+            // Normalize items returned by the exchange-symbol-list
+            const normalized = res.data
               .map((it) => {
                 if (!it) return null;
-                if (typeof it === "string") {
-                  return { code: it, name: "" };
-                }
+                if (typeof it === "string") return { code: it, name: "" };
                 const code =
                   it.code ||
                   it.Code ||
@@ -459,9 +473,7 @@ exports.handler = async function (event) {
                 return { code, name };
               })
               .filter(Boolean)
-              .filter(
-                (x) => x.code && !x.code.includes("^") && !x.code.includes("/")
-              );
+              .filter((x) => x.code && !x.code.includes("^") && !x.code.includes("/"));
 
             const limited = normalized.slice(0, MAX_PER_EXCHANGE);
 
@@ -469,34 +481,48 @@ exports.handler = async function (event) {
               symbolRequests.push({
                 symbol: it.code.toUpperCase(),
                 exchange: "AU",
-                name: it.name || "",
+                name: it.name || ""
               })
             );
 
-            await new Promise((r) => setTimeout(r, 200));
             eodhdDebug.steps.push({
-              source: "list-symbols",
-              exchange: ex,
+              source: "universe-from-exchange-list",
               totalFound: normalized.length,
               used: limited.length,
             });
+          } else {
+            eodhdDebug.steps.push({ source: "list-symbols-failed", error: res.error || "unknown" });
           }
         }
 
         if (symbolRequests.length > 0) {
+          // track fallback successes & failures for debug
+          let fallbackSuccesses = 0;
+          const failureSamples = [];
+
           const results = await mapWithConcurrency(
             symbolRequests,
             async (req) => {
               const sym = req.symbol;
-              const r = await fetchEodForSymbol(
-                sym,
-                req.exchange || "AU",
-                from,
-                to
-              );
+              const r = await fetchEodWithSuffixes(sym, from, to);
+
               if (!r.ok || !Array.isArray(r.data) || r.data.length < FIVE_DAYS) {
+                if (failureSamples.length < 10) {
+                  failureSamples.push({
+                    symbol: sym,
+                    attempts: r.attempts || [],
+                    lastStatus: r.lastStatus || 0,
+                    lastTextSnippet:
+                      typeof r.lastText === "string"
+                        ? (r.lastText || "").slice(0, 800)
+                        : null,
+                  });
+                }
                 return null;
               }
+
+              if (r.usedSuffix) fallbackSuccesses++;
+
               const pct = pctGainFromPrices(r.data);
               if (pct === null || Number.isNaN(pct)) return null;
               return {
@@ -507,6 +533,7 @@ exports.handler = async function (event) {
                 firstClose: r.data[0].close,
                 lastClose: r.data[r.data.length - 1].close,
                 pricesCount: r.data.length,
+                usedSuffix: r.usedSuffix || null,
               };
             },
             EODHD_CONCURRENCY
@@ -515,79 +542,38 @@ exports.handler = async function (event) {
           const cleaned = results.filter(Boolean);
           cleaned.sort((a, b) => b.pctGain - a.pctGain);
 
-          // -----------------------------
-          // Load today's market caps from Upstash
-          // -----------------------------
-          let mcapMap = {};
-          try {
-            const rawMcap = await redisGet("mcaps:latest");
-            if (rawMcap) {
-              const arr =
-                typeof rawMcap === "string" ? JSON.parse(rawMcap) : rawMcap;
-              if (Array.isArray(arr)) {
-                for (const item of arr) {
-                  if (!item || !item.code) continue;
-                  const base = String(item.code).replace(/\.AU$/i, "");
-                  const mc =
-                    typeof item.mcap === "number"
-                      ? item.mcap
-                      : Number(item.mcap);
-                  if (!Number.isNaN(mc)) mcapMap[base] = mc;
-                }
-              }
-            }
-            eodhdDebug.steps.push({
-              source: "mcaps-loaded",
-              count: Object.keys(mcapMap).length,
-              minMcap: MIN_MCAP,
-            });
-          } catch (err) {
-            console.warn("Failed to load mcaps", err);
-            eodhdDebug.steps.push({
-              source: "mcaps-error",
-              error: err && err.message,
-            });
-          }
+          // Debug info
+          eodhdDebug.cleanedCount = cleaned.length;
+          eodhdDebug.fallbackSuccesses = fallbackSuccesses || 0;
+          eodhdDebug.failureSamples = failureSamples;
+          eodhdDebug.symbolRequestsCount = symbolRequests.length;
+          eodhdDebug.symbolRequestsSample = symbolRequests.slice(0, 20).map((s) => (s && s.symbol) || null);
 
-          // -----------------------------
-          // Apply minimum market cap filter BEFORE slicing
-          // -----------------------------
-          let filtered = cleaned;
-          if (Object.keys(mcapMap).length > 0) {
-            filtered = cleaned.filter((tp) => {
-              const base = String(tp.symbol).replace(/\.AU$/i, "");
-              const mc = mcapMap[base];
-              return typeof mc === "number" && mc >= MIN_MCAP;
-            });
-          }
-
-          // If filter nukes everything (eg. missing mcaps), fall back to cleaned
-          const sourceArray = filtered.length ? filtered : cleaned;
-
-          topPerformers = sourceArray.slice(0, 5);
+          // top performers (no market-cap filtering)
+          topPerformers = cleaned.slice(0, 5);
 
           eodhdDebug.steps.push({
-            source: "computed-with-mcap",
+            source: "computed-top-performers",
             evaluated: cleaned.length,
-            afterMcapFilter: filtered.length,
-            top5: topPerformers.map((x) => ({
-              symbol: x.symbol,
-              pct: x.pctGain,
-            })),
+            top5: topPerformers.map((x) => ({ symbol: x.symbol, pct: x.pctGain })),
           });
 
-          // -----------------------------
           // Persist topPerformers to Upstash (best-effort)
-          // -----------------------------
           try {
-            const today = new Date().toISOString().slice(0,10);
-            await redisSet("topPerformers:latest", JSON.stringify(topPerformers));
-            await redisSet(`topPerformers:${today}`, JSON.stringify(topPerformers));
-            eodhdDebug.steps.push({ source: "topperformers-saved", count: topPerformers.length });
-          } catch (e) {
-            eodhdDebug.steps.push({ source: "topperformers-save-failed", error: e && e.message });
-          }
+            const today = new Date().toISOString().slice(0, 10);
+            await redisSet("topPerformers:latest", topPerformers);
+            await redisSet(`topPerformers:${today}`, topPerformers);
 
+            eodhdDebug.steps.push({
+              source: "topperformers-saved",
+              count: topPerformers.length,
+            });
+          } catch (e) {
+            eodhdDebug.steps.push({
+              source: "topperformers-save-failed",
+              error: e && e.message,
+            });
+          }
         } else {
           eodhdDebug.steps.push({ source: "no-symbols" });
         }

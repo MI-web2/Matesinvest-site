@@ -1,13 +1,19 @@
 // netlify/functions/stockOfTheDay.js
-// Stock of the Day: picks a stock (from query params, Upstash topPerformers, or a fallback pool),
-// asks OpenAI for a short JSON summary, caches the result in Upstash for ~26 hours, and returns it.
+// Stock of the Day
+// - Picks from today's ASX top performers (5-day window) as shown in morning-brief
+// - If the frontend passes an explicit ticker/name (from the top performers row),
+//   we use that directly.
+// - Otherwise we call the morning-brief function and choose one of its
+//   `topPerformers`.
+// - We cache the generated summary per day + ticker in Upstash so OpenAI is
+//   only called once each morning for a given stock.
 
-const fetch = (...args) => global.fetch(...args);
-
-// Env
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+// Small helper: Node18+ global fetch is available on Netlify, but if not, fall back.
+const fetchFn = (...args) => (global.fetch ? global.fetch(...args) : fetch(...args));
 
 // -------------------------------
 // Redis helpers
@@ -15,14 +21,15 @@ const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 async function redisGet(key) {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
   try {
-    const res = await fetch(`${UPSTASH_URL}/get/${encodeURIComponent(key)}`, {
-      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+    const res = await fetchFn(`${UPSTASH_URL}/get/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
     });
     if (!res.ok) return null;
     const data = await res.json().catch(() => null);
-    return (data && typeof data.result !== "undefined") ? data.result : null;
-  } catch (e) {
-    console.warn("redisGet error", e && e.message);
+    // Upstash returns { result: "<value>" }
+    return data && typeof data.result !== "undefined" ? data.result : null;
+  } catch (err) {
+    console.warn("stockOfTheDay redisGet error", err && err.message);
     return null;
   }
 }
@@ -30,67 +37,115 @@ async function redisGet(key) {
 async function redisSetEx(key, value, ttlSeconds) {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) return;
   try {
-    await fetch(
-      `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(value)}?EX=${ttlSeconds}`,
-      { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } }
+    await fetchFn(
+      `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(
+        value
+      )}?EX=${ttlSeconds}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
+      }
     );
-  } catch (e) {
-    console.warn("redisSetEx error", e && e.message);
+  } catch (err) {
+    console.warn("stockOfTheDay redisSetEx error", err && err.message);
   }
 }
 
 // -------------------------------
-// Utilities
+// Date helpers
 // -------------------------------
 function getAussieDateString() {
   const now = new Date();
-  const aussie = new Date(now.toLocaleString("en-US", { timeZone: "Australia/Sydney" }));
+  const aussie = new Date(
+    now.toLocaleString("en-US", { timeZone: "Australia/Sydney" })
+  );
   const y = aussie.getFullYear();
   const m = String(aussie.getMonth() + 1).padStart(2, "0");
   const d = String(aussie.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
-function pickIndexForDate(dateStr, max) {
-  const num = parseInt(dateStr.replace(/-/g, ""), 10) || 1;
-  return num % max;
-}
 
-const STOCK_POOL = [
-  { ticker: "BHP", name: "BHP Group", exchange: "ASX", blurb: "large-cap diversified miner..." },
-  { ticker: "CBA", name: "Commonwealth Bank of Australia", exchange: "ASX", blurb: "Australia's largest retail bank..." },
-  { ticker: "CSL", name: "CSL Limited", exchange: "ASX", blurb: "global biotech focused on plasma therapies..." },
-  { ticker: "FMG", name: "Fortescue", exchange: "ASX", blurb: "pure-play iron ore producer..." },
-  { ticker: "PLS", name: "Pilbara Minerals", exchange: "ASX", blurb: "lithium producer..." },
-  { ticker: "AKE", name: "Allkem", exchange: "ASX", blurb: "lithium chemicals producer..." },
-  { ticker: "MIN", name: "Mineral Resources", exchange: "ASX", blurb: "diversified mining and services..." },
-  { ticker: "MQG", name: "Macquarie Group", exchange: "ASX", blurb: "global investment bank..." },
-  { ticker: "WOW", name: "Woolworths Group", exchange: "ASX", blurb: "supermarket and retail group..." },
-  { ticker: "WES", name: "Wesfarmers", exchange: "ASX", blurb: "conglomerate with Bunnings, Kmart..." }
+// -------------------------------
+// Simple static pool as ultimate fallback
+// -------------------------------
+const STATIC_POOL = [
+  {
+    ticker: "CBA",
+    name: "Commonwealth Bank of Australia",
+    exchange: "ASX",
+    blurb:
+      "Australia's largest retail bank, with exposure to mortgages, deposits and business lending."
+  },
+  {
+    ticker: "BHP",
+    name: "BHP Group",
+    exchange: "ASX",
+    blurb:
+      "A diversified resources major with key operations in iron ore, copper and coal."
+  },
+  {
+    ticker: "CSL",
+    name: "CSL",
+    exchange: "ASX",
+    blurb:
+      "A global biotech leader focused on plasma therapies, vaccines and specialty medicines."
+  },
+  {
+    ticker: "WES",
+    name: "Wesfarmers",
+    exchange: "ASX",
+    blurb:
+      "A diversified conglomerate with retail, industrials and resources exposure."
+  }
 ];
 
-function pickStockForTodayFromPool(dateStr) {
-  const index = pickIndexForDate(dateStr, STOCK_POOL.length);
-  return STOCK_POOL[index];
+function pickStockFromStaticPool(seedDate) {
+  const idx = Math.abs(hashString(seedDate)) % STATIC_POOL.length;
+  return STATIC_POOL[idx];
 }
 
-function buildPromptForStock(stock) {
-  return `You are writing a very short, plain-English snapshot of one ASX company for everyday investors.
+function hashString(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h * 31 + str.charCodeAt(i)) | 0;
+  }
+  return h;
+}
 
-Stock:
-- Ticker: ${stock.ticker}
-- Name: ${stock.name}
-- Exchange: ${stock.exchange}
-- Description: ${stock.blurb}
+// -------------------------------
+// Helper: normalise topPerformers from morning-brief
+// Handles: array, JSON string, { value: [...] }, { value: "[]"}.
+// -------------------------------
+function normaliseTopPerformers(raw) {
+  if (!raw) return [];
 
-Write 2–3 sentences explaining:
-- what this business does in simple terms
-- the main drivers that can help or hurt the share price over time
-- one key risk investors should be aware of.
+  // Already a proper array
+  if (Array.isArray(raw)) return raw;
 
-Do NOT give explicit recommendations (no "buy", "sell", "hold").
-Return your answer strictly as JSON ONLY, for example:
-{"summary":"..."} 
-Do not include any other keys or surrounding text or markdown.`;
+  // Old style: { value: ... }
+  if (typeof raw === "object") {
+    if (Array.isArray(raw.value)) return raw.value;
+    if (typeof raw.value === "string") {
+      try {
+        const parsed = JSON.parse(raw.value);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (_) {
+        // ignore
+      }
+    }
+  }
+
+  // Stringified JSON: "[]", "[{...}]"
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  return [];
 }
 
 // -------------------------------
@@ -98,146 +153,209 @@ Do not include any other keys or surrounding text or markdown.`;
 // -------------------------------
 exports.handler = async function (event) {
   try {
-    const qs = (event && event.queryStringParameters) ? event.queryStringParameters : {};
+    const qs = event.queryStringParameters || {};
     const region = (qs.region || "au").toLowerCase();
+    const todayAEST = getAussieDateString();
 
-    // Accept either 'symbol' or 'ticker' for the ticker param
-    let paramTicker = (qs.ticker || qs.symbol || "").toString().trim().toUpperCase();
+    // If the frontend passes a top performer, prefer that
+    const paramTicker = (qs.ticker || qs.symbol || "").toString().trim().toUpperCase();
     const paramName = (qs.name || "").toString().trim();
     const paramExchange = (qs.exchange || "ASX").toString().trim().toUpperCase();
 
-    const todayAEST = getAussieDateString();
-    const cacheKeyBase = paramTicker || "pool";
-    const cacheKey = `stockOfTheDay:${region}:${todayAEST}:${cacheKeyBase}`;
+    let baseStock = null;
+    let debugSource = "";
 
-    // 1) Return cached item if present
-    try {
-      const cached = await redisGet(cacheKey);
-      if (cached) {
-        const parsed = (typeof cached === "string") ? JSON.parse(cached) : cached;
-        return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(parsed) };
-      }
-    } catch (e) {
-      console.warn("stockOfTheDay: cache read failed", e && e.message);
-    }
-
-    // 2) Choose stock
-    let stock;
-    let source = "pool";
-
-    // If no explicit ticker provided, try Upstash topPerformers:latest
-    if (!paramTicker) {
+    if (paramTicker && paramName) {
+      baseStock = {
+        ticker: paramTicker,
+        name: paramName,
+        exchange: paramExchange || "ASX",
+        blurb: `${paramName} (${paramTicker}) has been one of the stronger ASX performers in recent sessions.`
+      };
+      debugSource = "query-param-top-performer";
+    } else {
+      // No explicit ticker: call morning-brief and pick from its topPerformers
       try {
-        const tpRaw = await redisGet("topPerformers:latest");
-        if (tpRaw) {
-          const arr = (typeof tpRaw === "string") ? JSON.parse(tpRaw) : tpRaw;
-          if (Array.isArray(arr) && arr.length) {
-            // Prefer the top item; fallback you can change to random pick
-            const cand = arr[0];
-            const sym = (cand && (cand.symbol || cand.ticker)) ? String(cand.symbol || cand.ticker).replace(/\.AU$/i,"") : null;
-            if (sym) {
-              stock = { ticker: sym.toUpperCase(), name: cand.name || "", exchange: "ASX", blurb: cand.name ? `Top performer: ${cand.name}` : "Top performer from scan" };
-              source = "top-performer-upstash";
-              paramTicker = stock.ticker;
-            }
+        const host =
+          event.headers["x-forwarded-host"] ||
+          event.headers.host ||
+          "localhost:8888";
+        const proto = event.headers["x-forwarded-proto"] || "https";
+        const baseUrl = process.env.URL || `${proto}://${host}`;
+        const mbUrl = `${baseUrl.replace(
+          /\/$/,
+          ""
+        )}/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`;
+
+        const mbRes = await fetchFn(mbUrl);
+        if (mbRes.ok) {
+          const mbJson = await mbRes.json().catch(() => null);
+
+          // 👇 Robust handling of old / new shapes
+          const tps = normaliseTopPerformers(
+            mbJson && mbJson.topPerformers
+          );
+
+          if (tps.length > 0) {
+            // deterministic-ish pick based on date so it doesn't change all day
+            const idx = Math.abs(hashString(todayAEST)) % tps.length;
+            const chosen = tps[idx];
+
+            baseStock = {
+              ticker: (chosen.symbol || chosen.code || "").toString().toUpperCase(),
+              name:
+                chosen.name ||
+                chosen.CompanyName ||
+                chosen.companyName ||
+                "ASX stock",
+              exchange: "ASX",
+              blurb:
+                "This company has been among the top percentage gainers on the ASX over the last five trading days."
+            };
+            debugSource = "morning-brief-top-performers";
           }
         }
-      } catch (e) {
-        console.warn("stockOfTheDay: topPerformers read failed", e && e.message);
+      } catch (err) {
+        console.warn("stockOfTheDay: failed to fetch morning-brief", err);
+      }
+
+      if (!baseStock) {
+        baseStock = pickStockFromStaticPool(todayAEST);
+        debugSource = "static-pool-fallback";
       }
     }
 
-    if (!stock) {
-      if (paramTicker && paramName) {
-        stock = { ticker: paramTicker, name: paramName, exchange: paramExchange, blurb: `${paramName} (${paramTicker}) is an ASX-listed company recently among the market’s top performers.` };
-        source = "top-performer-param";
-      } else if (paramTicker && !paramName) {
-        // only ticker provided — best-effort name blank
-        stock = { ticker: paramTicker, name: "", exchange: paramExchange, blurb: `${paramTicker} is an ASX-listed company.` };
-        source = "ticker-only";
-      } else {
-        stock = pickStockForTodayFromPool(todayAEST);
-        source = "fallback-pool";
+    const cacheKey = `stockOfTheDay:${region}:${todayAEST}:${baseStock.ticker}`;
+    const cached = await redisGet(cacheKey);
+
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsed)
+        };
+      } catch (_) {
+        // fall through if cache is corrupted
       }
     }
 
-    // 3) If no OpenAI key, return a simple fallback summary
+    // If no OpenAI key, build a very simple summary and stop here
     if (!OPENAI_API_KEY) {
-      const fallbackSummary = `${stock.name || stock.ticker} (${stock.ticker}) is ${stock.blurb} This is a general description only.`;
-      const payload = { region, ticker: stock.ticker, name: stock.name, exchange: stock.exchange, summary: fallbackSummary, generatedAt: new Date().toISOString(), _debug: { usedFallback: true, source } };
-      // cache (best-effort)
-      try { await redisSetEx(cacheKey, JSON.stringify(payload), 26 * 60 * 60); } catch (_) {}
-      return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) };
+      const fallbackSummary = `${baseStock.name} (${baseStock.ticker}) is ${baseStock.blurb} This profile is for general information only and is not a recommendation.`;
+
+      const payload = {
+        region,
+        ticker: baseStock.ticker,
+        name: baseStock.name,
+        exchange: baseStock.exchange,
+        summary: fallbackSummary,
+        generatedAt: new Date().toISOString(),
+        _debug: { usedFallback: true, source: debugSource }
+      };
+
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      };
     }
 
-    // 4) Call OpenAI
-    const prompt = buildPromptForStock(stock);
+    // -------------------------------
+    // Call OpenAI for a short profile
+    // -------------------------------
+    const prompt = `
+You are helping everyday Australian investors understand a single ASX stock.
 
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+Write a very short Stock of the Day note for:
+- Ticker: ${baseStock.ticker}
+- Name: ${baseStock.name}
+- Exchange: ${baseStock.exchange}
+
+Guidelines:
+- 2–3 sentences max.
+- Plain English, no buzzwords.
+- Describe what the business does and one or two things investors tend to watch (earnings, dividends, exposure to a theme, etc.).
+- Do NOT give direct advice or tell the reader to buy/sell/hold.
+- No headings, no markdown, no bullet points.
+`;
+
+    const aiRes = await fetchFn("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "You write short, clear company summaries for everyday Australian investors." },
+          {
+            role: "system",
+            content:
+              "You write very short, neutral stock snapshots for Australian investors. You never give explicit investment advice."
+          },
           { role: "user", content: prompt }
         ],
-        temperature: 0.3,
+        temperature: 0.4,
         max_tokens: 220
       })
     });
 
     const aiJson = await aiRes.json().catch(() => null);
-    let raw = aiJson?.choices?.[0]?.message?.content?.trim?.() || "";
 
-    // Try to parse JSON returned by the assistant
-    let summary = "";
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed.summary === "string") summary = parsed.summary.trim();
-      } catch (e) {
-        // not valid JSON — fall back to using the raw text
-        summary = raw.replace(/\n+/g, " ").trim();
-      }
-    }
+    let summary =
+      (aiJson &&
+        aiJson.choices &&
+        aiJson.choices[0] &&
+        aiJson.choices[0].message &&
+        aiJson.choices[0].message.content) ||
+      "";
+
+    if (typeof summary !== "string") summary = "";
+
+    summary = summary.replace(/\s+/g, " ").trim();
 
     if (!summary) {
-      summary = `${stock.name || stock.ticker} (${stock.ticker}) is ${stock.blurb} This summary is general information only.`;
+      summary = `${baseStock.name} (${baseStock.ticker}) is ${baseStock.blurb} This summary is general information only.`;
     }
 
     const payload = {
       region,
-      ticker: stock.ticker,
-      name: stock.name,
-      exchange: stock.exchange,
+      ticker: baseStock.ticker,
+      name: baseStock.name,
+      exchange: baseStock.exchange,
       summary,
       generatedAt: new Date().toISOString(),
-      _debug: { usedFallback: false, source, aiRaw: raw ? raw.slice(0, 800) : null }
+      _debug: {
+        usedFallback: false,
+        source: debugSource
+      }
     };
 
-    // Cache (best-effort)
-    try {
-      await redisSetEx(cacheKey, JSON.stringify(payload), 26 * 60 * 60);
-    } catch (e) {
-      console.warn("stockOfTheDay: cache write failed", e && e.message);
-    }
+    // Cache for ~27 hours so it's always there for the next day as well
+    await redisSetEx(cacheKey, JSON.stringify(payload), 27 * 60 * 60);
 
-    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) };
-
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    };
   } catch (err) {
-    console.error("stockOfTheDay handler failed", err && (err.stack || err.message || err));
+    console.error("stockOfTheDay handler failed", err);
+
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        region: "unknown",
-        ticker: null,
-        name: null,
+        region: "au",
+        ticker: "N/A",
+        name: "Stock of the Day",
         exchange: "ASX",
-        summary: "Unable to load today’s Stock of the Day. This snapshot normally gives a quick overview of one ASX name to watch.",
+        summary:
+          "Unable to load today’s Stock of the Day. Keep an eye on the ASX top movers and major sectors at the open.",
         generatedAt: new Date().toISOString(),
-        _debug: { error: err && (err.message || String(err)) }
+        _debug: { error: err && err.message }
       })
     };
   }
