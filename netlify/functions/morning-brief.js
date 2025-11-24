@@ -344,7 +344,7 @@ exports.handler = async function (event) {
           // UI-friendly names used by mates-summaries.html
           symbol: x.code || null,
           lastClose: typeof x.lastPrice === "number" ? x.lastPrice : null,
-          pctGain: typeof x.pctChange === "number" ? Number(x.pctChange.toFixed(4)) : null,
+          pctGain: typeof x.pctChange === "number" ? Number(x.pctChange.toFixed(2)) : null,
           name: x.name || "",
 
           // snapshot-style names preserved for downstream consumers
@@ -354,7 +354,7 @@ exports.handler = async function (event) {
           lastPrice: typeof x.lastPrice === "number" ? x.lastPrice : null,
           yesterdayDate: x.yesterdayDate || null,
           yesterdayPrice: typeof x.yesterdayPrice === "number" ? x.yesterdayPrice : null,
-          pctChange: typeof x.pctChange === "number" ? Number(x.pctChange.toFixed(4)) : null,
+          pctChange: typeof x.pctChange === "number" ? Number(x.pctChange.toFixed(2)) : null,
         }));
 
         debug.steps.push({
