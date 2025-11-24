@@ -1,8 +1,8 @@
 // netlify/functions/snapshot-asx200.js
-//
 // Snapshot for ASX200 static universe (asx200.txt located next to this function file).
 // For each ticker this retrieves:
 //   - recent EOD bars for the last 2 business days to compute today's price, yesterday's price and pct change
+//   - company name (from EODHD exchange-symbol-list/AU) — cached in Upstash to avoid repeated calls
 // Stores results to Upstash as:
 //   asx200:daily:YYYY-MM-DD
 //   asx200:latest
@@ -22,6 +22,7 @@
 //   BACKOFF_BASE_MS (default 300)
 //   TRY_SUFFIXES (default "AU,AX,ASX")
 //   EOD_LOOKBACK_DAYS (default 2)
+//   EXCHANGE_LIST_CACHE_TTL (seconds, default 86400)
 
 const fs = require("fs");
 const path = require("path");
@@ -34,6 +35,7 @@ const DEFAULT_RETRIES = 2;
 const DEFAULT_BACKOFF_BASE_MS = 300;
 const DEFAULT_TRY_SUFFIXES = ["AU", "AX", "ASX"];
 const DEFAULT_EOD_LOOKBACK_DAYS = 2; // last 2 business days
+const DEFAULT_EXCHANGE_LIST_CACHE_TTL = 24 * 60 * 60; // 24h
 
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
@@ -65,6 +67,21 @@ function getLastBusinessDays(n, endDate = new Date()) {
 
 function normalizeCode(code) {
   return String(code || "").replace(/\.[A-Z0-9]{1,6}$/i, "").toUpperCase();
+}
+
+async function redisGet(urlBase, token, key, timeout = 8000) {
+  if (!urlBase || !token) return null;
+  try {
+    const res = await fetchWithTimeout(`${urlBase}/get/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }, timeout);
+    if (!res.ok) return null;
+    const j = await res.json().catch(() => null);
+    return j && typeof j.result !== "undefined" ? j.result : null;
+  } catch (err) {
+    console.warn("redisGet error", key, err && err.message);
+    return null;
+  }
 }
 
 async function redisSet(urlBase, token, key, value, ttlSeconds) {
@@ -140,6 +157,7 @@ exports.handler = async function (event) {
   const BACKOFF_BASE_MS = Number(process.env.BACKOFF_BASE_MS || DEFAULT_BACKOFF_BASE_MS);
   const TRY_SUFFIXES = (process.env.TRY_SUFFIXES ? process.env.TRY_SUFFIXES.split(",") : DEFAULT_TRY_SUFFIXES).map((s) => s.trim()).filter(Boolean);
   const EOD_LOOKBACK_DAYS = Number(process.env.EOD_LOOKBACK_DAYS || DEFAULT_EOD_LOOKBACK_DAYS);
+  const EXCHANGE_LIST_CACHE_TTL = Number(process.env.EXCHANGE_LIST_CACHE_TTL || DEFAULT_EXCHANGE_LIST_CACHE_TTL);
 
   let tickers;
   try {
@@ -149,6 +167,63 @@ exports.handler = async function (event) {
   }
 
   if (QUICK) tickers = tickers.slice(0, Math.min(QUICK_LIMIT, tickers.length));
+
+  // Build code -> company name map by fetching exchange-symbol-list/AU (cached)
+  const exchangeCacheKey = "asx:exchange-list:latest";
+  let exchangeList = null;
+  try {
+    const cached = await redisGet(UPSTASH_URL, UPSTASH_TOKEN, exchangeCacheKey);
+    if (cached) {
+      exchangeList = typeof cached === "string" ? JSON.parse(cached) : cached;
+    } else {
+      // fetch from EODHD
+      const url = `https://eodhd.com/api/exchange-symbol-list/AU?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`;
+      const res = await fetchWithTimeout(url, {}, 15000);
+      const text = await res.text().catch(() => "");
+      if (res.ok && text) {
+        try {
+          const json = JSON.parse(text);
+          if (Array.isArray(json)) {
+            exchangeList = json;
+            // cache it
+            await redisSet(UPSTASH_URL, UPSTASH_TOKEN, exchangeCacheKey, exchangeList, EXCHANGE_LIST_CACHE_TTL);
+          }
+        } catch (e) {
+          console.warn("exchange-list parse failed", e && e.message);
+          exchangeList = null;
+        }
+      } else {
+        console.warn("exchange-list fetch failed", res && res.status, text && text.slice(0,200));
+      }
+    }
+  } catch (err) {
+    console.warn("exchange list fetch error", err && err.message);
+    exchangeList = null;
+  }
+
+  const codeNameMap = {};
+  if (Array.isArray(exchangeList)) {
+    for (const it of exchangeList) {
+      try {
+        if (!it) continue;
+        if (typeof it === "string") {
+          // sometimes the list is an array of strings like "CBA.AX"
+          const base = normalizeCode(it);
+          if (!codeNameMap[base]) codeNameMap[base] = "";
+        } else if (typeof it === "object") {
+          const code = String(it.code || it.symbol || it.Code || it.Symbol || "").trim();
+          const name = String(it.name || it.companyName || it.Name || it.CompanyName || "").trim();
+          if (code) {
+            const base = normalizeCode(code);
+            if (name) codeNameMap[base] = name;
+            else if (!codeNameMap[base]) codeNameMap[base] = "";
+          }
+        }
+      } catch (e) {
+        // ignore mapping errors per-item
+      }
+    }
+  }
 
   // last N business days window (default 2)
   const days = getLastBusinessDays(EOD_LOOKBACK_DAYS);
@@ -253,9 +328,13 @@ exports.handler = async function (event) {
     const yesterdayPrice = prev ? (typeof prev.close === "number" ? prev.close : Number(prev.close)) : null;
     const pctChange = (yesterdayPrice !== null && yesterdayPrice !== 0) ? ((lastPrice - yesterdayPrice) / yesterdayPrice) * 100 : null;
 
+    const base = normalizeCode(symbol);
+    const companyName = codeNameMap[base] || "";
+
     rows.push({
-      code: normalizeCode(symbol),
+      code: base,
       fullCode: symbol,
+      name: companyName,
       lastDate: last && last.date ? last.date : null,
       lastPrice: typeof lastPrice === "number" && !Number.isNaN(lastPrice) ? Number(lastPrice) : null,
       yesterdayDate: prev && prev.date ? prev.date : null,

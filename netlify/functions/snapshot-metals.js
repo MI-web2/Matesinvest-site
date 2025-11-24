@@ -8,10 +8,10 @@
 //
 // Symbols stored: XAU, XAG, IRON, LITH-CAR, NI, URANIUM
 // Notes:
-// - We now use Metals-API's unit parameter so prices are returned in realistic market units:
-//     XAU, XAG      -> USD per troy_ounce
-//     IRON, LITH-CAR, NI -> USD per ton (metric tonne)
-//     URANIUM       -> USD per pound
+// - We use Metals-API's unit parameter so prices are returned in realistic market units:
+//     XAU, XAG              -> USD per troy_ounce
+//     IRON, LITH-CAR, NI    -> USD per ton (metric tonne)
+//     URANIUM               -> USD per pound
 // - We convert to AUD using FX and store priceAUD, but keep priceUSD for reference.
 
 exports.handler = async function (event) {
@@ -66,19 +66,21 @@ exports.handler = async function (event) {
     ton: "tonne",
   };
 
-  // Metals-API sometimes returns "units per USD" if the rate < 1
+  // With the unit parameter enabled, Metals-API returns USD per unit directly.
+  // We no longer invert small values (that was causing crazy prices).
   function parseUsdFromRate(v) {
-    if (typeof v !== "number") return null;
-    if (v > 0 && v < 1) return 1 / v; // API returned units per USD
-    return v; // assume USD per unit
+    if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return null;
+    return v; // USD per unit
   }
 
   try {
     const METALS_API_KEY = process.env.METALS_API_KEY || null;
-    if (!METALS_API_KEY)
+    if (!METALS_API_KEY) {
       return { statusCode: 500, body: "Missing METALS_API_KEY" };
-    if (!UPSTASH_URL || !UPSTASH_TOKEN)
+    }
+    if (!UPSTASH_URL || !UPSTASH_TOKEN) {
       return { statusCode: 500, body: "Missing Upstash env vars" };
+    }
 
     // -------------------------------
     // 1) Fetch metals prices in realistic units
@@ -137,7 +139,7 @@ exports.handler = async function (event) {
         const rv = rates[s];
         const usdPerUnit = parseUsdFromRate(rv);
         allRates[s] = {
-          usdPerUnit: typeof usdPerUnit === "number" ? usdPerUnit : null,
+          usdPerUnit: usdPerUnit,
           unitParam,
         };
       }
@@ -148,6 +150,7 @@ exports.handler = async function (event) {
     // -------------------------------
     let usdToAud = null;
     try {
+      // Primary FX source
       let fRes = await fetchWithTimeout(
         "https://open.er-api.com/v6/latest/USD",
         {},
@@ -163,6 +166,7 @@ exports.handler = async function (event) {
       if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === "number") {
         usdToAud = Number(fj.rates.AUD);
       } else {
+        // Fallback FX source
         fRes = await fetchWithTimeout(
           "https://api.exchangerate.host/latest?base=USD&symbols=AUD",
           {},
@@ -179,8 +183,9 @@ exports.handler = async function (event) {
           fj &&
           fj.rates &&
           typeof fj.rates.AUD === "number"
-        )
+        ) {
           usdToAud = Number(fj.rates.AUD);
+        }
       }
     } catch (e) {
       console.warn("fx fetch error", e && e.message);

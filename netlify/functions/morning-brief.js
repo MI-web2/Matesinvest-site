@@ -231,25 +231,51 @@ exports.handler = async function (event) {
       const todayUSD = typeof currentUsd[s] === "number" ? currentUsd[s] : null;
       const todayAUD = typeof currentAud[s] === "number" ? currentAud[s] : null;
 
+      // today's unit (from latestSnapshot.symbols[s].unit)
+      let unitLabel = "unit";
+      if (
+        latestSnapshot &&
+        latestSnapshot.symbols &&
+        latestSnapshot.symbols[s] &&
+        typeof latestSnapshot.symbols[s].unit === "string"
+      ) {
+        unitLabel = latestSnapshot.symbols[s].unit;
+      }
+
+      // yesterday's price + unit
       let yesterdayAUD = null;
+      let yesterdayUnit = unitLabel;
+
       if (
         yesterdayData &&
         yesterdayData.symbols &&
         typeof yesterdayData.symbols[s] !== "undefined"
       ) {
+        const yEntry = yesterdayData.symbols[s];
         const p =
-          yesterdayData.symbols[s] &&
-          typeof yesterdayData.symbols[s].priceAUD !== "undefined"
-            ? yesterdayData.symbols[s].priceAUD
+          yEntry && typeof yEntry.priceAUD !== "undefined"
+            ? yEntry.priceAUD
             : null;
         if (p !== null) yesterdayAUD = typeof p === "number" ? p : Number(p);
+
+        if (yEntry && typeof yEntry.unit === "string") {
+          yesterdayUnit = yEntry.unit;
+        }
       }
 
       let pctChange = null;
-      if (todayAUD !== null && yesterdayAUD !== null && yesterdayAUD !== 0) {
-        pctChange = Number(
-          (((todayAUD - yesterdayAUD) / yesterdayAUD) * 100).toFixed(2)
-        );
+      // Only compute pct change if units match and yesterday price is sensible
+      if (
+        todayAUD !== null &&
+        yesterdayAUD !== null &&
+        yesterdayAUD !== 0 &&
+        unitLabel === yesterdayUnit
+      ) {
+        const rawPct = ((todayAUD - yesterdayAUD) / yesterdayAUD) * 100;
+        // guardrail: ignore absurd moves (e.g. from old bugged snapshots)
+        if (Number.isFinite(rawPct) && Math.abs(rawPct) <= 1000) {
+          pctChange = Number(rawPct.toFixed(2));
+        }
       }
 
       metals[s] = {
@@ -258,8 +284,10 @@ exports.handler = async function (event) {
         yesterdayPriceAUD: yesterdayAUD !== null ? fmt(yesterdayAUD) : null,
         pctChange,
         priceTimestamp: priceTimestamp || null,
+        unit: unitLabel,
       };
     }
+
 
     const narratives = {};
     for (const s of symbols) {
@@ -276,8 +304,9 @@ exports.handler = async function (event) {
             ? ` — down ${Math.abs(m.pctChange)}% vs yesterday`
             : " — unchanged vs yesterday";
         narratives[s] = `${s} is currently $${m.priceAUD} AUD per ${
-          s === "IRON" ? "tonne" : "unit"
+          m.unit || (s === "IRON" ? "tonne" : "unit")
         }${upDown}.`;
+
       }
     }
 
