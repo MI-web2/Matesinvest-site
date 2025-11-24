@@ -532,26 +532,41 @@ exports.handler = async function (event) {
           cleaned.sort((a, b) => b.pctGain - a.pctGain);
 
           // -----------------------------
+          // -----------------------------
           // Load today's market caps from Upstash
           // -----------------------------
           let mcapMap = {};
           try {
             const rawMcap = await redisGet("mcaps:latest");
             if (rawMcap) {
-              const arr =
+              const parsed =
                 typeof rawMcap === "string" ? JSON.parse(rawMcap) : rawMcap;
-              if (Array.isArray(arr)) {
-                for (const item of arr) {
-                  if (!item || !item.code) continue;
-                  const base = String(item.code).replace(/\.AU$/i, "");
-                  const mc =
-                    typeof item.mcap === "number"
-                      ? item.mcap
-                      : Number(item.mcap);
-                  if (!Number.isNaN(mc)) mcapMap[base] = mc;
+
+              // snapshot-mcaps stores { snappedAt, exchange, rows:[...] }
+              const rows = Array.isArray(parsed)
+                ? parsed
+                : Array.isArray(parsed.rows)
+                ? parsed.rows
+                : [];
+
+              for (const row of rows) {
+                if (!row || !row.code) continue;
+
+                const base = String(row.code).replace(/\.AU$/i, "");
+
+                const mc =
+                  typeof row.market_cap === "number"
+                    ? row.market_cap
+                    : typeof row.market_capitalization === "number"
+                    ? row.market_capitalization
+                    : Number(row.market_cap);
+
+                if (!Number.isNaN(mc)) {
+                  mcapMap[base] = mc;
                 }
               }
             }
+
             eodhdDebug.steps.push({
               source: "mcaps-loaded",
               count: Object.keys(mcapMap).length,
