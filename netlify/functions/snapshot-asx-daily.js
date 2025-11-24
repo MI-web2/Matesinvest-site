@@ -1,51 +1,37 @@
 // netlify/functions/snapshot-asx-daily.js
 //
 // Daily snapshot of ASX symbols: code, name, market cap, last price, yesterday price, pct change.
+// Adds caching for exchange-symbol-list to avoid 429s and respects Retry-After from EODHD.
 // Writes to Upstash as:
 //   asx:daily:YYYY-MM-DD   (array of rows)
 //   asx:latest             (alias for today's snapshot)
-//   optionally per-symbol keys asx:symbol:LATEST:<CODE>
-//
+//   asx:exchange-list:latest (cached exchange-symbol-list)
 // Requirements (env):
 //   EODHD_API_TOKEN
 //   UPSTASH_REDIS_REST_URL
 //   UPSTASH_REDIS_REST_TOKEN
-//
 // Optional env (tweak for your plan & rate limits):
-//   MAX_SYMBOLS (default 2500)      - max symbols to consider from exchange-symbol-list
-//   CHUNK_SIZE (default 300)        - process symbols in chunks to keep memory and time bounded
-//   CONCURRENCY (default 6)         - number of parallel fetch workers for per-symbol work
-//   RETRIES (default 3)             - per-request retries for transient errors
-//   BACKOFF_BASE_MS (default 300)   - base ms for exponential backoff
+//   MAX_SYMBOLS (default 2500)
+//   CHUNK_SIZE (default 300)
+//   CONCURRENCY (default 4)           <- lowered default to be conservative
+//   RETRIES (default 3)
+//   BACKOFF_BASE_MS (default 400)     <- slightly larger default backoff
 //   TRY_SUFFIXES (default "AU,AX,ASX")
-//   SNAPSHOT_TTL_SECONDS (optional) - TTL to set on daily snapshot key in seconds
-//   QUICK_MODE (default 0)          - when "1", only first QUICK_LIMIT symbols processed
+//   SNAPSHOT_TTL_SECONDS (optional)
+//   QUICK_MODE (default 0)
 //   QUICK_LIMIT (default 50)
-//
-// Behavior summary
-// - Calls EODHD /exchange-symbol-list/AU to get the full ASX universe (no screener offset paging).
-// - Normalizes and slices to MAX_SYMBOLS.
-// - For each symbol tries common ASX suffixes (AU, AX, ASX) when fetching EOD (last 2 business days)
-//   and fundamentals (market capitalization). Uses retries+backoff for transient 429/5xx.
-// - Produces rows:
-//     { code, name, lastDate, lastPrice, yesterdayDate, yesterdayPrice, pctChange, marketCap }
-// - Stores full array to asx:daily:YYYY-MM-DD and writes asx:latest alias.
-// - Returns a JSON payload with counts and debug failure samples for troubleshooting.
-//
-// Notes:
-// - This function is intentionally defensive: if fundamentals fail for certain symbols, we still
-//   include price data and set marketCap to null. You can filter downstream by marketCap >= 300e6.
-// - Tune CHUNK_SIZE, CONCURRENCY and RETRIES to avoid hitting EODHD rate limits.
+//   EXCHANGE_LIST_CACHE_TTL (seconds, default 86400 i.e. 24h)
 
 const fetch = (...args) => global.fetch(...args);
 
 const DEFAULT_MAX_SYMBOLS = 2500;
 const DEFAULT_CHUNK_SIZE = 300;
-const DEFAULT_CONCURRENCY = 6;
+const DEFAULT_CONCURRENCY = 4;
 const DEFAULT_RETRIES = 3;
-const DEFAULT_BACKOFF_BASE_MS = 300;
+const DEFAULT_BACKOFF_BASE_MS = 400;
 const DEFAULT_SUFFIXES = ["AU", "AX", "ASX"];
 const DEFAULT_QUICK_LIMIT = 50;
+const DEFAULT_EXCHANGE_LIST_CACHE_TTL = 24 * 60 * 60; // 24h
 
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
@@ -144,25 +130,87 @@ exports.handler = async function (event) {
   const SNAPSHOT_TTL_SECONDS = process.env.SNAPSHOT_TTL_SECONDS ? Number(process.env.SNAPSHOT_TTL_SECONDS) : undefined;
   const QUICK_MODE = (String(process.env.QUICK_MODE || "0") === "1") || ((event && event.queryStringParameters && event.queryStringParameters.quick) === "1");
   const QUICK_LIMIT = Number(process.env.QUICK_LIMIT || DEFAULT_QUICK_LIMIT);
+  const EXCHANGE_LIST_CACHE_TTL = Number(process.env.EXCHANGE_LIST_CACHE_TTL || DEFAULT_EXCHANGE_LIST_CACHE_TTL);
 
   try {
-    // 1) Get full ASX symbol list
-    const listUrl = `https://eodhd.com/api/exchange-symbol-list/AU?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`;
-    debug.steps.push({ action: "fetch-exchange-symbol-list", url: listUrl });
-    const listRes = await fetchWithTimeout(listUrl, {}, 15000);
-    const listText = await listRes.text().catch(() => "");
-    if (!listRes.ok) {
-      const errTxt = listText || `HTTP ${listRes.status}`;
-      debug.steps.push({ source: "exchange-list-failed", status: listRes.status, text: errTxt });
-      return { statusCode: 502, body: JSON.stringify({ error: "Failed to load exchange symbol list", debug }) };
+    // 0) Try to get cached exchange-symbol-list from Upstash
+    const exchangeListCacheKey = "asx:exchange-list:latest";
+    const cached = await redisGet(UPSTASH_URL, UPSTASH_TOKEN, exchangeListCacheKey);
+    let listJson = null;
+    if (cached) {
+      try {
+        listJson = typeof cached === "string" ? JSON.parse(cached) : cached;
+        debug.steps.push({ source: "exchange-list-from-cache", totalFound: Array.isArray(listJson) ? listJson.length : 0 });
+      } catch (err) {
+        debug.steps.push({ source: "exchange-list-cache-parse-failed", error: err && err.message });
+      }
     }
 
-    let listJson;
-    try {
-      listJson = listText ? JSON.parse(listText) : [];
-    } catch (err) {
-      debug.steps.push({ source: "exchange-list-parse-failed", error: err && err.message });
-      return { statusCode: 502, body: JSON.stringify({ error: "Invalid exchange-list response", debug }) };
+    // If no cached list, fetch from EODHD with retry/backoff and respect Retry-After
+    if (!listJson) {
+      const listUrlBase = `https://eodhd.com/api/exchange-symbol-list/AU?fmt=json&api_token=${encodeURIComponent(EODHD_TOKEN)}`;
+      let attempt = 0;
+      let lastErr = null;
+      let retryAfterMs = 0;
+
+      while (attempt <= RETRIES) {
+        try {
+          debug.steps.push({ action: "fetch-exchange-symbol-list", attempt, url: listUrlBase });
+          const res = await fetchWithTimeout(listUrlBase, {}, 15000);
+          const text = await res.text().catch(() => "");
+          // If rate limited, look for Retry-After and backoff
+          if (res.status === 429) {
+            lastErr = { status: 429, text: text };
+            // check Retry-After header (seconds)
+            const ra = res.headers && (res.headers.get ? res.headers.get("Retry-After") : null);
+            if (ra) {
+              const raSec = Number(ra);
+              if (!Number.isNaN(raSec)) retryAfterMs = Math.max(retryAfterMs, raSec * 1000);
+            }
+            const backoff = BACKOFF_BASE_MS * Math.pow(2, attempt) + (retryAfterMs || 0);
+            debug.steps.push({ source: "exchange-list-429", attempt, retryAfterMs, backoff });
+            await sleep(backoff + Math.random() * 200);
+            attempt++;
+            continue;
+          }
+          if (!res.ok) {
+            lastErr = { status: res.status, text };
+            // retry on server errors
+            if (res.status >= 500) {
+              const backoff = BACKOFF_BASE_MS * Math.pow(2, attempt);
+              await sleep(backoff + Math.random() * 200);
+              attempt++;
+              continue;
+            }
+            // client error -> bail and return error
+            debug.steps.push({ source: "exchange-list-failed", status: res.status, text: text ? (text + "").slice(0, 800) : null });
+            return { statusCode: 502, body: JSON.stringify({ error: "Failed to load exchange symbol list", debug }) };
+          }
+          // success -> parse JSON
+          try {
+            listJson = text ? JSON.parse(text) : [];
+            // cache it in Upstash for EXCHANGE_LIST_CACHE_TTL seconds to avoid repeated calls
+            await redisSet(UPSTASH_URL, UPSTASH_TOKEN, exchangeListCacheKey, listJson, EXCHANGE_LIST_CACHE_TTL);
+            debug.steps.push({ source: "exchange-list-fetched-and-cached", totalFound: Array.isArray(listJson) ? listJson.length : 0, cacheTtlSec: EXCHANGE_LIST_CACHE_TTL });
+            break;
+          } catch (err) {
+            lastErr = { status: res.status, text: text, parseError: err && err.message };
+            debug.steps.push({ source: "exchange-list-parse-failed", error: err && err.message });
+            return { statusCode: 502, body: JSON.stringify({ error: "Invalid exchange-list response", debug }) };
+          }
+        } catch (err) {
+          lastErr = { error: err && err.message };
+          const backoff = BACKOFF_BASE_MS * Math.pow(2, attempt);
+          debug.steps.push({ source: "exchange-list-fetch-exception", attempt, error: err && err.message, backoff });
+          await sleep(backoff + Math.random() * 200);
+          attempt++;
+        }
+      }
+
+      if (!listJson) {
+        debug.steps.push({ source: "exchange-list-giveup", lastErr });
+        return { statusCode: 502, body: JSON.stringify({ error: "Failed to load exchange symbol list after retries", debug }) };
+      }
     }
 
     // Normalize list entries
@@ -177,7 +225,7 @@ exports.handler = async function (event) {
       .filter(Boolean)
       .filter(x => x.code && !x.code.includes("^") && !x.code.includes("/"));
 
-    debug.steps.push({ source: "exchange-list-loaded", totalFound: normalized.length });
+    debug.steps.push({ source: "exchange-list-normalized", totalFound: normalized.length });
 
     // limit to MAX_SYMBOLS
     const maxUse = Math.min(MAX_SYMBOLS, normalized.length);
@@ -190,7 +238,7 @@ exports.handler = async function (event) {
       debug.steps.push({ source: "universe-built", used: symbols.length });
     }
 
-    // utility: per-symbol EOD fetch with retries/backoff
+    // helper: per-symbol EOD fetch with retries/backoff (identical to previous impl)
     async function fetchEodWithRetries(fullCode, from, to) {
       const url = `https://eodhd.com/api/eod/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&period=d&from=${from}&to=${to}&fmt=json`;
       let attempt = 0;
@@ -201,7 +249,6 @@ exports.handler = async function (event) {
           const text = await r.text().catch(() => "");
           if (!r.ok) {
             lastText = text || lastText;
-            // retry on rate-limit or server error
             if (r.status === 429 || (r.status >= 500 && r.status < 600)) {
               const backoff = BACKOFF_BASE_MS * Math.pow(2, attempt);
               await sleep(backoff + Math.random() * 200);
@@ -228,20 +275,15 @@ exports.handler = async function (event) {
       return { ok: false, status: 0, text: lastText };
     }
 
-    // fundamentals fetch - try single-symbol fundamentals endpoint(s)
     async function fetchFundamentalsWithRetries(fullCode) {
-      // Try a couple of likely endpoints: /api/fundamental/{fullCode} and /api/fundamentals/{fullCode}
       const endpoints = [
         `https://eodhd.com/api/fundamental/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
         `https://eodhd.com/api/fundamentals/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
-        // company/profile endpoints sometimes include market cap in different APIs:
         `https://eodhd.com/api/company/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
       ];
-
-      let attempt = 0;
-      let lastText = null;
       for (const url of endpoints) {
-        attempt = 0;
+        let attempt = 0;
+        let lastText = null;
         while (attempt <= RETRIES) {
           try {
             const r = await fetchWithTimeout(url, {}, 12000);
@@ -258,18 +300,14 @@ exports.handler = async function (event) {
             }
             try {
               const json = text ? JSON.parse(text) : null;
-              // Try to extract market capitalization from common fields
               if (json && typeof json === "object") {
-                // sources may vary: json.market_capitalization, json.market_cap, json.MarketCapitalization or nested fields
                 const mc =
                   (typeof json.market_capitalization === "number" && json.market_capitalization) ||
                   (typeof json.market_cap === "number" && json.market_cap) ||
                   (typeof json.MarketCapitalization === "number" && json.MarketCapitalization) ||
-                  // try nested structures
                   (json.data && typeof json.data.market_capitalization === "number" && json.data.market_capitalization) ||
                   (json.result && typeof json.result.market_capitalization === "number" && json.result.market_capitalization) ||
                   null;
-                // if not number, try parsing fields that may be strings
                 if (mc === null) {
                   const maybe =
                     (json.market_capitalization || json.market_cap || json.MarketCapitalization || (json.data && json.data.market_capitalization) || (json.result && json.result.market_capitalization) || null);
@@ -279,11 +317,10 @@ exports.handler = async function (event) {
                   return { ok: true, data: { marketCap: mc }, raw: json };
                 }
               }
-              // If we didn't find a market cap, return ok with raw response so caller can inspect
               return { ok: true, data: null, raw: json };
             } catch (err) {
               lastText = text || lastText;
-              break; // try next endpoint
+              break;
             }
           } catch (err) {
             lastText = String(err && err.message) || lastText;
@@ -293,36 +330,29 @@ exports.handler = async function (event) {
           }
         }
       }
-      return { ok: false, status: 0, text: lastText };
+      return { ok: false, status: 0, text: "no-fundamentals" };
     }
 
-    // For a symbol without dot, try suffixes for both EOD and fundamentals.
     async function fetchSymbolRow(symbol, name, from, to) {
       if (symbol.includes(".")) {
         const eodRes = await fetchEodWithRetries(symbol, from, to);
         const fundRes = await fetchFundamentalsWithRetries(symbol);
         return { symbol, name, eodRes, fundRes, attempts: [symbol] };
       }
-
       const attempts = [];
       for (const sfx of TRY_SUFFIXES) {
         const full = `${symbol}.${sfx}`;
         attempts.push(full);
         const eodRes = await fetchEodWithRetries(full, from, to);
-        // If we got no EOD data, try next suffix
         if (!eodRes.ok || !Array.isArray(eodRes.data) || eodRes.data.length === 0) {
-          // continue to next suffix
           continue;
         }
-        // fundamentals: attempt same suffix (best-effort)
         const fundRes = await fetchFundamentalsWithRetries(full);
         return { symbol, name, eodRes, fundRes, attempts };
       }
-      // none of the suffixes produced EOD data
       return { symbol, name, eodRes: { ok: false }, fundRes: { ok: false }, attempts };
     }
 
-    // process symbols in chunks to avoid long single-run spikes
     function chunkArray(arr, size) {
       const out = [];
       for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -361,13 +391,11 @@ exports.handler = async function (event) {
       });
       await Promise.all(workers);
 
-      // handle results
       for (const r of results) {
         processedCount++;
         if (!r) continue;
         const { symbol, name, eodRes, fundRes, attempts } = r;
         if (!eodRes || !eodRes.ok || !Array.isArray(eodRes.data) || eodRes.data.length === 0) {
-          // record failure sample (limited)
           if (failureSamples.length < 25) {
             failureSamples.push({
               code: symbol,
@@ -391,7 +419,6 @@ exports.handler = async function (event) {
           marketCap = fundRes.data.marketCap;
           fetchedFundCount++;
         } else {
-          // marketCap may be in raw object (defensive extraction)
           if (fundRes && fundRes.ok && fundRes.raw) {
             const raw = fundRes.raw;
             const maybe =
@@ -418,8 +445,8 @@ exports.handler = async function (event) {
         });
       }
 
-      // small pause between chunks to be nice to the API
-      await sleep(250 + Math.random() * 150);
+      // small pause between chunks
+      await sleep(300 + Math.random() * 200);
       debug.steps.push({ source: "chunk-complete", chunkIndex: c, accumulated: allRows.length });
     }
 
@@ -428,14 +455,12 @@ exports.handler = async function (event) {
       processedSymbols: processedCount,
       rowsCollected: allRows.length,
       fundamentalsFetched: fetchedFundCount,
-      failuresSampled: failureSamples.length,
+      failuresSample: failureSamples.length,
       elapsedMs: Date.now() - startTs
     });
 
-    // Sort rows by code for deterministic output (or by market cap if you prefer)
     allRows.sort((a, b) => (a.code || "").localeCompare(b.code || ""));
 
-    // Save to Upstash
     const todayKeyDate = new Date().toISOString().slice(0, 10);
     const dailyKey = `asx:daily:${todayKeyDate}`;
     const latestKey = `asx:latest`;
@@ -443,16 +468,11 @@ exports.handler = async function (event) {
     const okDaily = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, dailyKey, allRows, SNAPSHOT_TTL_SECONDS);
     const okLatest = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, latestKey, allRows, SNAPSHOT_TTL_SECONDS);
 
-    // Optionally write per-symbol latest keys for fast lookups (best-effort, avoid too many calls)
     const WRITE_PER_SYMBOL = String(process.env.WRITE_PER_SYMBOL || "0") === "1";
     if (WRITE_PER_SYMBOL) {
-      // write in reasonable batches to avoid many small requests
       for (const row of allRows) {
         const k = `asx:symbol:LATEST:${encodeURIComponent(row.code)}`;
-        // no ttl for per-symbol keys by default
-        /* eslint-disable no-await-in-loop */
         await redisSet(UPSTASH_URL, UPSTASH_TOKEN, k, row);
-        /* eslint-enable no-await-in-loop */
       }
       debug.steps.push({ source: "per-symbol-write", count: allRows.length });
     }
