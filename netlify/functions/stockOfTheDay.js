@@ -1,12 +1,14 @@
 // netlify/functions/stockOfTheDay.js
 // Stock of the Day
-// - Picks from today's ASX top performers (5-day window) as shown in morning-brief
-// - If the frontend passes an explicit ticker/name (from the top performers row),
-//   we use that directly.
-// - Otherwise we call the morning-brief function and choose one of its
-//   `topPerformers`.
-// - We cache the generated summary per day + ticker in Upstash so OpenAI is
-//   only called once each morning for a given stock.
+// - Prefers an explicit ticker/name passed from the frontend (query params).
+// - Otherwise picks the top 1 gainer from Upstash key `topPerformers:latest` (if present).
+// - If that key isn't available, falls back to calling morning-brief (old behaviour).
+// - Uses OpenAI to generate a short blurb (cached in Upstash per day+ticker).
+//
+// Notes:
+// - Requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in env.
+// - OPENAI_API_KEY optional (if absent returns a simple fallback blurb).
+// - Cache key: stockOfTheDay:{region}:{YYYY-MM-DD}:{TICKER}
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
@@ -113,36 +115,35 @@ function hashString(str) {
 }
 
 // -------------------------------
-// Helper: normalise topPerformers from morning-brief
-// Handles: array, JSON string, { value: [...] }, { value: "[]"}.
+// Helper: normalise topPerformers from storage shapes
 // -------------------------------
 function normaliseTopPerformers(raw) {
   if (!raw) return [];
 
-  // Already a proper array
   if (Array.isArray(raw)) return raw;
 
-  // Old style: { value: ... }
   if (typeof raw === "object") {
     if (Array.isArray(raw.value)) return raw.value;
+    if (Array.isArray(raw.result)) return raw.result;
     if (typeof raw.value === "string") {
       try {
         const parsed = JSON.parse(raw.value);
         if (Array.isArray(parsed)) return parsed;
-      } catch (_) {
-        // ignore
-      }
+      } catch (_) {}
+    }
+    if (typeof raw.result === "string") {
+      try {
+        const parsed = JSON.parse(raw.result);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (_) {}
     }
   }
 
-  // Stringified JSON: "[]", "[{...}]"
   if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
-    } catch (_) {
-      // ignore
-    }
+    } catch (_) {}
   }
 
   return [];
@@ -174,51 +175,72 @@ exports.handler = async function (event) {
       };
       debugSource = "query-param-top-performer";
     } else {
-      // No explicit ticker: call morning-brief and pick from its topPerformers
+      // 1) Prefer the scheduled cached top performers list in Upstash (topPerformers:latest)
       try {
-        const host =
-          event.headers["x-forwarded-host"] ||
-          event.headers.host ||
-          "localhost:8888";
-        const proto = event.headers["x-forwarded-proto"] || "https";
-        const baseUrl = process.env.URL || `${proto}://${host}`;
-        const mbUrl = `${baseUrl.replace(
-          /\/$/,
-          ""
-        )}/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`;
+        const topRaw = await redisGet("topPerformers:latest");
+        const topArr = normaliseTopPerformers(topRaw);
 
-        const mbRes = await fetchFn(mbUrl);
-        if (mbRes.ok) {
-          const mbJson = await mbRes.json().catch(() => null);
+        if (Array.isArray(topArr) && topArr.length > 0) {
+          // pick the top one (index 0)
+          const chosen = topArr[0];
 
-          // 👇 Robust handling of old / new shapes
-          const tps = normaliseTopPerformers(
-            mbJson && mbJson.topPerformers
-          );
-
-          if (tps.length > 0) {
-            // deterministic-ish pick based on date so it doesn't change all day
-            const idx = Math.abs(hashString(todayAEST)) % tps.length;
-            const chosen = tps[idx];
-
-            baseStock = {
-              ticker: (chosen.symbol || chosen.code || "").toString().toUpperCase(),
-              name:
-                chosen.name ||
-                chosen.CompanyName ||
-                chosen.companyName ||
-                "ASX stock",
-              exchange: "ASX",
-              blurb:
-                "This company has been among the top percentage gainers on the ASX over the last five trading days."
-            };
-            debugSource = "morning-brief-top-performers";
-          }
+          baseStock = {
+            ticker: (chosen.symbol || chosen.code || "").toString().toUpperCase(),
+            name: chosen.name || chosen.companyName || chosen.CompanyName || "",
+            exchange: chosen.exchange || "ASX",
+            blurb:
+              "This company was the top percentage gainer on the ASX in the latest snapshot."
+          };
+          debugSource = "topPerformers:latest";
         }
       } catch (err) {
-        console.warn("stockOfTheDay: failed to fetch morning-brief", err);
+        console.warn("stockOfTheDay: failed to read topPerformers:latest", err && err.message);
       }
 
+      // 2) If no topPerformers:latest, fall back to calling morning-brief (old behaviour)
+      if (!baseStock) {
+        try {
+          const host =
+            event.headers["x-forwarded-host"] ||
+            event.headers.host ||
+            "localhost:8888";
+          const proto = event.headers["x-forwarded-proto"] || "https";
+          const baseUrl = process.env.URL || `${proto}://${host}`;
+          const mbUrl = `${baseUrl.replace(
+            /\/$/,
+            ""
+          )}/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`;
+
+          const mbRes = await fetchFn(mbUrl);
+          if (mbRes.ok) {
+            const mbJson = await mbRes.json().catch(() => null);
+
+            const tps = normaliseTopPerformers(mbJson && mbJson.topPerformers);
+
+            if (tps.length > 0) {
+              // choose the top (index 0) — this follows "top 1 gainer" requirement
+              const chosen = tps[0];
+
+              baseStock = {
+                ticker: (chosen.symbol || chosen.code || "").toString().toUpperCase(),
+                name:
+                  chosen.name ||
+                  chosen.CompanyName ||
+                  chosen.companyName ||
+                  "ASX stock",
+                exchange: "ASX",
+                blurb:
+                  "This company has been among the top percentage gainers on the ASX in the latest snapshot."
+              };
+              debugSource = "morning-brief-top-performers";
+            }
+          }
+        } catch (err) {
+          console.warn("stockOfTheDay: failed to fetch morning-brief", err && err.message);
+        }
+      }
+
+      // 3) Final fallback: static pool
       if (!baseStock) {
         baseStock = pickStockFromStaticPool(todayAEST);
         debugSource = "static-pool-fallback";
