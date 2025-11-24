@@ -578,6 +578,14 @@ exports.handler = async function (event) {
           count: Object.keys(mcapMap).length,
           minMcap: MIN_MCAP,
         });
+
+        // Extra debug: sample some mcaps keys and symbolRequests so we can inspect shapes
+        eodhdDebug.mcapSample = Object.keys(mcapMap).slice(0, 20);
+        eodhdDebug.symbolRequestsCount = symbolRequests.length;
+        eodhdDebug.symbolRequestsSample = symbolRequests
+          .slice(0, 20)
+          .map((s) => (s && s.symbol) || null);
+
       } catch (err) {
         console.warn("Failed to load mcaps", err);
         eodhdDebug.steps.push({
@@ -597,6 +605,10 @@ exports.handler = async function (event) {
           return typeof mc === "number" && mc >= MIN_MCAP;
         });
       }
+
+      // Add debug counts so we can see effect of filter
+      eodhdDebug.cleanedCount = cleaned.length;
+      eodhdDebug.afterMcapCount = filtered.length;
 
       // If filter nukes everything (eg. missing mcaps), fall back to cleaned
       const sourceArray = filtered.length ? filtered : cleaned;
