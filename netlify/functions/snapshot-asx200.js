@@ -1,6 +1,6 @@
 // netlify/functions/snapshot-asx200.js
 //
-// Snapshot for ASX200 static universe (data/asx200.txt).
+// Snapshot for ASX200 static universe (asx200.txt located next to this function file).
 // For each ticker this retrieves:
 //   - marketCap (from EODHD fundamentals endpoints)
 //   - recent EOD bars for the last 2 business days to compute today's price, yesterday's price and pct change
@@ -20,8 +20,7 @@
 //   RETRIES (default 2)
 //   BACKOFF_BASE_MS (default 300)
 //   TRY_SUFFIXES (default "AU,AX,ASX")
-//   EOD_LOOKBACK_DAYS (default 2)  <-- now defaults to 2 business days (most recent + previous)
-//
+//   EOD_LOOKBACK_DAYS (default 2)
 
 const fs = require("fs");
 const path = require("path");
@@ -33,14 +32,10 @@ const DEFAULT_CONCURRENCY = 6;
 const DEFAULT_RETRIES = 2;
 const DEFAULT_BACKOFF_BASE_MS = 300;
 const DEFAULT_TRY_SUFFIXES = ["AU", "AX", "ASX"];
-const DEFAULT_EOD_LOOKBACK_DAYS = 2; // <- use last 2 business days
+const DEFAULT_EOD_LOOKBACK_DAYS = 2; // last 2 business days
 
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
-}
-
-function fmt(n) {
-  return typeof n === "number" && Number.isFinite(n) ? Number(n.toFixed(4)) : null;
 }
 
 async function fetchWithTimeout(url, opts = {}, timeout = 12000) {
@@ -93,17 +88,18 @@ async function redisSet(urlBase, token, key, value, ttlSeconds) {
   }
 }
 
-// Robust read of data/asx200 list - tries multiple candidate paths and logs the one used.
+// Read asx200.txt located next to this file (preferred) and fall back to repo/data paths
 function readAsx200ListSync() {
   const candidates = [
+    // file next to this function (preferred, per your change)
+    path.join(__dirname, "asx200.txt"),
+    path.join(__dirname, "asx200"),
+    // repo root data folder (fallback)
     path.join(process.cwd(), "data", "asx200.txt"),
-    path.join(__dirname, "..", "..", "data", "asx200.txt"),
-    path.join(__dirname, "..", "data", "asx200.txt"),
-    path.join("/", "data", "asx200.txt"),
-    // fallback no-extension variants
     path.join(process.cwd(), "data", "asx200"),
-    path.join(__dirname, "..", "..", "data", "asx200"),
-    path.join(__dirname, "..", "data", "asx200"),
+    // older layout fallback
+    path.join(__dirname, "..", "data", "asx200.txt"),
+    path.join(__dirname, "..", "..", "data", "asx200.txt"),
   ];
 
   for (const p of candidates) {
@@ -119,7 +115,7 @@ function readAsx200ListSync() {
     }
   }
 
-  throw new Error("Failed to read data/asx200.txt: file not found in expected locations. Ensure data/asx200.txt exists in the repo root.");
+  throw new Error("Failed to read asx200 list: asx200.txt not found in expected locations. Place asx200.txt next to the function or in repo/data/");
 }
 
 exports.handler = async function (event) {
@@ -151,11 +147,9 @@ exports.handler = async function (event) {
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 
-  if (QUICK) {
-    tickers = tickers.slice(0, Math.min(QUICK_LIMIT, tickers.length));
-  }
+  if (QUICK) tickers = tickers.slice(0, Math.min(QUICK_LIMIT, tickers.length));
 
-  // prepare date window: last EOD_LOOKBACK_DAYS business days (default 2)
+  // last N business days window (default 2)
   const days = getLastBusinessDays(EOD_LOOKBACK_DAYS);
   if (days.length < 2) {
     return { statusCode: 500, body: JSON.stringify({ error: "Not enough business days in lookback window", days }) };
@@ -163,7 +157,7 @@ exports.handler = async function (event) {
   const from = days[0];
   const to = days[days.length - 1];
 
-  // helpers for EOD and fundamentals
+  // EOD fetch with retries/backoff
   async function fetchEod(fullCode) {
     const url = `https://eodhd.com/api/eod/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&period=d&from=${from}&to=${to}&fmt=json`;
     let attempt = 0;
@@ -200,8 +194,8 @@ exports.handler = async function (event) {
     return { ok: false, status: 0, text: lastText };
   }
 
+  // fundamentals fetch (tries common endpoints)
   async function fetchFund(fullCode) {
-    // try a few endpoints; return raw JSON when available
     const endpoints = [
       `https://eodhd.com/api/fundamental/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
       `https://eodhd.com/api/fundamentals/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
@@ -241,6 +235,7 @@ exports.handler = async function (event) {
     return { ok: false, status: 0, text: "no-fundamentals" };
   }
 
+  // extract market cap (robust best-effort)
   function extractMarketCapFromFund(raw) {
     if (!raw) return null;
     const tryCandidates = (obj) => {
@@ -312,7 +307,7 @@ exports.handler = async function (event) {
     return { symbol, eod: { ok: false }, fund: { ok: false }, attempts };
   }
 
-  // parallel map with limited concurrency
+  // parallel workers with limited concurrency
   const results = [];
   let idx = 0;
   const workers = new Array(Math.min(CONCURRENCY, tickers.length)).fill(null).map(async () => {
@@ -330,7 +325,7 @@ exports.handler = async function (event) {
   });
   await Promise.all(workers);
 
-  // build rows using the two business days only
+  // build rows
   const rows = [];
   const failures = [];
   for (const res of results) {
@@ -341,7 +336,6 @@ exports.handler = async function (event) {
       continue;
     }
     const arr = res.eod.data;
-    // Expect arr to contain up to EOD_LOOKBACK_DAYS entries for the last business days; use the last entry and previous valid one.
     const last = arr[arr.length - 1];
     let prev = null;
     for (let k = arr.length - 2; k >= 0; k--) {
