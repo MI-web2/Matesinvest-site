@@ -499,146 +499,142 @@ exports.handler = async function (event) {
           }
         }
 
-        if (symbolRequests.length > 0) {
-          const results = await mapWithConcurrency(
-            symbolRequests,
-            async (req) => {
-              const sym = req.symbol;
-              const r = await fetchEodForSymbol(
-                sym,
-                req.exchange || "AU",
-                from,
-                to
-              );
-              if (!r.ok || !Array.isArray(r.data) || r.data.length < FIVE_DAYS) {
-                return null;
-              }
-              const pct = pctGainFromPrices(r.data);
-              if (pct === null || Number.isNaN(pct)) return null;
-              return {
-                symbol: sym,
-                exchange: "AU",
-                name: req.name || "",
-                pctGain: Number(pct.toFixed(2)),
-                firstClose: r.data[0].close,
-                lastClose: r.data[r.data.length - 1].close,
-                pricesCount: r.data.length,
-              };
-            },
-            EODHD_CONCURRENCY
+    if (symbolRequests.length > 0) {
+      const results = await mapWithConcurrency(
+        symbolRequests,
+        async (req) => {
+          const sym = req.symbol;
+          const r = await fetchEodForSymbol(
+            sym,
+            req.exchange || "AU",
+            from,
+            to
           );
+          if (!r.ok || !Array.isArray(r.data) || r.data.length < FIVE_DAYS) {
+            return null;
+          }
+          const pct = pctGainFromPrices(r.data);
+          if (pct === null || Number.isNaN(pct)) return null;
+          return {
+            symbol: sym,
+            exchange: "AU",
+            name: req.name || "",
+            pctGain: Number(pct.toFixed(2)),
+            firstClose: r.data[0].close,
+            lastClose: r.data[r.data.length - 1].close,
+            pricesCount: r.data.length,
+          };
+        },
+        EODHD_CONCURRENCY
+      );
 
-          const cleaned = results.filter(Boolean);
-          cleaned.sort((a, b) => b.pctGain - a.pctGain);
+      const cleaned = results.filter(Boolean);
+      cleaned.sort((a, b) => b.pctGain - a.pctGain);
 
-          // -----------------------------
-          // -----------------------------
-          // Load today's market caps from Upstash
-          // -----------------------------
-          let mcapMap = {};
-          try {
-            const rawMcap = await redisGet("mcaps:latest");
-            if (rawMcap) {
-              const parsed =
-                typeof rawMcap === "string" ? JSON.parse(rawMcap) : rawMcap;
+      // -----------------------------
+      // Load today's market caps from Upstash
+      // -----------------------------
+      let mcapMap = {};
+      try {
+        const rawMcap = await redisGet("mcaps:latest");
+        if (rawMcap) {
+          const parsed =
+            typeof rawMcap === "string" ? JSON.parse(rawMcap) : rawMcap;
 
-              // snapshot-mcaps stores { snappedAt, exchange, rows:[...] }
-              const rows = Array.isArray(parsed)
-                ? parsed
-                : Array.isArray(parsed.rows)
-                ? parsed.rows
-                : [];
+          // snapshot-mcaps stores { snappedAt, exchange, rows:[...] }
+          const rows = Array.isArray(parsed)
+            ? parsed
+            : Array.isArray(parsed.rows)
+            ? parsed.rows
+            : [];
 
-              for (const row of rows) {
-                if (!row || !row.code) continue;
+          for (const row of rows) {
+            if (!row || !row.code) continue;
 
-                const base = String(row.code).replace(/\.AU$/i, "");
+            const base = String(row.code).replace(/\.AU$/i, "");
 
-                const mc =
-                  typeof row.market_cap === "number"
-                    ? row.market_cap
-                    : typeof row.market_capitalization === "number"
-                    ? row.market_capitalization
-                    : Number(row.market_cap);
+            const mc =
+              typeof row.market_cap === "number"
+                ? row.market_cap
+                : typeof row.market_capitalization === "number"
+                ? row.market_capitalization
+                : Number(row.market_cap);
 
-                if (!Number.isNaN(mc)) {
-                  mcapMap[base] = mc;
-                }
-              }
+            if (!Number.isNaN(mc)) {
+              mcapMap[base] = mc;
             }
-
-            eodhdDebug.steps.push({
-              source: "mcaps-loaded",
-              count: Object.keys(mcapMap).length,
-              minMcap: MIN_MCAP,
-            });
-          } catch (err) {
-            console.warn("Failed to load mcaps", err);
-            eodhdDebug.steps.push({
-              source: "mcaps-error",
-              error: err && err.message,
-            });
           }
-
-          // -----------------------------
-          // Apply minimum market cap filter BEFORE slicing
-          // -----------------------------
-          let filtered = cleaned;
-          if (Object.keys(mcapMap).length > 0) {
-            filtered = cleaned.filter((tp) => {
-              const base = String(tp.symbol).replace(/\.AU$/i, "");
-              const mc = mcapMap[base];
-              return typeof mc === "number" && mc >= MIN_MCAP;
-            });
-          }
-
-          // If filter nukes everything (eg. missing mcaps), fall back to cleaned
-          const sourceArray = filtered.length ? filtered : cleaned;
-
-          topPerformers = sourceArray.slice(0, 5);
-
-          eodhdDebug.steps.push({
-            source: "computed-with-mcap",
-            evaluated: cleaned.length,
-            afterMcapFilter: filtered.length,
-            top5: topPerformers.map((x) => ({
-              symbol: x.symbol,
-              pct: x.pctGain,
-            })),
-          });
-
-          // -----------------------------
-// -----------------------------
-// Persist topPerformers to Upstash (best-effort)
-// -----------------------------
-try {
-  const today = new Date().toISOString().slice(0, 10);
-
-  // NOTE: no JSON.stringify — redisSet handles that
-  await redisSet("topPerformers:latest", topPerformers);
-  await redisSet(`topPerformers:${today}`, topPerformers);
-
-  eodhdDebug.steps.push({
-    source: "topperformers-saved",
-    count: topPerformers.length
-  });
-} catch (e) {
-  eodhdDebug.steps.push({
-    source: "topperformers-save-failed",
-    error: e && e.message
-  });
-}
-}
-
-        } else {
-          eodhdDebug.steps.push({ source: "no-symbols" });
         }
 
-        eodhdDebug.window = {
-          from: new Date(from).toISOString().slice(0, 10),
-          to: new Date(to).toISOString().slice(0, 10),
-        };
-        debug.eodhd = eodhdDebug;
+        eodhdDebug.steps.push({
+          source: "mcaps-loaded",
+          count: Object.keys(mcapMap).length,
+          minMcap: MIN_MCAP,
+        });
+      } catch (err) {
+        console.warn("Failed to load mcaps", err);
+        eodhdDebug.steps.push({
+          source: "mcaps-error",
+          error: err && err.message,
+        });
+      }
+
+      // -----------------------------
+      // Apply minimum market cap filter BEFORE slicing
+      // -----------------------------
+      let filtered = cleaned;
+      if (Object.keys(mcapMap).length > 0) {
+        filtered = cleaned.filter((tp) => {
+          const base = String(tp.symbol).replace(/\.AU$/i, "");
+          const mc = mcapMap[base];
+          return typeof mc === "number" && mc >= MIN_MCAP;
+        });
+      }
+
+      // If filter nukes everything (eg. missing mcaps), fall back to cleaned
+      const sourceArray = filtered.length ? filtered : cleaned;
+
+      topPerformers = sourceArray.slice(0, 5);
+
+      eodhdDebug.steps.push({
+        source: "computed-with-mcap",
+        evaluated: cleaned.length,
+        afterMcapFilter: filtered.length,
+        top5: topPerformers.map((x) => ({
+          symbol: x.symbol,
+          pct: x.pctGain,
+        })),
+      });
+
+      // -----------------------------
+      // Persist topPerformers to Upstash (best-effort)
+      // -----------------------------
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+
+        // NOTE: no JSON.stringify — redisSet handles that
+        await redisSet("topPerformers:latest", topPerformers);
+        await redisSet(`topPerformers:${today}`, topPerformers);
+
+        eodhdDebug.steps.push({
+          source: "topperformers-saved",
+          count: topPerformers.length,
+        });
+      } catch (e) {
+        eodhdDebug.steps.push({
+          source: "topperformers-save-failed",
+          error: e && e.message,
+        });
+      }
+    } else {
+      eodhdDebug.steps.push({ source: "no-symbols" });
+    }
+
+    eodhdDebug.window = {
+      from: new Date(from).toISOString().slice(0, 10),
+      to: new Date(to).toISOString().slice(0, 10),
+    };
+    debug.eodhd = eodhdDebug;
       } catch (err) {
         debug.eodhd = debug.eodhd || {};
         debug.eodhd.error = (err && err.message) || String(err);
