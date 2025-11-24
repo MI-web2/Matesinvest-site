@@ -2,11 +2,12 @@
 //
 // Snapshot for ASX200 static universe (asx200.txt located next to this function file).
 // For each ticker this retrieves:
-//   - marketCap (from EODHD fundamentals endpoints)
 //   - recent EOD bars for the last 2 business days to compute today's price, yesterday's price and pct change
 // Stores results to Upstash as:
 //   asx200:daily:YYYY-MM-DD
 //   asx200:latest
+//
+// NOTE: marketCap/fundamentals fetching has been removed per request to keep this snapshot focused on prices only.
 //
 // Requirements (set in Netlify env):
 //   EODHD_API_TOKEN
@@ -91,7 +92,7 @@ async function redisSet(urlBase, token, key, value, ttlSeconds) {
 // Read asx200.txt located next to this file (preferred) and fall back to repo/data paths
 function readAsx200ListSync() {
   const candidates = [
-    // file next to this function (preferred, per your change)
+    // file next to this function (preferred)
     path.join(__dirname, "asx200.txt"),
     path.join(__dirname, "asx200"),
     // repo root data folder (fallback)
@@ -194,106 +195,11 @@ exports.handler = async function (event) {
     return { ok: false, status: 0, text: lastText };
   }
 
-  // fundamentals fetch (tries common endpoints)
-  async function fetchFund(fullCode) {
-    const endpoints = [
-      `https://eodhd.com/api/fundamental/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
-      `https://eodhd.com/api/fundamentals/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
-      `https://eodhd.com/api/company/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`
-    ];
-    for (const url of endpoints) {
-      let attempt = 0;
-      let lastText = null;
-      while (attempt <= RETRIES) {
-        try {
-          const res = await fetchWithTimeout(url, {}, 10000);
-          const text = await res.text().catch(() => "");
-          if (!res.ok) {
-            lastText = text || lastText;
-            if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
-              const backoff = BACKOFF_BASE_MS * Math.pow(2, attempt);
-              await sleep(backoff + Math.random() * 200);
-              attempt++;
-              continue;
-            }
-            break; // try next endpoint
-          }
-          try {
-            const json = text ? JSON.parse(text) : null;
-            return { ok: true, data: json, rawText: text };
-          } catch (e) {
-            return { ok: false, status: res.status, text };
-          }
-        } catch (err) {
-          lastText = String(err && err.message) || lastText;
-          const backoff = BACKOFF_BASE_MS * Math.pow(2, attempt);
-          await sleep(backoff + Math.random() * 200);
-          attempt++;
-        }
-      }
-    }
-    return { ok: false, status: 0, text: "no-fundamentals" };
-  }
-
-  // extract market cap (robust best-effort)
-  function extractMarketCapFromFund(raw) {
-    if (!raw) return null;
-    const tryCandidates = (obj) => {
-      const keys = ["market_capitalization", "market_cap", "MarketCapitalization", "Market_Capital", "marketCap"];
-      for (const k of keys) {
-        if (typeof obj[k] === "number") return obj[k];
-        if (typeof obj[k] === "string") {
-          const parsed = Number(obj[k].replace(/[^0-9.\-eEBKmMbB]/g, "").replace(/,/g, ""));
-          if (!Number.isNaN(parsed)) return parsed;
-          const m = obj[k].match(/^([\d.,]+)\s*([KMBkmb])$/);
-          if (m) {
-            const n = Number(m[1].replace(/,/g, ""));
-            const suf = m[2].toUpperCase();
-            if (suf === "B") return n * 1e9;
-            if (suf === "M") return n * 1e6;
-            if (suf === "K") return n * 1e3;
-          }
-        }
-      }
-      return null;
-    };
-
-    const top = tryCandidates(raw);
-    if (top !== null) return top;
-    if (raw.result && typeof raw.result === "object") {
-      const r = tryCandidates(raw.result);
-      if (r !== null) return r;
-    }
-    if (raw.data && typeof raw.data === "object") {
-      const d = tryCandidates(raw.data);
-      if (d !== null) return d;
-    }
-    try {
-      const s = JSON.stringify(raw);
-      const m = s.match(/market[_ -]?cap(?:italization)?["']?\s*[:=]\s*"?\$?([0-9,.\-KMmBb]+)/);
-      if (m && m[1]) {
-        const cand = m[1].replace(/,/g, "");
-        const m2 = cand.match(/^([\d.]+)([KMkmbB])?$/);
-        if (m2) {
-          const num = Number(m2[1]);
-          const suf = (m2[2] || "").toUpperCase();
-          if (suf === "B") return num * 1e9;
-          if (suf === "M") return num * 1e6;
-          return num;
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
-  }
-
   // try suffixes if symbol lacks dot
   async function getSymbolData(symbol) {
     if (symbol.includes(".")) {
       const eod = await fetchEod(symbol);
-      const fund = await fetchFund(symbol);
-      return { symbol, eod, fund, attempts: [symbol] };
+      return { symbol, eod, attempts: [symbol] };
     }
     const attempts = [];
     for (const sfx of TRY_SUFFIXES) {
@@ -301,10 +207,9 @@ exports.handler = async function (event) {
       attempts.push(full);
       const eod = await fetchEod(full);
       if (!eod.ok || !Array.isArray(eod.data) || eod.data.length === 0) continue;
-      const fund = await fetchFund(full);
-      return { symbol, eod, fund, attempts };
+      return { symbol, eod, attempts };
     }
-    return { symbol, eod: { ok: false }, fund: { ok: false }, attempts };
+    return { symbol, eod: { ok: false }, attempts };
   }
 
   // parallel workers with limited concurrency
@@ -319,7 +224,7 @@ exports.handler = async function (event) {
         const data = await getSymbolData(t);
         results.push({ requested: t, ...data });
       } catch (err) {
-        results.push({ requested: t, eod: { ok: false, error: err && err.message }, fund: { ok: false }, attempts: [] });
+        results.push({ requested: t, eod: { ok: false, error: err && err.message }, attempts: [] });
       }
     }
   });
@@ -348,11 +253,6 @@ exports.handler = async function (event) {
     const yesterdayPrice = prev ? (typeof prev.close === "number" ? prev.close : Number(prev.close)) : null;
     const pctChange = (yesterdayPrice !== null && yesterdayPrice !== 0) ? ((lastPrice - yesterdayPrice) / yesterdayPrice) * 100 : null;
 
-    let marketCap = null;
-    if (res.fund && res.fund.ok && res.fund.data) {
-      marketCap = extractMarketCapFromFund(res.fund.data);
-    }
-
     rows.push({
       code: normalizeCode(symbol),
       fullCode: symbol,
@@ -361,7 +261,6 @@ exports.handler = async function (event) {
       yesterdayDate: prev && prev.date ? prev.date : null,
       yesterdayPrice: typeof yesterdayPrice === "number" && !Number.isNaN(yesterdayPrice) ? Number(yesterdayPrice) : null,
       pctChange: typeof pctChange === "number" && Number.isFinite(pctChange) ? Number(pctChange.toFixed(6)) : null,
-      marketCap: typeof marketCap === "number" && Number.isFinite(marketCap) ? Math.round(marketCap) : null,
       attempts
     });
   }

@@ -28,7 +28,7 @@ exports.handler = async function (event) {
   const fmt = (n) =>
     typeof n === "number" && Number.isFinite(n) ? Number(n.toFixed(2)) : null;
 
-  // Normalize symbol / code (strip dot-suffix and uppercase) — still useful for reporting/debug.
+  // Normalize symbol / code (strip dot-suffix and uppercase)
   function normalizeCode(code) {
     return String(code || "").replace(/\.[A-Z0-9]{1,6}$/i, "").toUpperCase();
   }
@@ -126,8 +126,8 @@ exports.handler = async function (event) {
       });
     }
 
-    const currentUsd = {}; // symbol -> USD price (number|null)
-    const currentAud = {}; // symbol -> AUD price (number|null)
+    const currentUsd = {};
+    const currentAud = {};
     let priceTimestamp = null;
     let usdToAud = null;
     let metalsDataSource = "snapshot-only";
@@ -162,7 +162,6 @@ exports.handler = async function (event) {
       usdToAud = latestSnapshot.usdToAud || null;
       debug.snapshotDate = latestSnapshot.snappedAt || null;
     } else {
-      // No snapshot for today – do NOT fetch live prices.
       metalsDataSource = "snapshot-missing";
       for (const s of symbols) {
         currentUsd[s] = null;
@@ -290,6 +289,7 @@ exports.handler = async function (event) {
     ); // how many exchange-symbol-list entries to use
     const EODHD_CONCURRENCY = Number(process.env.EODHD_CONCURRENCY || 8);
     const FIVE_DAYS = 5;
+    const TOP_N = Number(process.env.TOP_N || 6); // return top 6 by default
 
     const eodhdDebug = { active: !!EODHD_TOKEN, steps: [] };
 
@@ -549,13 +549,14 @@ exports.handler = async function (event) {
           eodhdDebug.symbolRequestsCount = symbolRequests.length;
           eodhdDebug.symbolRequestsSample = symbolRequests.slice(0, 20).map((s) => (s && s.symbol) || null);
 
-          // top performers (no market-cap filtering)
-          topPerformers = cleaned.slice(0, 5);
+          // top performers (no market-cap filtering) — return TOP_N highest
+          topPerformers = cleaned.slice(0, TOP_N);
 
           eodhdDebug.steps.push({
             source: "computed-top-performers",
             evaluated: cleaned.length,
-            top5: topPerformers.map((x) => ({ symbol: x.symbol, pct: x.pctGain })),
+            topN: TOP_N,
+            top: topPerformers.map((x) => ({ symbol: x.symbol, pct: x.pctGain })),
           });
 
           // Persist topPerformers to Upstash (best-effort)
