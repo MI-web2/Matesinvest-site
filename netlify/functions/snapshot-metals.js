@@ -10,9 +10,9 @@
 //
 // How this works:
 // - We call Metals-API /latest with base=USD and the correct unit parameter:
-//     XAU, XAG              -> unit=troy_ounce  (USD per oz target)
-//     IRON, LITH-CAR, NI    -> unit=ton         (USD per tonne target)
-//     URANIUM               -> unit=pound       (USD per lb target)
+//     XAU, XAG              -> unit=Troy Ounce  (target USD per oz)
+//     IRON, LITH-CAR, NI    -> unit=Ton         (target USD per tonne)
+//     URANIUM               -> unit=Pound       (target USD per lb)
 // - Metals-API returns a "rate" that may represent either:
 //     * metal units per 1 USD   (e.g. 0.00049 XAU for 1 USD)
 //     * or USD per 1 metal unit
@@ -22,6 +22,11 @@
 //     candInverse = 1 / rate (USD per unit)
 //   Then we pick whichever candidate falls into a realistic USD range for that symbol.
 //   If neither looks realistic, we treat the price as unavailable (null).
+// - Special case: IRON
+//   If both candidates are out-of-range but the raw rate is huge (the "per ounce" style),
+//   we convert that troy-ounce-based figure to per tonne using:
+//      1 metric tonne = 32,150.746568627 troy ounces
+//   and accept it if that result looks realistic.
 // - We convert USD -> AUD via FX and store priceAUD for the app.
 
 exports.handler = async function (event) {
@@ -90,14 +95,14 @@ exports.handler = async function (event) {
   };
 
   // Rough sanity ranges in USD per unit for each symbol.
-  // These are intentionally wide – we're just filtering out absurd values.
+  // Intentionally wide – just enough to filter out absurd values.
   const VALID_RANGES = {
-    XAU: { min: 800, max: 7000 }, // per oz
-    XAG: { min: 5, max: 150 }, // per oz
-    IRON: { min: 30, max: 500 }, // per tonne
-    "LITH-CAR": { min: 3000, max: 150000 }, // per tonne
-    NI: { min: 8000, max: 150000 }, // per tonne
-    URANIUM: { min: 10, max: 500 }, // per lb
+    XAU: { min: 800, max: 7000 },       // gold per oz
+    XAG: { min: 5, max: 150 },          // silver per oz
+    IRON: { min: 30, max: 500 },        // iron ore per tonne
+    "LITH-CAR": { min: 3000, max: 150000 }, // lithium carbonate per tonne
+    NI: { min: 8000, max: 150000 },     // nickel per tonne
+    URANIUM: { min: 10, max: 500 },     // uranium per lb
   };
 
   // Given a raw Metals-API "rate" and a symbol, choose a realistic USD-per-unit price
@@ -107,7 +112,7 @@ exports.handler = async function (event) {
 
     const range = VALID_RANGES[symbol];
     const candDirect = rateRaw; // interpret as USD per unit
-    const candInverse = 1 / rateRaw; // interpret as unit price inverted
+    const candInverse = 1 / rateRaw; // interpret as USD per unit (inverted)
 
     if (!range) {
       // If we don't have a range, default to the inverse behaviour Metals-API documents for base=USD
@@ -157,15 +162,15 @@ exports.handler = async function (event) {
     // -------------------------------
     const groups = [
       {
-        unitParam: "Troy Ounce", // docs accept title-cased as well
+        unitParam: "Troy Ounce", // XAU, XAG per oz
         symbols: ["XAU", "XAG"],
       },
       {
-        unitParam: "Ton",
+        unitParam: "Ton", // IRON, LITH-CAR, NI per tonne
         symbols: ["IRON", "LITH-CAR", "NI"],
       },
       {
-        unitParam: "Pound",
+        unitParam: "Pound", // URANIUM per lb
         symbols: ["URANIUM"],
       },
     ];
@@ -267,7 +272,7 @@ exports.handler = async function (event) {
     }
 
     // -------------------------------
-    // 3) Build snapshot payload (with sanity checks)
+    // 3) Build snapshot payload (with sanity checks + IRON fallback)
     // -------------------------------
     const outputSymbols = ["XAU", "XAG", "IRON", "LITH-CAR", "NI", "URANIUM"];
 
@@ -281,6 +286,7 @@ exports.handler = async function (event) {
     };
 
     const priceTimestamp = anyTimestamp;
+    const TROY_OZ_PER_TONNE = 32150.746568627;
 
     for (const s of outputSymbols) {
       const entry = allRates[s] || {};
@@ -288,8 +294,34 @@ exports.handler = async function (event) {
       const unitParam = entry.unitParam || "Troy Ounce";
       const unitLabel = UNIT_LABELS[unitParam] || unitParam;
 
-      const interpretation = chooseUsdPerUnitFromRate(s, rawRate);
+      let interpretation = chooseUsdPerUnitFromRate(s, rawRate);
       let priceUSD = interpretation.priceUSD;
+
+      // Special handling for IRON:
+      // If both direct/inverse interpretations look insane, but rawRate is large,
+      // treat rawRate as "per troy ounce" and convert to per tonne.
+      if (
+        s === "IRON" &&
+        priceUSD === null &&
+        typeof rawRate === "number" &&
+        Number.isFinite(rawRate) &&
+        rawRate > 0
+      ) {
+        const range = VALID_RANGES["IRON"];
+        const fallbackPerTonne = rawRate / TROY_OZ_PER_TONNE;
+        if (
+          range &&
+          fallbackPerTonne >= range.min &&
+          fallbackPerTonne <= range.max
+        ) {
+          priceUSD = fallbackPerTonne;
+          interpretation = {
+            priceUSD,
+            mode: "iron_fallback_troy_to_ton",
+          };
+        }
+      }
+
       let priceAUD =
         priceUSD !== null && usdToAud !== null
           ? fmt(priceUSD * usdToAud)

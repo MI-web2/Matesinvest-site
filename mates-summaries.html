@@ -1435,46 +1435,33 @@ const items = payload.topPerformers.map(tp => {
 
   // Top meta row + placeholders for Mates note and SOTD
   const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
-// inside renderMorningBrief(), replace the existing sotdPlaceholder creation with this
-
-  // Choose "Stock of the Day" candidate from top performers (if any)
-  let sotdCandidate = null;
-  if (Array.isArray(payload.topPerformers) && payload.topPerformers.length) {
-    const pool = payload.topPerformers.slice(0, 5); // only the first 5
-    const idx = Math.floor(Math.random() * pool.length); // or 0 if you always want #1
-    sotdCandidate = pool[idx] || pool[0];
-  }
-  // Expose globally so loadStockOfTheDay() can use the same stock
-  window._mates_sotd = sotdCandidate;
-
-  // Build placeholders for Mates Morning Note and Stock of the Day
-  const matesPlaceholder = `
-    <div id="matesMorningNote" class="mates-note" style="display:none;">
-      <div class="mates-note-header">
-        <span class="pill">Mates Morning Note</span>
-        <span id="matesNoteTimestamp" class="timestamp">Updated —</span>
+// Replace the sotdPlaceholder block with this corrected version
+const sotdTickerText = sotdCandidate && (sotdCandidate.symbol || sotdCandidate.ticker) ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker) : '—';
+const sotdNameText = sotdCandidate && sotdCandidate.name ? escapeHtml(sotdCandidate.name) : '';
+const sotdPlaceholder = `
+  <div id="stockOfDay" class="sotd-card" style="display:none;"
+       data-symbol="${sotdCandidate ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker || '') : ''}"
+       data-name="${sotdCandidate ? escapeHtml(sotdCandidate.name || '') : ''}">
+    <div class="sotd-header">
+      <div class="sotd-title-left">
+        <span class="sotd-pill">Stock of the Day</span>
+        <span id="sotdTicker" class="sotd-ticker">${sotdTickerText}</span>
+        <span id="sotdName" class="sotd-name">${sotdNameText}</span>
       </div>
-      <div id="matesNoteText" class="mates-note-body">Loading today’s note…</div>
+      <span id="sotdExchange" class="sotd-exchange">ASX</span>
     </div>
-  `;
 
-  // Include chosen candidate data on the placeholder as data- attributes (robust fallback)
-  const sotdTickerText = sotdCandidate && (sotdCandidate.symbol || sotdCandidate.ticker) ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker) : '—';
-  const sotdNameText = sotdCandidate && sotdCandidate.name ? escapeHtml(sotdCandidate.name) : '';
-  const sotdPlaceholder = `
-    <div id="stockOfDay" class="sotd-card" style="display:none;"
-         data-symbol="${sotdCandidate ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker || '') : ''}"
-         data-name="${sotdCandidate ? escapeHtml(sotdCandidate.name || '') : ''}">
-      <div class="sotd-header">
-        <div class="sotd-title-left">
-          <span class="sotd-pill">Stock of the Day</span>
-          <span id="sotdTicker" class="sotd-ticker">${sotdTickerText}</span>
-          <span id="sotdName" class="sotd-name">${sotdNameText}</span>
-        </div>
-        <span id="sotdExchange" class="sotd-exchange">ASX</span>
-      </div>
-  `;
+    <!-- Summary area that loadStockOfTheDay() expects -->
+    <div id="sotdSummary" class="sotd-summary" style="min-height:48px;color:#0b1220">
+      Loading Stock of the Day…
+    </div>
 
+    <!-- small disclaimer / footer -->
+    <div class="sotd-disclaimer" style="margin-top:8px;color:var(--muted-2);font-size:0.78rem">
+      Not financial advice — brief informational snapshot only.
+    </div>
+  </div>
+`;
   if (metalsObj) {
     const symbols = Object.keys(metalsObj);
     const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron Ore 62% Fe', 'LITH-CAR':'Lithium Carbonate', NI: 'Nickel', URANIUM: 'Uranium' };
