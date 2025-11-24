@@ -10,24 +10,31 @@
 //
 // How this works:
 // - We call Metals-API /latest with base=USD and the correct unit parameter:
-//     XAU, XAG              -> unit=Troy Ounce  (target USD per oz)
-//     IRON, LITH-CAR, NI    -> unit=Ton         (target USD per tonne)
-//     URANIUM               -> unit=Pound       (target USD per lb)
-// - Metals-API returns a "rate" that may represent either:
-//     * metal units per 1 USD   (e.g. 0.00049 XAU for 1 USD)
-//     * or USD per 1 metal unit
-//   The docs + examples are inconsistent, so we interpret both possibilities.
-// - For each symbol we compute TWO candidates:
-//     candDirect  = rate (as USD per unit)
-//     candInverse = 1 / rate (USD per unit)
-//   Then we pick whichever candidate falls into a realistic USD range for that symbol.
-//   If neither looks realistic, we treat the price as unavailable (null).
-// - Special case: IRON
-//   If both candidates are out-of-range but the raw rate is huge (the "per ounce" style),
-//   we convert that troy-ounce-based figure to per tonne using:
-//      1 metric tonne = 32,150.746568627 troy ounces
-//   and accept it if that result looks realistic.
-// - We convert USD -> AUD via FX and store priceAUD for the app.
+//     XAU, XAG              -> unit=Troy Ounce  (USD per oz target)
+//     IRON, LITH-CAR, NI    -> unit=Ton         (USD per tonne target)
+//     URANIUM               -> unit=Pound       (USD per lb target)
+//
+// - Metals-API response example (for IRON):
+//   {
+//     "base": "USD",
+//     "rates": {
+//       "IRON": 10826469.433475018,
+//       "USD": 1,
+//       "USDIRON": 114.9270710242
+//     }
+//   }
+//
+//   In this shape:
+//   - USDIRON is the direct "USD per unit" price we want.
+//   - IRON is a normalization rate (metal per USD) that we generally ignore.
+//
+// - For each symbol we therefore:
+//   1) Prefer rates[`USD${symbol}`] if present and sane (e.g. USDIRON).
+//   2) If that is missing, fall back to interpreting rates[symbol] via
+//      direct vs inverse + sanity ranges.
+//
+// - We convert USD -> AUD via FX and store priceAUD alongside priceUSD.
+// - We attach a "sanity" section with any symbols that failed checks.
 
 exports.handler = async function (event) {
   const nowIso = new Date().toISOString();
@@ -97,50 +104,54 @@ exports.handler = async function (event) {
   // Rough sanity ranges in USD per unit for each symbol.
   // Intentionally wide – just enough to filter out absurd values.
   const VALID_RANGES = {
-    XAU: { min: 800, max: 7000 },       // gold per oz
-    XAG: { min: 5, max: 150 },          // silver per oz
-    IRON: { min: 30, max: 500 },        // iron ore per tonne
-    "LITH-CAR": { min: 3000, max: 150000 }, // lithium carbonate per tonne
-    NI: { min: 8000, max: 150000 },     // nickel per tonne
-    URANIUM: { min: 10, max: 500 },     // uranium per lb
+    XAU: { min: 800, max: 7000 },            // gold per oz
+    XAG: { min: 5, max: 150 },               // silver per oz
+    IRON: { min: 30, max: 500 },             // iron ore per tonne
+    "LITH-CAR": { min: 3000, max: 150000 },  // lithium carbonate per tonne
+    NI: { min: 8000, max: 150000 },          // nickel per tonne
+    URANIUM: { min: 10, max: 500 },          // uranium per lb
   };
 
-  // Given a raw Metals-API "rate" and a symbol, choose a realistic USD-per-unit price
-  function chooseUsdPerUnitFromRate(symbol, rateRaw) {
-    if (typeof rateRaw !== "number" || !Number.isFinite(rateRaw) || rateRaw <= 0)
+  // Given a candidate price and a symbol, check if it's within our sanity window
+  function isInRange(symbol, price) {
+    const range = VALID_RANGES[symbol];
+    if (!range || typeof price !== "number" || !Number.isFinite(price)) return false;
+    return price >= range.min && price <= range.max;
+  }
+
+  // Fallback interpreter for when USD{SYMBOL} is missing:
+  // Try treating rate as USD per unit or unit per USD and see what fits.
+  function deriveFromRawRate(symbol, rateRaw) {
+    if (typeof rateRaw !== "number" || !Number.isFinite(rateRaw) || rateRaw <= 0) {
       return { priceUSD: null, mode: "invalid_rate" };
+    }
 
     const range = VALID_RANGES[symbol];
-    const candDirect = rateRaw; // interpret as USD per unit
-    const candInverse = 1 / rateRaw; // interpret as USD per unit (inverted)
+    const candDirect = rateRaw;      // treat as USD per unit
+    const candInverse = 1 / rateRaw; // treat as unit price inverted
 
     if (!range) {
-      // If we don't have a range, default to the inverse behaviour Metals-API documents for base=USD
+      // No range defined: default to inverse (Metals-API base=USD docs behaviour)
       return { priceUSD: candInverse, mode: "inverse_no_range" };
     }
 
-    const inRange = (v) => v >= range.min && v <= range.max;
+    const directOK = isInRange(symbol, candDirect);
+    const inverseOK = isInRange(symbol, candInverse);
 
-    const directOK = inRange(candDirect);
-    const inverseOK = inRange(candInverse);
+    if (directOK && !inverseOK) return { priceUSD: candDirect, mode: "direct" };
+    if (!directOK && inverseOK) return { priceUSD: candInverse, mode: "inverse" };
 
-    if (directOK && !inverseOK) {
-      return { priceUSD: candDirect, mode: "direct" };
-    }
-    if (inverseOK && !directOK) {
-      return { priceUSD: candInverse, mode: "inverse" };
-    }
     if (directOK && inverseOK) {
-      // Both somehow in range – pick the one closer to the midpoint
+      // Pick whichever is closer to the middle of the range
       const mid = (range.min + range.max) / 2;
-      const distDirect = Math.abs(candDirect - mid);
-      const distInverse = Math.abs(candInverse - mid);
-      return distDirect <= distInverse
+      const dDist = Math.abs(candDirect - mid);
+      const iDist = Math.abs(candInverse - mid);
+      return dDist <= iDist
         ? { priceUSD: candDirect, mode: "direct_both_ok" }
         : { priceUSD: candInverse, mode: "inverse_both_ok" };
     }
 
-    // Neither candidate looks realistic – drop it.
+    // Neither in range – treat as unusable.
     return {
       priceUSD: null,
       mode: "out_of_range",
@@ -175,7 +186,7 @@ exports.handler = async function (event) {
       },
     ];
 
-    const allRates = {}; // symbol -> { rawRate, unitParam }
+    const allRates = {}; // symbol -> { ratesObj, unitParam }
     let anyTimestamp = null;
     const previews = [];
 
@@ -217,9 +228,8 @@ exports.handler = async function (event) {
       }
 
       for (const s of symbols) {
-        const rv = rates[s];
         allRates[s] = {
-          rawRate: typeof rv === "number" ? rv : null,
+          rates,
           unitParam,
         };
       }
@@ -272,7 +282,7 @@ exports.handler = async function (event) {
     }
 
     // -------------------------------
-    // 3) Build snapshot payload (with sanity checks + IRON fallback)
+    // 3) Build snapshot payload (with USD{symbol} priority)
     // -------------------------------
     const outputSymbols = ["XAU", "XAG", "IRON", "LITH-CAR", "NI", "URANIUM"];
 
@@ -286,40 +296,43 @@ exports.handler = async function (event) {
     };
 
     const priceTimestamp = anyTimestamp;
-    const TROY_OZ_PER_TONNE = 32150.746568627;
 
     for (const s of outputSymbols) {
       const entry = allRates[s] || {};
-      const rawRate = entry.rawRate;
+      const rates = entry.rates || {};
       const unitParam = entry.unitParam || "Troy Ounce";
       const unitLabel = UNIT_LABELS[unitParam] || unitParam;
 
-      let interpretation = chooseUsdPerUnitFromRate(s, rawRate);
-      let priceUSD = interpretation.priceUSD;
+      const usdKey = `USD${s}`;
+      const directUsd =
+        typeof rates[usdKey] === "number" && rates[usdKey] > 0
+          ? rates[usdKey]
+          : null;
 
-      // Special handling for IRON:
-      // If both direct/inverse interpretations look insane, but rawRate is large,
-      // treat rawRate as "per troy ounce" and convert to per tonne.
-      if (
-        s === "IRON" &&
-        priceUSD === null &&
-        typeof rawRate === "number" &&
-        Number.isFinite(rawRate) &&
-        rawRate > 0
-      ) {
-        const range = VALID_RANGES["IRON"];
-        const fallbackPerTonne = rawRate / TROY_OZ_PER_TONNE;
-        if (
-          range &&
-          fallbackPerTonne >= range.min &&
-          fallbackPerTonne <= range.max
-        ) {
-          priceUSD = fallbackPerTonne;
-          interpretation = {
-            priceUSD,
-            mode: "iron_fallback_troy_to_ton",
-          };
-        }
+      const rawRate =
+        typeof rates[s] === "number" && rates[s] > 0 ? rates[s] : null;
+
+      let priceUSD = null;
+      let mode = null;
+      let debugInfo = null;
+
+      // 1) Prefer the USD{symbol} field if it exists and is sane
+      if (directUsd !== null && isInRange(s, directUsd)) {
+        priceUSD = directUsd;
+        mode = "direct_usd_key";
+      } else if (directUsd !== null && !isInRange(s, directUsd)) {
+        // USD key exists but is crazy – treat as issue, try raw fallback
+        debugInfo = { usdKey, directUsd };
+        const derived = deriveFromRawRate(s, rawRate);
+        priceUSD = derived.priceUSD;
+        mode = derived.mode;
+        if (derived.debug) debugInfo = { ...debugInfo, ...derived.debug };
+      } else {
+        // 2) No USD{symbol} field; derive from rawRate only
+        const derived = deriveFromRawRate(s, rawRate);
+        priceUSD = derived.priceUSD;
+        mode = derived.mode;
+        debugInfo = derived.debug || null;
       }
 
       let priceAUD =
@@ -327,11 +340,13 @@ exports.handler = async function (event) {
           ? fmt(priceUSD * usdToAud)
           : null;
 
-      if (priceUSD === null && interpretation.mode !== "invalid_rate") {
+      if (priceUSD === null && mode && mode !== "invalid_rate") {
         snapshot.sanity.issues.push({
           symbol: s,
-          mode: interpretation.mode,
-          ...(interpretation.debug || {}),
+          mode,
+          ...(debugInfo || {}),
+          usdKey,
+          directUsd,
           rawRate,
         });
       }
