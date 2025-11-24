@@ -37,6 +37,12 @@ exports.handler = async function (event) {
   const fmt = (n) =>
     typeof n === "number" && Number.isFinite(n) ? Number(n.toFixed(2)) : null;
 
+  // Normalize symbol / code for matching Mcap rows and EOD symbols.
+  // Strips any dot-suffix like ".AX", ".AU", ".ASX" and uppercases.
+  function normalizeCode(code) {
+    return String(code || "").replace(/\.[A-Z]{1,6}$/i, "").toUpperCase();
+  }
+
   // ---------- Upstash helpers ----------
   const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || null;
   const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
@@ -551,7 +557,8 @@ exports.handler = async function (event) {
           for (const row of rows) {
             if (!row || !row.code) continue;
 
-            const base = String(row.code).replace(/\.AU$/i, "");
+            // Normalize to strip any dot suffix (e.g. .AX / .AU) so keys match
+            const base = normalizeCode(row.code);
 
             const mc =
               typeof row.market_cap === "number"
@@ -585,7 +592,7 @@ exports.handler = async function (event) {
       let filtered = cleaned;
       if (Object.keys(mcapMap).length > 0) {
         filtered = cleaned.filter((tp) => {
-          const base = String(tp.symbol).replace(/\.AU$/i, "");
+          const base = normalizeCode(tp.symbol);
           const mc = mcapMap[base];
           return typeof mc === "number" && mc >= MIN_MCAP;
         });
