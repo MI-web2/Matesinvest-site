@@ -93,21 +93,33 @@ async function redisSet(urlBase, token, key, value, ttlSeconds) {
   }
 }
 
-async function readAsx200List() {
-  const filePath = path.join(__dirname, "..", "..", "data", "asx200.txt");
-  try {
-    const raw = fs.readFileSync(filePath, "utf8");
-    const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
-    return parts.map((p) => p.toUpperCase());
-  } catch (err) {
+// Robust read of data/asx200 list - tries multiple candidate paths and logs the one used.
+function readAsx200ListSync() {
+  const candidates = [
+    path.join(process.cwd(), "data", "asx200.txt"),
+    path.join(__dirname, "..", "..", "data", "asx200.txt"),
+    path.join(__dirname, "..", "data", "asx200.txt"),
+    path.join("/", "data", "asx200.txt"),
+    // fallback no-extension variants
+    path.join(process.cwd(), "data", "asx200"),
+    path.join(__dirname, "..", "..", "data", "asx200"),
+    path.join(__dirname, "..", "data", "asx200"),
+  ];
+
+  for (const p of candidates) {
     try {
-      const alt = path.join(process.cwd(), "data", "asx200.txt");
-      const raw = fs.readFileSync(alt, "utf8");
-      return raw.split(",").map((s) => s.trim()).filter(Boolean).map((p) => p.toUpperCase());
-    } catch (e) {
-      throw new Error("Failed to read data/asx200.txt: " + (err && err.message));
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, "utf8");
+        const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+        console.log(`[snapshot-asx200] using data file: ${p} (entries=${parts.length})`);
+        return parts.map((p) => p.toUpperCase());
+      }
+    } catch (err) {
+      console.warn(`[snapshot-asx200] read failure for ${p}: ${err && err.message}`);
     }
   }
+
+  throw new Error("Failed to read data/asx200.txt: file not found in expected locations. Ensure data/asx200.txt exists in the repo root.");
 }
 
 exports.handler = async function (event) {
@@ -134,7 +146,7 @@ exports.handler = async function (event) {
 
   let tickers;
   try {
-    tickers = await readAsx200List();
+    tickers = readAsx200ListSync();
   } catch (err) {
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
@@ -214,7 +226,7 @@ exports.handler = async function (event) {
           }
           try {
             const json = text ? JSON.parse(text) : null;
-            return { ok: true, data: json };
+            return { ok: true, data: json, rawText: text };
           } catch (e) {
             return { ok: false, status: res.status, text };
           }
