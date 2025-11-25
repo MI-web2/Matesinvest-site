@@ -842,6 +842,12 @@
     grid-template-columns: 1fr;
   }
 }
+    #mi-ins-chart {
+  width: 100%;
+  height: 220px;
+  margin-top: 10px;
+}
+
   </style>
 
 </head>
@@ -1881,9 +1887,10 @@ categoryRow.onclick = (e) => {
           Showing last 6 months of daily closes.
         </div>
         <!-- Placeholder for a future chart -->
-        <div class="mi-ins-history-placeholder">
-          Chart coming soon – prices are already cached from our data feed.
-        </div>
+<div class="mi-ins-history">
+  <div class="mi-ins-history-summary" id="mi-ins-history-summary"></div>
+  <canvas id="mi-ins-chart" width="600" height="220"></canvas>
+</div>
       </div>
     </div>
   </div>
@@ -2124,7 +2131,10 @@ categoryRow.onclick = (e) => {
           "Price history not available at the moment.";
       }
     }
-
+// Render the chart
+if (data.history) {
+  miRenderChart(data.history);
+}
     // Show overlay
     overlay.style.display = "flex";
     overlay.setAttribute("aria-hidden", "false");
@@ -2136,6 +2146,58 @@ categoryRow.onclick = (e) => {
     overlay.style.display = "none";
     overlay.setAttribute("aria-hidden", "true");
   }
+function miRenderChart(history) {
+  const canvas = document.getElementById("mi-ins-chart");
+  if (!canvas || !history || !Array.isArray(history.points)) return;
+
+  const ctx = canvas.getContext("2d");
+
+  // Extract numeric closes
+  const pts = history.points.map(p => p[1]).filter(x => typeof x === "number");
+
+  if (pts.length < 2) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#6b7280";
+    ctx.fillText("No chart data available", 10, 20);
+    return;
+  }
+
+  const w = canvas.width;
+  const h = canvas.height;
+
+  const min = Math.min(...pts);
+  const max = Math.max(...pts);
+
+  const padX = 20;
+  const padY = 10;
+
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#38bdf8"; // cyan-blue line
+  ctx.beginPath();
+
+  pts.forEach((v, i) => {
+    const x = padX + (i / (pts.length - 1)) * (w - padX * 2);
+    const y = h - padY - ((v - min) / (max - min)) * (h - padY * 2);
+
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+
+  ctx.stroke();
+
+  // Fade fill under the line
+  const gradient = ctx.createLinearGradient(0, padY, 0, h);
+  gradient.addColorStop(0, "rgba(56,189,248,0.25)");
+  gradient.addColorStop(1, "rgba(56,189,248,0.0)");
+
+  ctx.lineTo(w - padX, h - padY);
+  ctx.lineTo(padX, h - padY);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+}
 
   // -------- Wire up clicks --------
   document.addEventListener("click", async (e) => {
