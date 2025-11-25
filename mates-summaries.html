@@ -697,14 +697,15 @@
 
 /* Close button */
 .mi-ins-close {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  border: none;
-  background: transparent;
+  position: relative;   /* not absolute anymore */
+  top: 0;
+  right: 0;
+  font-size: 20px;
   color: #9ca3af;
-  font-size: 18px;
+  background: transparent;
+  border: none;
   cursor: pointer;
+  z-index: 100;          /* extra safety */
 }
 
 .mi-ins-close:hover {
@@ -720,10 +721,10 @@
 
   position: sticky;
   top: 0;
-  padding-top: 4px;
+  background: #0b1020;
+  z-index: 50; /* bump this up */
   padding-bottom: 8px;
-  background: #0b1020;           /* same as modal background */
-  z-index: 2;                     /* keeps it above chart/content */
+  padding-top: 6px;
 }
 
 .mi-ins-title {
@@ -1887,6 +1888,10 @@ categoryRow.onclick = (e) => {
         <div class="mi-ins-change" id="mi-ins-change">+0.0% today</div>
         <div class="mi-ins-date" id="mi-ins-date">as at —</div>
       </div>
+        <button class="mi-ins-close" type="button" id="mi-ins-close-btn" aria-label="Close">
+    ✕
+  </button>
+</div>
     </div>
 
     <div class="mi-ins-tags" id="mi-ins-tags">
