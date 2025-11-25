@@ -169,8 +169,7 @@ exports.handler = async function (event) {
     return json;
   }
 
-  // Robust fundamentals fetch – mirrors snapshot-asx200 style:
-  // try /fundamental, /fundamentals, /company
+  // Robust fundamentals fetch – try /fundamental, /fundamentals, /company
   async function fetchFundamentals(fullCode) {
     if (!EODHD_TOKEN) {
       throw new Error("Missing EODHD_API_TOKEN");
@@ -195,7 +194,6 @@ exports.handler = async function (event) {
         const res = await fetchWithTimeout(url, {}, 12000);
         const txt = await res.text().catch(() => "");
         if (!res.ok) {
-          // 404 just means "try the next style"
           if (res.status === 404) {
             lastErr =
               new Error(
@@ -227,12 +225,100 @@ exports.handler = async function (event) {
     return null;
   }
 
+  // ---- Fundamentals extraction helpers ----
+
+  function safeNumber(...candidates) {
+    for (const v of candidates) {
+      if (typeof v === "number" && Number.isFinite(v)) return v;
+    }
+    return null;
+  }
+
+  function deriveSizeBucket(marketCap) {
+    if (typeof marketCap !== "number" || !Number.isFinite(marketCap)) {
+      return "unknown";
+    }
+    // Thresholds in AUD (rough, but fine for retail buckets)
+    if (marketCap >= 50e9) return "mega";
+    if (marketCap >= 10e9) return "large";
+    if (marketCap >= 2e9) return "mid";
+    if (marketCap >= 0.3e9) return "small";
+    return "micro";
+  }
+
+  function getMostRecentYearEntries(yearlyObj, maxYears = 3) {
+    if (!yearlyObj || typeof yearlyObj !== "object") return [];
+    const years = Object.keys(yearlyObj)
+      .filter((y) => /^\d{4}$/.test(String(y)))
+      .sort((a, b) => Number(b) - Number(a)); // desc
+    const result = [];
+    for (const y of years) {
+      if (result.length >= maxYears) break;
+      const row = yearlyObj[y];
+      if (row && typeof row === "object") {
+        result.push({ year: Number(y), row });
+      }
+    }
+    return result;
+  }
+
+  function deriveProfitTrend(netIncomeSeries) {
+    // netIncomeSeries: [{ year, value }, ...] most recent first
+    if (!Array.isArray(netIncomeSeries) || netIncomeSeries.length < 2) {
+      return "unknown";
+    }
+    const vals = netIncomeSeries
+      .map((x) => x.value)
+      .filter((v) => typeof v === "number" && Number.isFinite(v));
+
+    if (vals.length < 2) return "unknown";
+
+    const first = vals[vals.length - 1]; // oldest
+    const last = vals[0]; // latest
+
+    if (!Number.isFinite(first) || first === 0) return "unknown";
+
+    const changePct = (last - first) / Math.abs(first);
+
+    const POS_THRESH = 0.05; // +5%
+    const NEG_THRESH = -0.05; // -5%
+
+    if (changePct > POS_THRESH) return "up";
+    if (changePct < NEG_THRESH) return "down";
+    return "flat";
+  }
+
+  function deriveLeverageBucket(netDebt, marketCap) {
+    if (
+      typeof netDebt !== "number" ||
+      !Number.isFinite(netDebt) ||
+      typeof marketCap !== "number" ||
+      !Number.isFinite(marketCap) ||
+      marketCap <= 0
+    ) {
+      return "unknown";
+    }
+    if (netDebt <= 0) return "net-cash";
+
+    const ratio = netDebt / marketCap; // debt as % of market value
+    if (ratio <= 0.2) return "low-debt";
+    return "high-debt";
+  }
+
   function extractEquityFundamentals(f) {
     if (!f || typeof f !== "object") return {};
 
     const general = f.General || {};
     const highlights = f.Highlights || {};
+    const financials = f.Financials || {};
 
+    // Basic identity
+    const name = general.Name || null;
+    const sector = general.Sector || null;
+    const industry = general.Industry || null;
+    const currency = general.CurrencyCode || null;
+
+    // Market cap
     let marketCap =
       typeof highlights.MarketCapitalization === "number"
         ? highlights.MarketCapitalization
@@ -245,24 +331,158 @@ exports.handler = async function (event) {
       marketCap = general.MarketCapitalization;
     }
 
+    const sizeBucket = deriveSizeBucket(marketCap);
+
+    // PE, EPS, Dividend Yield (we might not show these directly yet)
+    const pe =
+      typeof highlights.PERatio === "number"
+        ? fmt(highlights.PERatio, 2)
+        : null;
+
+    const eps =
+      typeof highlights.EarningsShare === "number"
+        ? fmt(highlights.EarningsShare, 2)
+        : null;
+
+    const dividendYield =
+      typeof highlights.DividendYield === "number"
+        ? fmt(highlights.DividendYield * 100, 2)
+        : null;
+
+    // Income Statement: revenue + net income, 3-year trend
+    const income = financials.Income_Statement || financials.IncomeStatement || {};
+    const yearlyIncome =
+      income.yearly || income.Yearly || income.annual || income.Annual || null;
+
+    let revenueLastYear = null;
+    let netIncomeLastYear = null;
+    let profitTrend3yr = "unknown";
+
+    if (yearlyIncome && typeof yearlyIncome === "object") {
+      const lastYears = getMostRecentYearEntries(yearlyIncome, 3);
+
+      // Most recent year
+      if (lastYears.length > 0) {
+        const latest = lastYears[0].row;
+        revenueLastYear = safeNumber(
+          latest.totalRevenue,
+          latest.TotalRevenue,
+          latest.Revenue,
+          latest.revenues,
+          latest.Sales,
+          latest.sales
+        );
+        netIncomeLastYear = safeNumber(
+          latest.netIncome,
+          latest.NetIncome,
+          latest.Net_Income,
+          latest.net_income,
+          latest.Profit,
+          latest.NetProfit,
+          latest.netProfit
+        );
+      }
+
+      // Net income trend
+      const netSeries = lastYears
+        .map(({ year, row }) => {
+          const v = safeNumber(
+            row.netIncome,
+            row.NetIncome,
+            row.Net_Income,
+            row.net_income,
+            row.Profit,
+            row.NetProfit,
+            row.netProfit
+          );
+          if (v === null) return null;
+          return { year, value: v };
+        })
+        .filter(Boolean);
+
+      if (netSeries.length >= 2) {
+        profitTrend3yr = deriveProfitTrend(netSeries);
+      }
+    }
+
+    // Dividends per share + paysDividend
+    let dividendsPerShareLastYear = null;
+
+    // Highlights often has DividendShare / DividendPerShare
+    dividendsPerShareLastYear = safeNumber(
+      highlights.DividendShare,
+      highlights.DividendPerShare,
+      highlights.DividendsPerShare
+    );
+
+    const paysDividend =
+      (typeof dividendYield === "number" && dividendYield > 0.1) ||
+      (typeof dividendsPerShareLastYear === "number" &&
+        dividendsPerShareLastYear > 0);
+
+    // Balance Sheet: debt vs cash
+    const bs =
+      financials.Balance_Sheet || financials.BalanceSheet || financials.Balance || {};
+    const yearlyBS =
+      bs.yearly || bs.Yearly || bs.annual || bs.Annual || null;
+
+    let netDebt = null;
+    let leverageBucket = "unknown";
+
+    if (yearlyBS && typeof yearlyBS === "object") {
+      const lastBsYears = getMostRecentYearEntries(yearlyBS, 1);
+      if (lastBsYears.length > 0) {
+        const row = lastBsYears[0].row;
+        const totalDebt = safeNumber(
+          row.totalDebt,
+          row.TotalDebt,
+          row.Total_Debt,
+          row.ShortLongTermDebtTotal,
+          row.shortLongTermDebtTotal,
+          row.TotalLiabilities,
+          row.totalLiabilities
+        );
+        const cash = safeNumber(
+          row.cashAndCashEquivalents,
+          row.CashAndCashEquivalents,
+          row.CashAndCashEquivalentsUSD,
+          row.cash,
+          row.Cash
+        );
+        if (
+          typeof totalDebt === "number" &&
+          Number.isFinite(totalDebt) &&
+          typeof cash === "number" &&
+          Number.isFinite(cash)
+        ) {
+          netDebt = totalDebt - cash;
+          leverageBucket = deriveLeverageBucket(netDebt, marketCap);
+        }
+      }
+    }
+
     return {
-      name: general.Name || null,
-      sector: general.Sector || null,
-      industry: general.Industry || null,
-      marketCap: marketCap,
-      pe:
-        typeof highlights.PERatio === "number"
-          ? fmt(highlights.PERatio, 2)
-          : null,
-      dividendYield:
-        typeof highlights.DividendYield === "number"
-          ? fmt(highlights.DividendYield * 100, 2)
-          : null,
-      eps:
-        typeof highlights.EarningsShare === "number"
-          ? fmt(highlights.EarningsShare, 2)
-          : null,
-      currency: general.CurrencyCode || null,
+      name,
+      sector,
+      industry,
+      currency,
+
+      marketCap,
+      sizeBucket,
+
+      revenueLastYear,
+      netIncomeLastYear,
+      profitTrend3yr,
+
+      dividendYield,
+      dividendsPerShareLastYear,
+      paysDividend,
+
+      netDebt,
+      leverageBucket,
+
+      pe,
+      eps,
     };
   }
 
@@ -520,7 +740,7 @@ exports.handler = async function (event) {
             ? asxRow.marketCap
             : asxRow.marketCap !== null
             ? Number(asxRow.marketCap)
-            : null,
+            : fundamentals.marketCap || null,
       };
       debug.steps.push({ step: "latest-from-asx200", ok: true });
     } else if (history && Array.isArray(history.points)) {
@@ -555,7 +775,7 @@ exports.handler = async function (event) {
       debug.steps.push({ step: "latest-from-history", ok: true });
     }
 
-    // 6) News (stub)
+    // 6) News (stub for now)
     const news = [];
 
     const payload = {
