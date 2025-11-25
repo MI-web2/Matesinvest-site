@@ -475,6 +475,19 @@
       gap:0.65rem;
       min-width:0;
     }
+    .meta-actions{
+  display:flex;
+  gap:0.5rem;
+  align-items:center;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+@media (max-width:640px){
+  .meta-actions{
+    justify-content:flex-start; /* on mobile, line up under the title */
+  }
+}
 .headline h3{
   margin:0 0 0.18rem 0;
   font-size:0.9rem;                    /* smaller headline text */
@@ -1189,24 +1202,23 @@ async function loadMatesMorningNote() {
 
         const published = formatTime(a.publishedAt || a.published || "");
 
-        item.innerHTML = `
-          <div class="meta-row">
-            <div class="meta-left">
-              <div style="min-width:0">
-                <h3 title="${escapeHtml(a.title || '')}">${escapeHtml(a.title || '')}</h3>
-                <small>${escapeHtml(a.source || "")} · ${escapeHtml(published)}</small>
-              </div>
-            </div>
-            <div style="display:flex;gap:0.5rem;align-items:center">
-              <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">Read original</a>
-            </div>
-          </div>
+item.innerHTML = `
+  <div class="meta-row">
+    <div class="meta-left">
+      <div style="min-width:0">
+        <h3 title="${escapeHtml(a.title || '')}">${escapeHtml(a.title || '')}</h3>
+        <small>${escapeHtml(a.source || "")} · ${escapeHtml(published)}</small>
+      </div>
+    </div>
+    <div class="meta-actions">
+      <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">Read original</a>
+      <button class="btn" aria-label="Generate summary for article">MatesInvest summary</button>
+    </div>
+  </div>
 
-          <div class="actions">
-            <button class="btn" aria-label="Generate summary for article">MatesInvest summary</button>
-          </div>
-          <div class="summary-output"></div>
-        `;
+  <div class="summary-output"></div>
+`;
+
 
         const btn = item.querySelector("button");
         const output = item.querySelector(".summary-output");
@@ -1308,27 +1320,23 @@ async function loadMatesMorningNote() {
           const when = formatTime(item.time);
           const sportBadge = escapeHtml((item.sportLabel || "").toString());
 
-          div.innerHTML = `
-            <div class="meta-row">
-              <div class="meta-left" style="min-width:0">
-                <div>
-                  <h3>${escapeHtml(item.title || "")}</h3>
-                  <small>${icon} ${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
-                </div>
-              </div>
-              <div style="display:flex;gap:0.5rem;align-items:center">
-                <span class="sport-tag">${sportBadge}</span>
-              </div>
-            </div>
+div.innerHTML = `
+  <div class="meta-row">
+    <div class="meta-left">
+      <div style="min-width:0">
+        <h3>${escapeHtml(item.title || "")}</h3>
+        <small>${escapeHtml(item.subtitle || "")} · ${escapeHtml(when)}</small>
+      </div>
+    </div>
+    <div class="meta-actions">
+      <a class="link-min" href="${item.url || "#"}" target="_blank" rel="noopener">Read original</a>
+      <button class="btn">MatesInvest summary</button>
+    </div>
+  </div>
 
-            <div class="actions">
-              <button class="btn">MatesInvest summary</button>
-              <button class="link-min" data-toggle-stats>Stats</button>
-            </div>
+  <div class="summary-output"></div>
+`;
 
-            <div class="summary-output"></div>
-            <div class="sports-stats" style="margin-top:0.6rem; display:none;"></div>
-          `;
 
           const btn = div.querySelector("button.btn");
           const output = div.querySelector(".summary-output");
