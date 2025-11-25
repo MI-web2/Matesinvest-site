@@ -1874,10 +1874,6 @@ categoryRow.onclick = (e) => {
 <!-- Instrument details modal -->
 <div id="mi-instrument-overlay" class="mi-ins-overlay" aria-hidden="true">
   <div class="mi-ins-modal" role="dialog" aria-modal="true" aria-labelledby="mi-ins-title">
-    <button class="mi-ins-close" type="button" id="mi-ins-close-btn" aria-label="Close">
-      ✕
-    </button>
-
     <div class="mi-ins-header">
       <div>
         <h2 id="mi-ins-title" class="mi-ins-title">Instrument name</h2>
@@ -1888,10 +1884,10 @@ categoryRow.onclick = (e) => {
         <div class="mi-ins-change" id="mi-ins-change">+0.0% today</div>
         <div class="mi-ins-date" id="mi-ins-date">as at —</div>
       </div>
-        <button class="mi-ins-close" type="button" id="mi-ins-close-btn" aria-label="Close">
-    ✕
-  </button>
-</div>
+      <!-- Single close button, inside sticky header -->
+      <button class="mi-ins-close" type="button" id="mi-ins-close-btn" aria-label="Close">
+        ✕
+      </button>
     </div>
 
     <div class="mi-ins-tags" id="mi-ins-tags">
@@ -1911,22 +1907,19 @@ categoryRow.onclick = (e) => {
         <div class="mi-ins-history-summary" id="mi-ins-history-summary">
           Showing last 6 months of daily closes.
         </div>
-        <!-- Placeholder for a future chart -->
-<div class="mi-ins-history">
-  <div class="mi-ins-history-summary" id="mi-ins-history-summary"></div>
-  <canvas id="mi-ins-chart" width="600" height="220"></canvas>
-</div>
+        <canvas id="mi-ins-chart" width="600" height="220"></canvas>
       </div>
-<div class="mi-ins-section">
-  <h3 class="mi-ins-section-title">Company snapshot</h3>
-  <div id="mi-ins-ai-summary" class="mi-ins-ai-summary">
-    We’re loading a short AI summary for this company…
-  </div>
-</div>      
+    </div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Company snapshot</h3>
+      <div id="mi-ins-ai-summary" class="mi-ins-ai-summary">
+        We’re loading a short AI summary for this company…
+      </div>
     </div>
   </div>
 </div>
-<script>
+
   // -------- Fetch helper --------
   async function miFetchInstrumentDetails(type, code) {
     const url = `/.netlify/functions/instrument-details?type=${encodeURIComponent(
