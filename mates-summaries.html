@@ -847,6 +847,16 @@
   height: 220px;
   margin-top: 10px;
 }
+    .mi-ins-ai-summary {
+  font-size: 0.9rem;
+  color: #e5e7eb;
+  background: rgba(15, 23, 42, 0.65);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  line-height: 1.4;
+}
+
 
   </style>
 
@@ -1892,6 +1902,12 @@ categoryRow.onclick = (e) => {
   <canvas id="mi-ins-chart" width="600" height="220"></canvas>
 </div>
       </div>
+<div class="mi-ins-section">
+  <h3 class="mi-ins-section-title">Company snapshot</h3>
+  <div id="mi-ins-ai-summary" class="mi-ins-ai-summary">
+    We’re loading a short AI summary for this company…
+  </div>
+</div>      
     </div>
   </div>
 </div>
@@ -1907,6 +1923,17 @@ categoryRow.onclick = (e) => {
     }
     return res.json();
   }
+  async function miFetchAiSummary(type, code) {
+  const url = `/.netlify/functions/instrument-ai-summary?type=${encodeURIComponent(
+    type
+  )}&code=${encodeURIComponent(code)}`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`instrument-ai-summary failed: ${res.status}`);
+  }
+  return res.json();
+}
 
   // -------- Formatting helpers --------
   function miFormatCurrency(n, currency = "AUD") {
@@ -2135,6 +2162,24 @@ categoryRow.onclick = (e) => {
 if (data.history) {
   miRenderChart(data.history);
 }
+    // AI summary
+    const summaryEl = document.getElementById("mi-ins-ai-summary");
+    if (summaryEl) {
+      summaryEl.textContent = "We’re loading a short AI snapshot for this company…";
+
+      miFetchAiSummary(data.type || "equity", data.code || "")
+        .then((s) => {
+          if (s && s.summary) {
+            summaryEl.textContent = s.summary;
+          } else {
+            summaryEl.textContent = "We couldn’t generate a summary right now.";
+          }
+        })
+        .catch((err) => {
+          console.error("AI summary error", err);
+          summaryEl.textContent = "We couldn’t generate a summary right now.";
+        });
+    }    
     // Show overlay
     overlay.style.display = "flex";
     overlay.setAttribute("aria-hidden", "false");
