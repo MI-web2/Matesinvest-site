@@ -1698,6 +1698,294 @@ categoryRow.onclick = (e) => {
     </div>
   </div>
 </div>
+<script>
+  // -------- Fetch helper --------
+  async function miFetchInstrumentDetails(type, code) {
+    const url = `/.netlify/functions/instrument-details?type=${encodeURIComponent(
+      type
+    )}&code=${encodeURIComponent(code)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`instrument-details failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  // -------- Formatting helpers --------
+  function miFormatCurrency(n, currency = "AUD") {
+    if (typeof n !== "number" || !isFinite(n)) return null;
+    try {
+      return new Intl.NumberFormat("en-AU", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 2,
+      }).format(n);
+    } catch {
+      return n.toFixed(2);
+    }
+  }
+
+  function miFormatCompactNumber(n) {
+    if (typeof n !== "number" || !isFinite(n)) return null;
+    // Turn big numbers into 51.3B, 206.3B etc
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
+    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+    if (abs >= 1_000) return (n / 1_000).toFixed(1) + "k";
+    return n.toFixed(0);
+  }
+
+  function miFormatPercent(n, digits = 2) {
+    if (typeof n !== "number" || !isFinite(n)) return null;
+    return n.toFixed(digits) + "%";
+  }
+
+  function miFormatDate(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("en-AU", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  // -------- Render modal --------
+  function miOpenInstrumentModal(data) {
+    const overlay = document.getElementById("mi-instrument-overlay");
+    if (!overlay) return;
+
+    const latest = data.latest || {};
+    const f = data.fundamentals || {};
+
+    // Header text
+    const titleEl = document.getElementById("mi-ins-title");
+    const subtitleEl = document.getElementById("mi-ins-subtitle");
+    const priceEl = document.getElementById("mi-ins-price");
+    const changeEl = document.getElementById("mi-ins-change");
+    const dateEl = document.getElementById("mi-ins-date");
+    const tagsEl = document.getElementById("mi-ins-tags");
+    const statsEl = document.getElementById("mi-ins-stats");
+    const historySummaryEl = document.getElementById("mi-ins-history-summary");
+
+    const name = data.name || data.code || "";
+    const code = data.code || "";
+    const sector = f.sector || "";
+    const industry = f.industry || "";
+    const sizeBucket = f.sizeBucket || null;
+
+    // Title & subtitle
+    if (titleEl) titleEl.textContent = name;
+    if (subtitleEl) {
+      const bits = [];
+      if (code) bits.push(code);
+      if (sector) bits.push(sector);
+      subtitleEl.textContent = bits.join(" • ") || "";
+    }
+
+    // Price & change
+    const priceNum =
+      typeof latest.price === "number" && isFinite(latest.price)
+        ? latest.price
+        : null;
+    const pctChange =
+      typeof latest.pctChange === "number" && isFinite(latest.pctChange)
+        ? latest.pctChange
+        : null;
+
+    if (priceEl) {
+      priceEl.textContent =
+        priceNum !== null
+          ? miFormatCurrency(priceNum, f.currency || "AUD")
+          : "—";
+    }
+
+    if (changeEl) {
+      changeEl.classList.remove("up", "down");
+      if (pctChange === null) {
+        changeEl.textContent = "Change: —";
+      } else {
+        const arrow = pctChange > 0 ? "▲" : pctChange < 0 ? "▼" : "•";
+        changeEl.textContent =
+          arrow + " " + pctChange.toFixed(2) + "% today";
+        if (pctChange > 0) changeEl.classList.add("up");
+        else if (pctChange < 0) changeEl.classList.add("down");
+      }
+    }
+
+    if (dateEl) {
+      const d = miFormatDate(latest.date);
+      dateEl.textContent = d ? `as at ${d}` : "";
+    }
+
+    // Tags
+    if (tagsEl) {
+      tagsEl.innerHTML = "";
+      const tags = [];
+
+      if (sizeBucket) {
+        const label =
+          sizeBucket === "mega"
+            ? "Mega cap"
+            : sizeBucket === "large"
+            ? "Large cap"
+            : sizeBucket === "mid"
+            ? "Mid cap"
+            : sizeBucket === "small"
+            ? "Small cap"
+            : null;
+        if (label) tags.push(label);
+      }
+
+      if (sector) tags.push(sector);
+      if (industry) tags.push(industry);
+
+      tags.forEach((t) => {
+        const span = document.createElement("span");
+        span.className = "mi-ins-tag";
+        span.textContent = t;
+        tagsEl.appendChild(span);
+      });
+    }
+
+    // Stats grid
+    if (statsEl) {
+      statsEl.innerHTML = "";
+
+      function addStat(label, valueStr) {
+        if (!valueStr) return;
+        const item = document.createElement("div");
+        item.className = "mi-ins-stat-item";
+        const lab = document.createElement("span");
+        lab.className = "mi-ins-stat-label";
+        lab.textContent = label;
+        const val = document.createElement("span");
+        val.className = "mi-ins-stat-value";
+        val.textContent = valueStr;
+        item.appendChild(lab);
+        item.appendChild(val);
+        statsEl.appendChild(item);
+      }
+
+      // Market cap
+      if (typeof f.marketCap === "number" && isFinite(f.marketCap)) {
+        addStat("Market cap", miFormatCompactNumber(f.marketCap));
+      }
+
+      // Revenue last year
+      if (
+        typeof f.revenueLastYear === "number" &&
+        isFinite(f.revenueLastYear)
+      ) {
+        addStat(
+          "Revenue (last year)",
+          miFormatCompactNumber(f.revenueLastYear)
+        );
+      }
+
+      // Net income last year (may be null for some)
+      if (
+        typeof f.netIncomeLastYear === "number" &&
+        isFinite(f.netIncomeLastYear)
+      ) {
+        addStat(
+          "Net profit (last year)",
+          miFormatCompactNumber(f.netIncomeLastYear)
+        );
+      }
+
+      // PE
+      if (typeof f.pe === "number" && isFinite(f.pe)) {
+        addStat("P/E ratio", f.pe.toFixed(2) + "×");
+      }
+
+      // Dividend yield
+      if (
+        typeof f.dividendYield === "number" &&
+        isFinite(f.dividendYield)
+      ) {
+        addStat("Dividend yield", miFormatPercent(f.dividendYield, 2));
+      }
+
+      // Pays dividend
+      if (typeof f.paysDividend === "boolean") {
+        addStat("Pays dividend", f.paysDividend ? "Yes" : "No");
+      }
+
+      // EPS
+      if (typeof f.eps === "number" && isFinite(f.eps)) {
+        addStat("Earnings per share", f.eps.toFixed(2));
+      }
+    }
+
+    // History summary (just text for now)
+    if (historySummaryEl) {
+      const h = data.history;
+      if (h && Array.isArray(h.points) && h.points.length > 1) {
+        const start = miFormatDate(h.startDate);
+        const end = miFormatDate(h.endDate);
+        historySummaryEl.textContent =
+          start && end
+            ? `Showing daily closes from ${start} to ${end}.`
+            : "Showing last 6 months of daily closes.";
+      } else {
+        historySummaryEl.textContent =
+          "Price history not available at the moment.";
+      }
+    }
+
+    // Show overlay
+    overlay.style.display = "flex";
+    overlay.setAttribute("aria-hidden", "false");
+  }
+
+  function miCloseInstrumentModal() {
+    const overlay = document.getElementById("mi-instrument-overlay");
+    if (!overlay) return;
+    overlay.style.display = "none";
+    overlay.setAttribute("aria-hidden", "true");
+  }
+
+  // -------- Wire up clicks --------
+  document.addEventListener("click", async (e) => {
+    // Close if clicking overlay background
+    const overlay = document.getElementById("mi-instrument-overlay");
+    if (overlay && e.target === overlay) {
+      miCloseInstrumentModal();
+      return;
+    }
+
+    // Close button
+    const closeBtn = document.getElementById("mi-ins-close-btn");
+    if (closeBtn && e.target === closeBtn) {
+      miCloseInstrumentModal();
+      return;
+    }
+
+    // Instrument chip (e.g. top 6 performers)
+    const chip = e.target.closest(".mi-performer-chip[data-code]");
+    if (!chip) return;
+
+    const code = chip.getAttribute("data-code");
+    const type = chip.getAttribute("data-type") || "equity";
+
+    try {
+      const data = await miFetchInstrumentDetails(type, code);
+      miOpenInstrumentModal(data);
+    } catch (err) {
+      console.error("Failed to load instrument details", err);
+      alert("Sorry, we couldn't load that company at the moment.");
+    }
+  });
+
+  // Escape key closes modal
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      miCloseInstrumentModal();
+    }
+  });
+</script>
 
 </body>
 </html>
