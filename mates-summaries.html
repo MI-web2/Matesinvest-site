@@ -97,6 +97,20 @@
       gap:1rem;
       padding:0.7rem 1.25rem;
     }
+    .nav-tagline-short {
+  display: none;
+}
+
+@media (max-width:640px) {
+  .nav-tagline-full {
+    display: none;
+  }
+  .nav-tagline-short {
+    display: inline;
+    font-size: 0.78rem;
+  }
+}
+
     .nav-left{display:flex;align-items:center;gap:0.75rem}
     .nav-logo{height:40px;width:40px;border-radius:10px;object-fit:cover}
     .nav-title{font-weight:700;font-size:1.05rem;color:var(--navy)}
@@ -877,6 +891,21 @@
   border: 1px solid rgba(148, 163, 184, 0.3);
   line-height: 1.4;
 }
+    .brief-subtitle {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+  max-width: 30rem;
+}
+
+@media (max-width:640px) {
+  .brief-subtitle {
+    font-size: 0.8rem;
+    line-height: 1.35;
+    max-width: 100%;
+  }
+}
+
 
 
   </style>
@@ -893,10 +922,16 @@
           <div class="nav-pill">MatesFeed · Prototype</div>
         </div>
       </div>
-      <div class="nav-right">
-        <span>Live AI summaries · Not financial advice</span>
-        <a href="/" class="nav-home-link">Home</a>
-      </div>
+<div class="nav-right">
+  <span class="nav-tagline nav-tagline-full">
+    Live AI summaries · Not financial advice
+  </span>
+  <span class="nav-tagline nav-tagline-short">
+    Live AI · NFA
+  </span>
+  <a href="/" class="nav-home-link">Home</a>
+</div>
+
     </div>
   </div>
 
@@ -909,12 +944,13 @@
     <!-- MORNING BRIEF -->
     <section id="morningBrief" class="card">
       <div class="brief-header">
-        <div>
-          <h2 style="margin:0">Morning Briefing</h2>
-          <div style="color:var(--muted);font-size:0.92rem;margin-top:0.35rem">
-            A short note on what could move markets in Australia today.
-          </div>
-        </div>
+<div>
+  <h2 style="margin:0">Morning Briefing</h2>
+  <div class="brief-subtitle">
+    A short note on what could move markets in Australia today.
+  </div>
+</div>
+
 
 <div class="brief-controls">
   <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
