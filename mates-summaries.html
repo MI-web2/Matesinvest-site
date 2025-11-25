@@ -1654,6 +1654,50 @@ categoryRow.onclick = (e) => {
   }
 })();
 </script>
+<!-- Instrument details modal -->
+<div id="mi-instrument-overlay" class="mi-ins-overlay" aria-hidden="true">
+  <div class="mi-ins-modal" role="dialog" aria-modal="true" aria-labelledby="mi-ins-title">
+    <button class="mi-ins-close" type="button" id="mi-ins-close-btn" aria-label="Close">
+      ✕
+    </button>
+
+    <div class="mi-ins-header">
+      <div>
+        <h2 id="mi-ins-title" class="mi-ins-title">Instrument name</h2>
+        <div class="mi-ins-subtitle" id="mi-ins-subtitle">TICKER • Sector</div>
+      </div>
+      <div class="mi-ins-price-block">
+        <div class="mi-ins-price" id="mi-ins-price">$0.00</div>
+        <div class="mi-ins-change" id="mi-ins-change">+0.0% today</div>
+        <div class="mi-ins-date" id="mi-ins-date">as at —</div>
+      </div>
+    </div>
+
+    <div class="mi-ins-tags" id="mi-ins-tags">
+      <!-- tags inserted here -->
+    </div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Key stats</h3>
+      <div class="mi-ins-stats-grid" id="mi-ins-stats">
+        <!-- stats rows injected by JS -->
+      </div>
+    </div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Price history</h3>
+      <div class="mi-ins-history">
+        <div class="mi-ins-history-summary" id="mi-ins-history-summary">
+          Showing last 6 months of daily closes.
+        </div>
+        <!-- Placeholder for a future chart -->
+        <div class="mi-ins-history-placeholder">
+          Chart coming soon – prices are already cached from our data feed.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
