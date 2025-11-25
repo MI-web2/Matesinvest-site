@@ -9,6 +9,14 @@ const fetch = (...args) => global.fetch(...args);
 
 exports.handler = async function (event) {
   const nowIso = new Date().toISOString();
+    // --- AEST date helper (Australia/Brisbane, UTC+10, no DST) ---
+  function getAestDateString(daysOffset = 0, baseDate = new Date()) {
+    const AEST_OFFSET_MINUTES = 10 * 60;
+    const aest = new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
+    aest.setDate(aest.getDate() + daysOffset);
+    return aest.toISOString().slice(0, 10); // YYYY-MM-DD
+  }
+
 
   // -------------------------------
   // Helpers
@@ -184,14 +192,11 @@ exports.handler = async function (event) {
         const base = new Date(
           latestSnapshot.snappedAt || latestSnapshot.priceTimestamp
         );
-        base.setUTCDate(base.getUTCDate() - 1);
-        keyDate = base.toISOString().slice(0, 10);
+        // Yesterday in AEST calendar
+        keyDate = getAestDateString(-1, base);
       } else {
-        const d = new Date();
-        const yd = new Date(
-          Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - 1)
-        );
-        keyDate = yd.toISOString().slice(0, 10);
+        // Fallback: yesterday based on "now" in AEST
+        keyDate = getAestDateString(-1);
       }
 
       const key = `metals:${keyDate}`; // metals:YYYY-MM-DD
@@ -392,20 +397,19 @@ exports.handler = async function (event) {
           topN: TOP_N,
           topSample: topPerformers.map((t) => ({ symbol: t.symbol, pct: t.pctGain })),
         });
-
-        // persist topPerformers to Upstash (best-effort)
+        // persist topPerformers to Upstash (best-effort, AEST date)
         try {
-          const today = new Date().toISOString().slice(0, 10);
+          const todayAest = getAestDateString(0);
           await redisSet("topPerformers:latest", topPerformers);
-          await redisSet(`topPerformers:${today}`, topPerformers);
-          debug.steps.push({ source: "top-performers-saved", count: topPerformers.length });
+          await redisSet(`topPerformers:${todayAest}`, topPerformers);
+          debug.steps.push({
+            source: "top-performers-saved",
+            count: topPerformers.length,
+            keyDate: todayAest,
+          });
         } catch (e) {
           debug.steps.push({ source: "top-performers-save-failed", error: e && e.message });
         }
-      }
-    } catch (e) {
-      debug.steps.push({ source: "top-performers-error", error: e && e.message });
-    }
 
     // --------------------------------------------------
     // Final payload
