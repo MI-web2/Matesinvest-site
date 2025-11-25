@@ -305,186 +305,164 @@ exports.handler = async function (event) {
     return "high-debt";
   }
 
-  function extractEquityFundamentals(f) {
-    if (!f || typeof f !== "object") return {};
+function extractEquityFundamentals(f) {
+  if (!f || typeof f !== "object") return {};
 
-    const general = f.General || {};
-    const highlights = f.Highlights || {};
-    const financials = f.Financials || {};
+  const general = f.General || {};
+  const highlights = f.Highlights || {};
+  const financials = f.Financials || {};
+  const incomeYearly =
+    financials.Income_Statement && financials.Income_Statement.yearly
+      ? financials.Income_Statement.yearly
+      : null;
 
-    // Basic identity
-    const name = general.Name || null;
-    const sector = general.Sector || null;
-    const industry = general.Industry || null;
-    const currency = general.CurrencyCode || null;
+  const splitsDiv = f.SplitsDividends || {};
 
-    // Market cap
-    let marketCap =
-      typeof highlights.MarketCapitalization === "number"
-        ? highlights.MarketCapitalization
-        : null;
-    if (
-      marketCap === null &&
-      general &&
-      typeof general.MarketCapitalization === "number"
-    ) {
-      marketCap = general.MarketCapitalization;
+  // Helper: pick the first numeric value out of several candidates
+  const pickNumber = (...vals) => {
+    for (const v of vals) {
+      if (typeof v === "number" && Number.isFinite(v)) return v;
     }
+    return null;
+  };
 
-    const sizeBucket = deriveSizeBucket(marketCap);
+  // --- Market cap ---
 
-    // PE, EPS, Dividend Yield (we might not show these directly yet)
-    const pe =
-      typeof highlights.PERatio === "number"
-        ? fmt(highlights.PERatio, 2)
-        : null;
+  let marketCap =
+    typeof highlights.MarketCapitalization === "number"
+      ? highlights.MarketCapitalization
+      : null;
+  if (
+    marketCap === null &&
+    general &&
+    typeof general.MarketCapitalization === "number"
+  ) {
+    marketCap = general.MarketCapitalization;
+  }
 
-    const eps =
-      typeof highlights.EarningsShare === "number"
-        ? fmt(highlights.EarningsShare, 2)
-        : null;
+  // --- Revenue & net income last year ---
 
-    const dividendYield =
+  let revenueLastYear = null;
+  let netIncomeLastYear = null;
+
+  // Prefer yearly income statement if available
+  if (incomeYearly && typeof incomeYearly === "object") {
+    const entries = Object.entries(incomeYearly);
+    if (entries.length > 0) {
+      // Keys are usually like "2024-06-30" or "2024"
+      entries.sort((a, b) => (a[0] > b[0] ? 1 : a[0] < b[0] ? -1 : 0));
+      const latest = entries[entries.length - 1][1] || {};
+
+      revenueLastYear = pickNumber(
+        latest.totalRevenue,
+        latest.TotalRevenue,
+        latest.Revenue,
+        latest.Revenues
+      );
+
+      netIncomeLastYear = pickNumber(
+        latest.netIncome,
+        latest.NetIncome,
+        latest.Net_Income
+      );
+    }
+  }
+
+  // Fallback: Highlights TTM-style fields if yearly isn’t populated
+  if (revenueLastYear === null) {
+    revenueLastYear = pickNumber(
+      highlights.RevenueTTM,
+      highlights.Revenue,
+      highlights.TotalRevenue
+    );
+  }
+  if (netIncomeLastYear === null) {
+    netIncomeLastYear = pickNumber(
+      highlights.NetIncomeTTM,
+      highlights.NetIncome,
+      highlights.Net_Income
+    );
+  }
+
+  // --- Dividends per share & paysDividend flag ---
+
+  let dividendsPerShareLastYear = null;
+  let paysDividend = false;
+
+  if (splitsDiv.Dividends && typeof splitsDiv.Dividends === "object") {
+    const d = splitsDiv.Dividends;
+    // EODHD often exposes LastDiv for last dividend per share
+    const lastDiv = pickNumber(d.LastDiv, d.lastDiv);
+    if (lastDiv !== null) {
+      dividendsPerShareLastYear = lastDiv;
+      if (lastDiv > 0) paysDividend = true;
+    }
+  }
+
+  if (
+    !paysDividend &&
+    typeof highlights.DividendYield === "number" &&
+    highlights.DividendYield > 0
+  ) {
+    paysDividend = true;
+  }
+
+  // --- Size bucket by market cap (very rough, but good for a simple view) ---
+
+  let sizeBucket = null;
+  if (typeof marketCap === "number") {
+    if (marketCap >= 10_000_000_000) sizeBucket = "mega";
+    else if (marketCap >= 2_000_000_000) sizeBucket = "large";
+    else if (marketCap >= 500_000_000) sizeBucket = "mid";
+    else sizeBucket = "small";
+  }
+
+  // --- Leverage bucket (simple placeholder for now) ---
+
+  let leverageBucket = "unknown";
+  const debtToEquity = pickNumber(
+    highlights.TotalDebtToEquity,
+    highlights.DebtToEquity,
+    highlights.Debt_to_Equity
+  );
+  if (debtToEquity !== null) {
+    if (debtToEquity < 0.25) leverageBucket = "low";
+    else if (debtToEquity < 0.75) leverageBucket = "medium";
+    else leverageBucket = "high";
+  }
+
+  return {
+    name: general.Name || null,
+    sector: general.Sector || null,
+    industry: general.Industry || null,
+    currency: general.CurrencyCode || null,
+
+    marketCap,
+    sizeBucket,
+
+    revenueLastYear,
+    netIncomeLastYear,
+
+    dividendYield:
       typeof highlights.DividendYield === "number"
         ? fmt(highlights.DividendYield * 100, 2)
-        : null;
+        : null,
+    dividendsPerShareLastYear,
+    paysDividend,
 
-    // Income Statement: revenue + net income, 3-year trend
-    const income = financials.Income_Statement || financials.IncomeStatement || {};
-    const yearlyIncome =
-      income.yearly || income.Yearly || income.annual || income.Annual || null;
+    pe:
+      typeof highlights.PERatio === "number"
+        ? fmt(highlights.PERatio, 2)
+        : null,
+    eps:
+      typeof highlights.EarningsShare === "number"
+        ? fmt(highlights.EarningsShare, 2)
+        : null,
 
-    let revenueLastYear = null;
-    let netIncomeLastYear = null;
-    let profitTrend3yr = "unknown";
-
-    if (yearlyIncome && typeof yearlyIncome === "object") {
-      const lastYears = getMostRecentYearEntries(yearlyIncome, 3);
-
-      // Most recent year
-      if (lastYears.length > 0) {
-        const latest = lastYears[0].row;
-        revenueLastYear = safeNumber(
-          latest.totalRevenue,
-          latest.TotalRevenue,
-          latest.Revenue,
-          latest.revenues,
-          latest.Sales,
-          latest.sales
-        );
-        netIncomeLastYear = safeNumber(
-          latest.netIncome,
-          latest.NetIncome,
-          latest.Net_Income,
-          latest.net_income,
-          latest.Profit,
-          latest.NetProfit,
-          latest.netProfit
-        );
-      }
-
-      // Net income trend
-      const netSeries = lastYears
-        .map(({ year, row }) => {
-          const v = safeNumber(
-            row.netIncome,
-            row.NetIncome,
-            row.Net_Income,
-            row.net_income,
-            row.Profit,
-            row.NetProfit,
-            row.netProfit
-          );
-          if (v === null) return null;
-          return { year, value: v };
-        })
-        .filter(Boolean);
-
-      if (netSeries.length >= 2) {
-        profitTrend3yr = deriveProfitTrend(netSeries);
-      }
-    }
-
-    // Dividends per share + paysDividend
-    let dividendsPerShareLastYear = null;
-
-    // Highlights often has DividendShare / DividendPerShare
-    dividendsPerShareLastYear = safeNumber(
-      highlights.DividendShare,
-      highlights.DividendPerShare,
-      highlights.DividendsPerShare
-    );
-
-    const paysDividend =
-      (typeof dividendYield === "number" && dividendYield > 0.1) ||
-      (typeof dividendsPerShareLastYear === "number" &&
-        dividendsPerShareLastYear > 0);
-
-    // Balance Sheet: debt vs cash
-    const bs =
-      financials.Balance_Sheet || financials.BalanceSheet || financials.Balance || {};
-    const yearlyBS =
-      bs.yearly || bs.Yearly || bs.annual || bs.Annual || null;
-
-    let netDebt = null;
-    let leverageBucket = "unknown";
-
-    if (yearlyBS && typeof yearlyBS === "object") {
-      const lastBsYears = getMostRecentYearEntries(yearlyBS, 1);
-      if (lastBsYears.length > 0) {
-        const row = lastBsYears[0].row;
-        const totalDebt = safeNumber(
-          row.totalDebt,
-          row.TotalDebt,
-          row.Total_Debt,
-          row.ShortLongTermDebtTotal,
-          row.shortLongTermDebtTotal,
-          row.TotalLiabilities,
-          row.totalLiabilities
-        );
-        const cash = safeNumber(
-          row.cashAndCashEquivalents,
-          row.CashAndCashEquivalents,
-          row.CashAndCashEquivalentsUSD,
-          row.cash,
-          row.Cash
-        );
-        if (
-          typeof totalDebt === "number" &&
-          Number.isFinite(totalDebt) &&
-          typeof cash === "number" &&
-          Number.isFinite(cash)
-        ) {
-          netDebt = totalDebt - cash;
-          leverageBucket = deriveLeverageBucket(netDebt, marketCap);
-        }
-      }
-    }
-
-    return {
-      name,
-      sector,
-      industry,
-      currency,
-
-      marketCap,
-      sizeBucket,
-
-      revenueLastYear,
-      netIncomeLastYear,
-      profitTrend3yr,
-
-      dividendYield,
-      dividendsPerShareLastYear,
-      paysDividend,
-
-      netDebt,
-      leverageBucket,
-
-      pe,
-      eps,
-    };
-  }
+    netDebt: null, // could be added later from Balance_Sheet
+    leverageBucket,
+  };
+}
 
   // -------------------------------
   // History caching helpers
