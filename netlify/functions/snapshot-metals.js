@@ -39,6 +39,20 @@
 exports.handler = async function (event) {
   const nowIso = new Date().toISOString();
 
+  // Return YYYY-MM-DD string using AEST (Australia/Brisbane, UTC+10, no DST)
+  function getTodayAestDateString(baseDate = new Date()) {
+    const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane is UTC+10 all year
+    const aestTime = new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
+    return aestTime.toISOString().slice(0, 10);
+  }
+
+  // -----------------------------
+  // Helpers
+  // -----------------------------
+  async function fetchWithTimeout(url, opts = {}, timeout = 9000) {
+    ...
+
+
   // -----------------------------
   // Helpers
   // -----------------------------
@@ -364,11 +378,12 @@ exports.handler = async function (event) {
     // Backwards compatibility alias
     snapshot.metals = snapshot.symbols;
 
-    // Persist under metals:YYYY-MM-DD and metals:latest (UTC date)
-    const d = new Date();
-    const key = `metals:${d.toISOString().slice(0, 10)}`; // metals:YYYY-MM-DD
+    // Persist under metals:YYYY-MM-DD (AEST date) and metals:latest
+    const todayDateAest = getTodayAestDateString();
+    const key = `metals:${todayDateAest}`; // metals:YYYY-MM-DD (AEST)
     const okToday = await redisSet(key, snapshot);
     const okLatest = await redisSet("metals:latest", snapshot);
+
 
     const debugPayload = {
       key,
