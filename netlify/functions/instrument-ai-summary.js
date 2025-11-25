@@ -130,17 +130,21 @@ exports.handler = async (event) => {
     // ----- Call OpenAI for a 2-liner summary -----
     const systemPrompt =
       "You are an investment writer for a simple, jargon-light Aussie investing app. " +
-      "You write clear, calm two-line summaries for everyday retail investors.";
+      "Write in plain English for everyday retail investors. " +
+      "Avoid hype, advice, or calls to action. No phrases like 'you should', 'investors may want to', or 'consider buying'.";
 
     const userPrompt = `
-Write a short, friendly two-line snapshot about this company for a retail investor.
+Write a short, calm snapshot about this company for an Australian retail investor.
 
-Use:
-- one line for what the company is / does
-- one line for what's been happening recently in the news, if anything notable
+Format:
+- Sentence 1: What the company is and what it mainly does (keep it under 22 words).
+- Sentence 2: What has been happening recently, based on the news below, or say that recent news flow has been quiet.
 
-If there is no meaningful recent news, say that the recent news flow has been quiet.
-
+Guidelines:
+- Use neutral, factual language.
+- No predictions, no recommendations, no price targets.
+- Do not mention specific dates or percentages unless they are clearly in the news context.
+- Do not start with the ticker; weave it naturally into the first sentence if helpful.
 Company code: ${code}
 Company type: ${type}
 
