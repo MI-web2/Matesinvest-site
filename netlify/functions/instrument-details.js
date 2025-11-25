@@ -13,31 +13,10 @@
 //   "name": "BHP Group Limited",
 //   "sector": "Materials",
 //   "industry": "Other Industrial Metals & Mining",
-//   "latest": {
-//     "date": "2025-11-25",
-//     "price": 45.12,
-//     "yesterdayDate": "2025-11-22",
-//     "yesterdayPrice": 43.70,
-//     "pctChange": 3.24,
-//     "marketCap": 210000000000
-//   },
-//   "history": {
-//     "symbol": "BHP.AX",
-//     "startDate": "2025-05-25",
-//     "endDate": "2025-11-25",
-//     "lastUpdated": "2025-11-25T07:05:00.123Z",
-//     "points": [
-//       ["2025-05-25", 38.12],
-//       ...
-//     ]
-//   },
-//   "fundamentals": {
-//     "marketCap": 210000000000,
-//     "pe": 15.2,
-//     "dividendYield": 4.1,
-//     "eps": 2.35
-//   },
-//   "news": [] // TODO: Marketaux integration
+//   "latest": { ... },
+//   "history": { ... },
+//   "fundamentals": { ... },
+//   "news": []
 // }
 //
 // Requirements (Netlify env):
@@ -46,8 +25,8 @@
 //   UPSTASH_REDIS_REST_TOKEN
 //
 // Optional:
-//   HISTORY_MONTHS (default 6) - number of months of daily history to fetch/cache
-//   TRY_SUFFIXES (default "AX,AU,ASX") - fallback suffixes when resolving full symbol codes
+//   HISTORY_MONTHS (default 6)
+//   TRY_SUFFIXES (default "AX,AU,ASX")
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -76,14 +55,12 @@ exports.handler = async function (event) {
       ? Number(n.toFixed(digits))
       : null;
 
-  // Normalize symbol / code (strip dot-suffix and uppercase)
   function normalizeCode(code) {
     return String(code || "")
       .replace(/\.[A-Z0-9]{1,6}$/i, "")
       .toUpperCase();
   }
 
-  // Date helpers: YYYY-MM-DD
   function toDateString(d) {
     return new Date(d).toISOString().slice(0, 10);
   }
@@ -281,7 +258,6 @@ exports.handler = async function (event) {
     const todayStr = toDateString(new Date());
     const fromStr = monthsAgoDateString(months);
 
-    // If cache exists and covers our window, just return it
     if (
       cached &&
       cached.startDate &&
@@ -294,7 +270,6 @@ exports.handler = async function (event) {
       return cached;
     }
 
-    // Otherwise fetch from EODHD
     const eod = await fetchEodHistory(fullCode, fromStr, todayStr);
     const points = eod
       .map((bar) => {
@@ -360,7 +335,6 @@ exports.handler = async function (event) {
     .filter(Boolean);
 
   function inferFullCodeFromBase(baseCode) {
-    // Simple heuristic: prefer .AX, then .AU, then .ASX
     const norm = normalizeCode(baseCode);
     const preferred = ["AX", "AU", "ASX"];
     for (const p of preferred) {
@@ -368,7 +342,6 @@ exports.handler = async function (event) {
         return `${norm}.${p}`;
       }
     }
-    // fallback: first suffix in TRY_SUFFIXES
     if (TRY_SUFFIXES.length > 0) {
       return `${norm}.${TRY_SUFFIXES[0]}`;
     }
@@ -424,24 +397,40 @@ exports.handler = async function (event) {
       });
     }
 
-    let fullCode = null;
-
-    if (asxRow && asxRow.fullCode) {
-      fullCode = asxRow.fullCode;
-    } else if (codeRaw.includes(".")) {
-      // Caller passed a full symbol like BHP.AX
-      fullCode = codeRaw.toUpperCase();
-    } else {
-      fullCode = inferFullCodeFromBase(baseCode);
+    // 2) Decide what symbol to send to EODHD (must include suffix for ASX)
+    let asxSymbolCode = null;
+    if (asxRow) {
+      // whatever snapshot has: prefer fullCode, then code, then baseCode
+      asxSymbolCode = asxRow.fullCode || asxRow.code || baseCode;
     }
 
-    // 2) Build / retrieve history (cached)
+    let eodSymbol;
+    if (asxSymbolCode) {
+      if (asxSymbolCode.includes(".")) {
+        eodSymbol = asxSymbolCode.toUpperCase();
+      } else {
+        eodSymbol = inferFullCodeFromBase(asxSymbolCode);
+      }
+    } else if (codeRaw.includes(".")) {
+      eodSymbol = codeRaw.toUpperCase();
+    } else {
+      eodSymbol = inferFullCodeFromBase(baseCode);
+    }
+
+    debug.steps.push({
+      step: "symbol-resolution",
+      baseCode,
+      asxSymbolCode,
+      eodSymbol,
+    });
+
+    // 3) History (cached)
     let history = null;
     try {
-      history = await getOrBuildEquityHistory(fullCode, HISTORY_MONTHS);
+      history = await getOrBuildEquityHistory(eodSymbol, HISTORY_MONTHS);
       debug.steps.push({
         step: "history",
-        symbol: fullCode,
+        symbol: eodSymbol,
         points: history && Array.isArray(history.points)
           ? history.points.length
           : 0,
@@ -449,26 +438,27 @@ exports.handler = async function (event) {
     } catch (e) {
       debug.steps.push({
         step: "history-error",
-        symbol: fullCode,
+        symbol: eodSymbol,
         error: e && e.message,
       });
     }
 
-    // 3) Fundamentals
+    // 4) Fundamentals
     let fundamentalsRaw = null;
     let fundamentals = {};
     try {
-      fundamentalsRaw = await fetchFundamentals(fullCode);
+      fundamentalsRaw = await fetchFundamentals(eodSymbol);
       fundamentals = extractEquityFundamentals(fundamentalsRaw);
       debug.steps.push({ step: "fundamentals", ok: true });
     } catch (e) {
       debug.steps.push({
         step: "fundamentals-error",
+        symbol: eodSymbol,
         error: e && e.message,
       });
     }
 
-    // 4) Latest price snapshot (prefer asx200 snapshot)
+    // 5) Latest price (prefer ASX snapshot)
     let latest = {
       date: null,
       price: null,
@@ -509,7 +499,6 @@ exports.handler = async function (event) {
       };
       debug.steps.push({ step: "latest-from-asx200", ok: true });
     } else if (history && Array.isArray(history.points)) {
-      // Fallback: derive from history
       const points = history.points;
       const n = points.length;
       if (n >= 1) {
@@ -541,13 +530,13 @@ exports.handler = async function (event) {
       debug.steps.push({ step: "latest-from-history", ok: true });
     }
 
-    // 5) News (stub for now)
-    const news = []; // TODO: integrate Marketaux here
+    // 6) News (stub)
+    const news = [];
 
     const payload = {
       type: "equity",
       code: baseCode,
-      fullCode,
+      fullCode: eodSymbol,
       name: fundamentals.name || null,
       sector: fundamentals.sector || null,
       industry: fundamentals.industry || null,
@@ -555,7 +544,7 @@ exports.handler = async function (event) {
       history: history || null,
       fundamentals,
       news,
-      debug, // keep for now; you can remove in production if you like
+      debug,
       generatedAt: nowIso,
     };
 
@@ -566,7 +555,7 @@ exports.handler = async function (event) {
   }
 
   // -------------------------------
-  // Metal handler (stub for now)
+  // Metal handler (stub)
   // -------------------------------
   async function handleMetal(codeRaw) {
     return {
