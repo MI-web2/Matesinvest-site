@@ -5,20 +5,6 @@
 // Usage (equities for now):
 //   /.netlify/functions/instrument-details?type=equity&code=BHP
 //
-// Response (equity example):
-// {
-//   "type": "equity",
-//   "code": "BHP",
-//   "fullCode": "BHP.AX",
-//   "name": "BHP Group Limited",
-//   "sector": "Materials",
-//   "industry": "Other Industrial Metals & Mining",
-//   "latest": { ... },
-//   "history": { ... },
-//   "fundamentals": { ... },
-//   "news": []
-// }
-//
 // Requirements (Netlify env):
 //   EODHD_API_TOKEN
 //   UPSTASH_REDIS_REST_URL
@@ -26,7 +12,7 @@
 //
 // Optional:
 //   HISTORY_MONTHS (default 6)
-//   TRY_SUFFIXES (default "AX,AU,ASX")
+//   TRY_SUFFIXES (default "AU,AX,ASX")
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -119,7 +105,12 @@ exports.handler = async function (event) {
 
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
-        console.warn("redisSet failed", key, res.status, txt && txt.slice(0, 300));
+        console.warn(
+          "redisSet failed",
+          key,
+          res.status,
+          txt && txt.slice(0, 300)
+        );
         return false;
       }
       return true;
@@ -178,30 +169,62 @@ exports.handler = async function (event) {
     return json;
   }
 
+  // Robust fundamentals fetch – mirrors snapshot-asx200 style:
+  // try /fundamental, /fundamentals, /company
   async function fetchFundamentals(fullCode) {
     if (!EODHD_TOKEN) {
       throw new Error("Missing EODHD_API_TOKEN");
     }
-    const url = `https://eodhd.com/api/fundamental/${encodeURIComponent(
-      fullCode
-    )}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`;
 
-    const res = await fetchWithTimeout(url, {}, 12000);
-    const txt = await res.text().catch(() => "");
-    if (!res.ok) {
-      throw new Error(
-        `EODHD fundamentals error ${res.status}: ${
-          txt.slice(0, 300) || "no body"
-        }`
-      );
+    const endpoints = [
+      `https://eodhd.com/api/fundamental/${encodeURIComponent(
+        fullCode
+      )}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
+      `https://eodhd.com/api/fundamentals/${encodeURIComponent(
+        fullCode
+      )}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
+      `https://eodhd.com/api/company/${encodeURIComponent(
+        fullCode
+      )}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`,
+    ];
+
+    let lastErr = null;
+
+    for (const url of endpoints) {
+      try {
+        const res = await fetchWithTimeout(url, {}, 12000);
+        const txt = await res.text().catch(() => "");
+        if (!res.ok) {
+          // 404 just means "try the next style"
+          if (res.status === 404) {
+            lastErr =
+              new Error(
+                `EODHD fundamentals 404 for ${fullCode} at ${url}`
+              ) || lastErr;
+            continue;
+          }
+          lastErr = new Error(
+            `EODHD fundamentals error ${res.status}: ${
+              txt.slice(0, 300) || "no body"
+            }`
+          );
+          continue;
+        }
+        let json;
+        try {
+          json = txt ? JSON.parse(txt) : null;
+        } catch (e) {
+          lastErr = new Error("Failed to parse EODHD fundamentals JSON");
+          continue;
+        }
+        return json || null;
+      } catch (e) {
+        lastErr = e;
+      }
     }
-    let json;
-    try {
-      json = txt ? JSON.parse(txt) : null;
-    } catch (e) {
-      throw new Error("Failed to parse EODHD fundamentals JSON");
-    }
-    return json || null;
+
+    if (lastErr) throw lastErr;
+    return null;
   }
 
   function extractEquityFundamentals(f) {
@@ -327,7 +350,9 @@ exports.handler = async function (event) {
   // -------------------------------
   // Full code resolver (equities)
   // -------------------------------
-  const DEFAULT_TRY_SUFFIXES = ["AX", "AU", "ASX"];
+  // IMPORTANT: EODHD uses .AU for ASX, not .AX.
+  // Default order: try .AU first, then .AX, then .ASX
+  const DEFAULT_TRY_SUFFIXES = ["AU", "AX", "ASX"];
   const TRY_SUFFIXES = (process.env.TRY_SUFFIXES ||
     DEFAULT_TRY_SUFFIXES.join(","))
     .split(",")
@@ -336,7 +361,7 @@ exports.handler = async function (event) {
 
   function inferFullCodeFromBase(baseCode) {
     const norm = normalizeCode(baseCode);
-    const preferred = ["AX", "AU", "ASX"];
+    const preferred = ["AU", "AX", "ASX"];
     for (const p of preferred) {
       if (TRY_SUFFIXES.includes(p)) {
         return `${norm}.${p}`;
@@ -400,7 +425,6 @@ exports.handler = async function (event) {
     // 2) Decide what symbol to send to EODHD (must include suffix for ASX)
     let asxSymbolCode = null;
     if (asxRow) {
-      // whatever snapshot has: prefer fullCode, then code, then baseCode
       asxSymbolCode = asxRow.fullCode || asxRow.code || baseCode;
     }
 
@@ -431,9 +455,10 @@ exports.handler = async function (event) {
       debug.steps.push({
         step: "history",
         symbol: eodSymbol,
-        points: history && Array.isArray(history.points)
-          ? history.points.length
-          : 0,
+        points:
+          history && Array.isArray(history.points)
+            ? history.points.length
+            : 0,
       });
     } catch (e) {
       debug.steps.push({
