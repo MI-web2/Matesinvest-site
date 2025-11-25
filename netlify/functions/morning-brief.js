@@ -1,22 +1,21 @@
 // netlify/functions/morning-brief.js
 // Morning brief for multiple metals + top performers across ASX (AU).
 // - Metals prices: snapshot-only from Upstash (no live metals/FX fetches)
-// - Top performers: now read from Upstash key `asx200:latest` and pick the TOP_N
+// - Top performers: read from Upstash key `asx200:latest` and pick the TOP_N
 //   largest percent gain from the most recent business day snapshot.
-//   (This avoids EODHD calls and uses the asx200 snapshot you already produce.)
 
 const fetch = (...args) => global.fetch(...args);
 
 exports.handler = async function (event) {
   const nowIso = new Date().toISOString();
-    // --- AEST date helper (Australia/Brisbane, UTC+10, no DST) ---
+
+  // --- AEST date helper (Australia/Brisbane, UTC+10, no DST) ---
   function getAestDateString(daysOffset = 0, baseDate = new Date()) {
     const AEST_OFFSET_MINUTES = 10 * 60;
     const aest = new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
     aest.setDate(aest.getDate() + daysOffset);
     return aest.toISOString().slice(0, 10); // YYYY-MM-DD
   }
-
 
   // -------------------------------
   // Helpers
@@ -82,7 +81,7 @@ exports.handler = async function (event) {
         url,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
+          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
         },
         8000
       );
@@ -188,7 +187,10 @@ exports.handler = async function (event) {
     let yesterdayData = null;
     try {
       let keyDate;
-      if (latestSnapshot && (latestSnapshot.snappedAt || latestSnapshot.priceTimestamp)) {
+      if (
+        latestSnapshot &&
+        (latestSnapshot.snappedAt || latestSnapshot.priceTimestamp)
+      ) {
         const base = new Date(
           latestSnapshot.snappedAt || latestSnapshot.priceTimestamp
         );
@@ -293,7 +295,6 @@ exports.handler = async function (event) {
       };
     }
 
-
     const narratives = {};
     for (const s of symbols) {
       const m = metals[s];
@@ -311,15 +312,15 @@ exports.handler = async function (event) {
         narratives[s] = `${s} is currently $${m.priceAUD} AUD per ${
           m.unit || (s === "IRON" ? "tonne" : "unit")
         }${upDown}.`;
-
       }
     }
 
     // --------------------------------------------------
-    // 2) TOP PERFORMERS: use asx200:latest from Upstash and pick top N gainers for last business day
+    // 2) TOP PERFORMERS: use asx200:latest from Upstash
     // --------------------------------------------------
     const TOP_N = Number(process.env.TOP_N || 6); // default 6
     let topPerformers = [];
+
     try {
       const raw = await redisGet("asx200:latest");
       let asxRows = null;
@@ -328,8 +329,10 @@ exports.handler = async function (event) {
           try {
             asxRows = JSON.parse(raw);
           } catch (e) {
-            // if parse fails, try to continue treating as null
-            debug.steps.push({ source: "parse-asx200-latest-failed", error: e && e.message });
+            debug.steps.push({
+              source: "parse-asx200-latest-failed",
+              error: e && e.message,
+            });
             asxRows = null;
           }
         } else if (Array.isArray(raw)) {
@@ -343,13 +346,26 @@ exports.handler = async function (event) {
       }
 
       if (!Array.isArray(asxRows)) {
-        debug.steps.push({ source: "asx200-latest-missing-or-invalid", found: !!asxRows });
+        debug.steps.push({
+          source: "asx200-latest-missing-or-invalid",
+          found: !!asxRows,
+        });
       } else {
         // compute pctChange if not present and filter valid rows
         const cleaned = asxRows
           .map((r) => {
-            const last = typeof r.lastPrice === "number" ? r.lastPrice : (r.lastPrice ? Number(r.lastPrice) : null);
-            const prev = typeof r.yesterdayPrice === "number" ? r.yesterdayPrice : (r.yesterdayPrice ? Number(r.yesterdayPrice) : null);
+            const last =
+              typeof r.lastPrice === "number"
+                ? r.lastPrice
+                : r.lastPrice
+                ? Number(r.lastPrice)
+                : null;
+            const prev =
+              typeof r.yesterdayPrice === "number"
+                ? r.yesterdayPrice
+                : r.yesterdayPrice
+                ? Number(r.yesterdayPrice)
+                : null;
             let pct = null;
             if (last !== null && prev !== null && prev !== 0) {
               pct = ((last - prev) / prev) * 100;
@@ -361,42 +377,71 @@ exports.handler = async function (event) {
               fullCode: r.fullCode || r.full_code || r.full || r.code || null,
               name: r.name || r.companyName || "",
               lastDate: r.lastDate || r.date || null,
-              lastPrice: typeof last === "number" && !Number.isNaN(last) ? Number(last) : null,
+              lastPrice:
+                typeof last === "number" && !Number.isNaN(last)
+                  ? Number(last)
+                  : null,
               yesterdayDate: r.yesterdayDate || null,
-              yesterdayPrice: typeof prev === "number" && !Number.isNaN(prev) ? Number(prev) : null,
-              pctChange: typeof pct === "number" && Number.isFinite(pct) ? Number(pct) : null,
-              raw: r
+              yesterdayPrice:
+                typeof prev === "number" && !Number.isNaN(prev)
+                  ? Number(prev)
+                  : null,
+              pctChange:
+                typeof pct === "number" && Number.isFinite(pct)
+                  ? Number(pct)
+                  : null,
+              raw: r,
             };
           })
-          .filter((x) => x && x.lastPrice !== null && x.yesterdayPrice !== null && x.pctChange !== null);
+          .filter(
+            (x) =>
+              x &&
+              x.lastPrice !== null &&
+              x.yesterdayPrice !== null &&
+              x.pctChange !== null
+          );
 
         cleaned.sort((a, b) => b.pctChange - a.pctChange);
 
-        // Create mapping that includes both UI-expected keys (symbol, lastClose, pctGain)
-        // and the snapshot-style keys (code, lastPrice, pctChange) so existing client HTML works.
+        // Map to UI-friendly + keep snapshot-style fields
         topPerformers = cleaned.slice(0, TOP_N).map((x) => ({
-          // UI-friendly names used by mates-summaries.html
+          // UI-friendly names
           symbol: x.code || null,
-          lastClose: typeof x.lastPrice === "number" ? x.lastPrice : null,
-          pctGain: typeof x.pctChange === "number" ? Number(x.pctChange.toFixed(2)) : null,
+          lastClose:
+            typeof x.lastPrice === "number" ? x.lastPrice : null,
+          pctGain:
+            typeof x.pctChange === "number"
+              ? Number(x.pctChange.toFixed(2))
+              : null,
           name: x.name || "",
 
-          // snapshot-style names preserved for downstream consumers
+          // snapshot-style names
           code: x.code || null,
           fullCode: x.fullCode || null,
           lastDate: x.lastDate || null,
-          lastPrice: typeof x.lastPrice === "number" ? x.lastPrice : null,
+          lastPrice:
+            typeof x.lastPrice === "number" ? x.lastPrice : null,
           yesterdayDate: x.yesterdayDate || null,
-          yesterdayPrice: typeof x.yesterdayPrice === "number" ? x.yesterdayPrice : null,
-          pctChange: typeof x.pctChange === "number" ? Number(x.pctChange.toFixed(2)) : null,
+          yesterdayPrice:
+            typeof x.yesterdayPrice === "number"
+              ? x.yesterdayPrice
+              : null,
+          pctChange:
+            typeof x.pctChange === "number"
+              ? Number(x.pctChange.toFixed(2))
+              : null,
         }));
 
         debug.steps.push({
           source: "computed-top-performers-from-asx200-latest",
           available: cleaned.length,
           topN: TOP_N,
-          topSample: topPerformers.map((t) => ({ symbol: t.symbol, pct: t.pctGain })),
+          topSample: topPerformers.map((t) => ({
+            symbol: t.symbol,
+            pct: t.pctGain,
+          })),
         });
+
         // persist topPerformers to Upstash (best-effort, AEST date)
         try {
           const todayAest = getAestDateString(0);
@@ -408,8 +453,18 @@ exports.handler = async function (event) {
             keyDate: todayAest,
           });
         } catch (e) {
-          debug.steps.push({ source: "top-performers-save-failed", error: e && e.message });
+          debug.steps.push({
+            source: "top-performers-save-failed",
+            error: e && e.message,
+          });
         }
+      }
+    } catch (e) {
+      debug.steps.push({
+        source: "top-performers-error",
+        error: e && e.message,
+      });
+    }
 
     // --------------------------------------------------
     // Final payload
@@ -423,12 +478,17 @@ exports.handler = async function (event) {
       _debug: {
         ...debug,
         metalsDataSource,
-        topSource: "asx200:latest"
+        topSource: "asx200:latest",
       },
     };
 
     // small helpful console log for browser debug when opening brief
-    try { console.log("[morning-brief] payload sample:", { topPerformers: payload.topPerformers && payload.topPerformers.slice(0,6), debug: payload._debug }); } catch (e) {}
+    try {
+      console.log("[morning-brief] payload sample:", {
+        topPerformers: payload.topPerformers && payload.topPerformers.slice(0, 6),
+        debug: payload._debug,
+      });
+    } catch (e) {}
 
     return { statusCode: 200, body: JSON.stringify(payload) };
   } catch (err) {
