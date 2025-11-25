@@ -697,15 +697,15 @@
 
 /* Close button */
 .mi-ins-close {
-  position: relative;   /* not absolute anymore */
-  top: 0;
-  right: 0;
+  position: absolute;   /* not absolute anymore */
+  top: 8px;
+  right: 12px;
   font-size: 20px;
   color: #9ca3af;
   background: transparent;
   border: none;
   cursor: pointer;
-  z-index: 100;          /* extra safety */
+  z-index: 200;          /* extra safety */
 }
 
 .mi-ins-close:hover {
@@ -725,6 +725,7 @@
   z-index: 50; /* bump this up */
   padding-bottom: 8px;
   padding-top: 6px;
+  position: relative;
 }
 
 .mi-ins-title {
