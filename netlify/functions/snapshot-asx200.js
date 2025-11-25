@@ -62,6 +62,13 @@ function getLastBusinessDays(n, endDate = new Date()) {
     if (dow !== 0 && dow !== 6) days.push(new Date(d));
     d.setDate(d.getDate() - 1);
   }
+  // Return YYYY-MM-DD string using AEST (Australia/Brisbane, UTC+10, no DST)
+function getTodayAestDateString(baseDate = new Date()) {
+  const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane is UTC+10 all year
+  const aestTime = new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
+  return aestTime.toISOString().slice(0, 10);
+}
+
   return days.reverse().map((dt) => dt.toISOString().slice(0, 10));
 }
 
@@ -344,9 +351,11 @@ exports.handler = async function (event) {
     });
   }
 
-  // persist to Upstash
-  const todayKey = `asx200:daily:${new Date().toISOString().slice(0, 10)}`;
+  // persist to Upstash using AEST date (Brisbane time)
+  const todayDateAest = getTodayAestDateString();
+  const todayKey = `asx200:daily:${todayDateAest}`;
   const latestKey = `asx200:latest`;
+
   const okDaily = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, todayKey, rows);
   const okLatest = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, latestKey, rows);
 
