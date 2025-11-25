@@ -686,6 +686,8 @@
   color: #f9fafb;
   border-radius: 18px;
   max-width: 700px;
+  max-height: 90vh;       /* don’t let it grow taller than the screen */
+  overflow-y: auto;       /* scroll inside the modal */
   width: 100%;
   padding: 20px 22px 22px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
@@ -696,7 +698,7 @@
 /* Close button */
 .mi-ins-close {
   position: absolute;
-  top: 10px;
+  top: 8px;
   right: 12px;
   border: none;
   background: transparent;
@@ -704,6 +706,7 @@
   font-size: 18px;
   cursor: pointer;
 }
+
 .mi-ins-close:hover {
   color: #e5e7eb;
 }
@@ -714,6 +717,13 @@
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 14px;
+
+  position: sticky;
+  top: 0;
+  padding-top: 4px;
+  padding-bottom: 8px;
+  background: #0b1020;           /* same as modal background */
+  z-index: 2;                     /* keeps it above chart/content */
 }
 
 .mi-ins-title {
