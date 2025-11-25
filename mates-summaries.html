@@ -2081,7 +2081,7 @@ categoryRow.onclick = (e) => {
       } else {
         const arrow = pctChange > 0 ? "▲" : pctChange < 0 ? "▼" : "•";
         changeEl.textContent =
-          arrow + " " + pctChange.toFixed(2) + "% today";
+          arrow + " " + pctChange.toFixed(2) + "% yesterday";
         if (pctChange > 0) changeEl.classList.add("up");
         else if (pctChange < 0) changeEl.classList.add("down");
       }
