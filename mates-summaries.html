@@ -2176,6 +2176,37 @@ categoryRow.onclick = (e) => {
       </div>
     </div>
   </div>
+<section id="subscribe" class="card" style="margin-top:1.5rem;">
+  <h2 style="margin:0 0 0.4rem 0;">Get the MatesMorning Daily Email</h2>
+  <p style="margin:0 0 0.75rem 0;font-size:0.9rem;color:var(--muted);max-width:32rem;">
+    One short ASX morning briefing each day. No spam.
+  </p>
+
+  <form id="dailyBriefForm" novalidate>
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;">
+      <input
+        type="email"
+        id="dailyBriefEmail"
+        name="email"
+        required
+        placeholder="you@example.com"
+        style="
+          flex:1;
+          min-width:200px;
+          padding:0.6rem 0.9rem;
+          border-radius:999px;
+          border:1px solid var(--border);
+          font-size:0.9rem;
+        "
+      />
+      <button type="submit" class="btn" style="white-space:nowrap;">
+        Subscribe
+      </button>
+    </div>
+    <div id="dailyBriefStatus" style="margin-top:0.45rem;font-size:0.85rem;color:var(--muted);"></div>
+  </form>
+</section>
+
 </div>
 <script>
   // -------- Fetch helper --------
@@ -2678,6 +2709,52 @@ document.querySelectorAll('.card-metal').forEach(card => {
     }
   });
 });
+/* Daily Brief email signup */
+(function setupDailyBriefSignup() {
+  const form = document.getElementById("dailyBriefForm");
+  const emailInput = document.getElementById("dailyBriefEmail");
+  const statusEl = document.getElementById("dailyBriefStatus");
+
+  if (!form) return;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const email = emailInput.value.trim();
+    if (!email) {
+      statusEl.textContent = "Please enter an email address.";
+      statusEl.style.color = "#dc2626";
+      return;
+    }
+
+    statusEl.textContent = "Subscribing…";
+    statusEl.style.color = "var(--muted)";
+
+    try {
+      const res = await fetch("/.netlify/functions/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        const msg = data?.error || "Something went wrong. Try again.";
+        statusEl.textContent = msg;
+        statusEl.style.color = "#dc2626";
+        return;
+      }
+
+      statusEl.textContent = "You're in! The briefing will arrive every morning.";
+      statusEl.style.color = "#15803d";
+      emailInput.value = "";
+    } catch (err) {
+      statusEl.textContent = "Network error, try again shortly.";
+      statusEl.style.color = "#dc2626";
+    }
+  });
+})();
 
 </script>
 

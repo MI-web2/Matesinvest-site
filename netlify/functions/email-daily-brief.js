@@ -362,6 +362,32 @@ function buildEmailHtml(payload, morningNote) {
           `
               : ""
           }
+<!-- Subscribe Section -->
+<tr>
+  <td style="padding:18px 20px 8px 20px;">
+    <div style="background:#f9fbff;border:1px solid #dbeafe;padding:14px;border-radius:12px;">
+      <h3 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Invite a mate</h3>
+      <p style="margin:0 0 10px 0;font-size:12px;color:#64748b;line-height:1.4;">
+        Know someone who would enjoy the MatesMorning Daily Briefing?
+        Send them this link to subscribe:
+      </p>
+
+      <a href="https://matesinvest.com/mates-summaries#subscribe"
+         style="
+           display:inline-block;
+           padding:8px 14px;
+           background:#00BFFF;
+           color:#ffffff;
+           text-decoration:none;
+           border-radius:999px;
+           font-size:13px;
+           font-weight:600;
+         ">
+        Subscribe to MatesMorning
+      </a>
+    </div>
+  </td>
+</tr>
 
           <!-- Footer -->
           <tr>
