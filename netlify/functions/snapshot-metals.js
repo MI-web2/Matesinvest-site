@@ -10,6 +10,10 @@
 // - UPSTASH_REDIS_REST_TOKEN
 //
 // Symbols stored: XAU, XAG, IRON, LITH-CAR, NI, URANIUM
+//
+// One-off backfill:
+//   Call with ?backfill=all                -> backfill all metals
+//   Call with ?backfill=NI,LITH-CAR       -> backfill specific metals only
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -151,7 +155,11 @@ exports.handler = async function (event) {
 
   // Fallback interpreter for when USD{SYMBOL} is missing:
   function deriveFromRawRate(symbol, rateRaw) {
-    if (typeof rateRaw !== "number" || !Number.isFinite(rateRaw) || rateRaw <= 0) {
+    if (
+      typeof rateRaw !== "number" ||
+      !Number.isFinite(rateRaw) ||
+      rateRaw <= 0
+    ) {
       return { priceUSD: null, mode: "invalid_rate" };
     }
 
@@ -194,8 +202,159 @@ exports.handler = async function (event) {
     return d.toISOString().slice(0, 10);
   }
 
+  // Metals-API unit mapping for timeseries backfill
+  const METAL_UNIT_PARAMS = {
+    XAU: "Troy Ounce",
+    XAG: "Troy Ounce",
+    IRON: "Ton",
+    "LITH-CAR": "Ton",
+    NI: "Ton",
+    URANIUM: "Pound",
+  };
+
+  // Backfill ~HISTORY_MONTHS of history from Metals-API timeseries in 30-day chunks
+  async function backfillMetalHistory(symbol, usdToAud, apiKey) {
+    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+    const toStr = getTodayAestDateString();
+    const unitParam = METAL_UNIT_PARAMS[symbol] || "Troy Ounce";
+
+    const pointsMap = new Map(); // date -> price (AUD preferred, fallback USD)
+
+    let cursor = fromStr;
+    const WINDOW_DAYS = 30;
+
+    while (cursor <= toStr) {
+      const endStrCandidate = addDays(cursor, WINDOW_DAYS - 1);
+      const endStr = endStrCandidate > toStr ? toStr : endStrCandidate;
+
+      const url =
+        `https://metals-api.com/api/timeseries` +
+        `?access_key=${encodeURIComponent(apiKey)}` +
+        `&base=USD` +
+        `&symbols=${encodeURIComponent(symbol)}` +
+        `&unit=${encodeURIComponent(unitParam)}` +
+        `&start_date=${encodeURIComponent(cursor)}` +
+        `&end_date=${encodeURIComponent(endStr)}`;
+
+      let json = null;
+      let txt = "";
+      try {
+        const res = await fetchWithTimeout(url, {}, 12000);
+        txt = await res.text().catch(() => "");
+        try {
+          json = txt ? JSON.parse(txt) : null;
+        } catch {
+          json = null;
+        }
+        if (!res.ok || !json || json.success === false) {
+          console.warn(
+            "metals-api timeseries backfill error",
+            symbol,
+            cursor,
+            endStr,
+            txt.slice(0, 300)
+          );
+          break; // partial history still better than none
+        }
+      } catch (e) {
+        console.warn(
+          "metals-api timeseries fetch error",
+          symbol,
+          cursor,
+          endStr,
+          e && e.message
+        );
+        break;
+      }
+
+      const ratesByDate = json.rates || {};
+      const usdKey = `USD${symbol}`;
+
+      for (const [date, dailyRates] of Object.entries(ratesByDate)) {
+        if (!dailyRates || typeof dailyRates !== "object") continue;
+
+        const directUsd =
+          typeof dailyRates[usdKey] === "number" && dailyRates[usdKey] > 0
+            ? dailyRates[usdKey]
+            : null;
+
+        const rawRate =
+          typeof dailyRates[symbol] === "number" && dailyRates[symbol] > 0
+            ? dailyRates[symbol]
+            : null;
+
+        let priceUSD = null;
+
+        if (directUsd !== null && isInRange(symbol, directUsd)) {
+          priceUSD = directUsd;
+        } else {
+          const derived = deriveFromRawRate(symbol, rawRate);
+          priceUSD = derived.priceUSD;
+        }
+
+        if (priceUSD == null) continue;
+
+        const priceAUD =
+          usdToAud != null ? fmt(priceUSD * usdToAud) : null;
+        const value = priceAUD != null ? priceAUD : fmt(priceUSD);
+        if (value == null) continue;
+
+        if (!pointsMap.has(date)) {
+          pointsMap.set(date, value);
+        }
+      }
+
+      cursor = addDays(endStr, 1);
+    }
+
+    const dates = Array.from(pointsMap.keys()).sort();
+    const points = dates.map((d) => [d, pointsMap.get(d)]);
+
+    return {
+      symbol,
+      startDate: dates[0] || fromStr,
+      endDate: dates[dates.length - 1] || toStr,
+      lastUpdated: nowIso,
+      points,
+    };
+  }
+
+  // Only run backfill once per metal (when 6m window isn't already covered)
+  async function ensureMetalHistorySeed(symbol, usdToAud, apiKey) {
+    const key = `history:metal:daily:${symbol}`;
+    const existing = await redisGetJson(key);
+    const todayAest = getTodayAestDateString();
+    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+
+    if (
+      existing &&
+      existing.startDate &&
+      existing.endDate &&
+      existing.startDate <= fromStr &&
+      existing.endDate >= todayAest &&
+      Array.isArray(existing.points) &&
+      existing.points.length > 0
+    ) {
+      // Already have a full window; no need to backfill again
+      console.log("history seed already present for", symbol);
+      return;
+    }
+
+    const history = await backfillMetalHistory(symbol, usdToAud, apiKey);
+    if (history && Array.isArray(history.points) && history.points.length > 0) {
+      await redisSet(key, history);
+      console.log(
+        "history seed stored for",
+        symbol,
+        "points=",
+        history.points.length
+      );
+    } else {
+      console.warn("history seed failed/empty for", symbol);
+    }
+  }
+
   // Each day, append today's price from snapshot and trim to ~6m window.
-  // No Metals-API historical/timeseries calls here at all.
   async function updateMetalHistoryWithToday(symbols, snapshot, todayDateAest) {
     const coll = snapshot.metals || snapshot.symbols || {};
     const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
@@ -229,8 +388,7 @@ exports.handler = async function (event) {
 
       // Trim to last ~6m
       const trimmed = points.filter((p) => p[0] >= fromStr);
-      const newStart =
-        trimmed.length > 0 ? trimmed[0][0] : fromStr;
+      const newStart = trimmed.length > 0 ? trimmed[0][0] : fromStr;
       const newEnd =
         trimmed.length > 0
           ? trimmed[trimmed.length - 1][0]
@@ -256,6 +414,9 @@ exports.handler = async function (event) {
     if (!UPSTASH_URL || !UPSTASH_TOKEN) {
       return { statusCode: 500, body: "Missing Upstash env vars" };
     }
+
+    const qs = (event && event.queryStringParameters) || {};
+    const backfillParam = (qs.backfill || "").trim();
 
     // -------------------------------
     // 1) Fetch metals prices in realistic units (latest only)
@@ -304,7 +465,11 @@ exports.handler = async function (event) {
       }
 
       if (!json || json.success === false) {
-        console.warn("metals-api latest group failure", unitParam, json && json.error);
+        console.warn(
+          "metals-api latest group failure",
+          unitParam,
+          json && json.error
+        );
         continue;
       }
 
@@ -444,10 +609,46 @@ exports.handler = async function (event) {
 
     const todayDateAest = getTodayAestDateString();
 
-    // 4) Update history with today's snapshot point (no backfill)
+    // -------------------------------
+    // 4) Optional one-off backfill (timeseries) – only when ?backfill=...
+    // -------------------------------
+    let backfillSymbols = [];
+    if (backfillParam) {
+      if (
+        backfillParam === "1" ||
+        backfillParam.toLowerCase() === "all"
+      ) {
+        backfillSymbols = outputSymbols.slice();
+      } else {
+        const requested = backfillParam
+          .split(",")
+          .map((s) => s.trim().toUpperCase())
+          .filter(Boolean);
+        backfillSymbols = outputSymbols.filter((s) =>
+          requested.includes(s)
+        );
+      }
+    }
+
+    if (backfillSymbols.length > 0) {
+      console.log("Running one-off metals backfill for:", backfillSymbols);
+      for (const sym of backfillSymbols) {
+        try {
+          await ensureMetalHistorySeed(sym, usdToAud, METALS_API_KEY);
+        } catch (e) {
+          console.warn("ensureMetalHistorySeed error", sym, e && e.message);
+        }
+      }
+    }
+
+    // -------------------------------
+    // 5) Update rolling history with today's snapshot
+    // -------------------------------
     await updateMetalHistoryWithToday(outputSymbols, snapshot, todayDateAest);
 
-    // 5) Persist daily snapshot & latest
+    // -------------------------------
+    // 6) Persist daily snapshot & latest
+    // -------------------------------
     const key = `metals:${todayDateAest}`;
     const okToday = await redisSet(key, snapshot);
     const okLatest = await redisSet("metals:latest", snapshot);
@@ -458,6 +659,7 @@ exports.handler = async function (event) {
       okLatest,
       payload: snapshot,
       previews,
+      backfillSymbols,
     };
 
     return {
