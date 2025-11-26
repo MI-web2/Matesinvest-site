@@ -8,11 +8,10 @@
 //   Metals:
 //     /.netlify/functions/instrument-details?type=metal&code=IRON
 //
-// Requirements (env):
+// Requirements (equities):
 //   EODHD_API_TOKEN
 //   UPSTASH_REDIS_REST_URL
 //   UPSTASH_REDIS_REST_TOKEN
-//   METALS_API_KEY
 //
 // Optional:
 //   HISTORY_MONTHS (default 6)
@@ -140,7 +139,7 @@ exports.handler = async function (event) {
   }
 
   // -------------------------------
-  // EODHD helpers (equities)
+  // EODHD helpers (equities only)
   // -------------------------------
   const EODHD_TOKEN = process.env.EODHD_API_TOKEN || null;
 
@@ -231,84 +230,6 @@ exports.handler = async function (event) {
 
   // ---- Fundamentals extraction helpers ----
 
-  function safeNumber(...candidates) {
-    for (const v of candidates) {
-      if (typeof v === "number" && Number.isFinite(v)) return v;
-    }
-    return null;
-  }
-
-  function deriveSizeBucket(marketCap) {
-    if (typeof marketCap !== "number" || !Number.isFinite(marketCap)) {
-      return "unknown";
-    }
-    // Thresholds in AUD (rough, but fine for retail buckets)
-    if (marketCap >= 50e9) return "mega";
-    if (marketCap >= 10e9) return "large";
-    if (marketCap >= 2e9) return "mid";
-    if (marketCap >= 0.3e9) return "small";
-    return "micro";
-  }
-
-  function getMostRecentYearEntries(yearlyObj, maxYears = 3) {
-    if (!yearlyObj || typeof yearlyObj !== "object") return [];
-    const years = Object.keys(yearlyObj)
-      .filter((y) => /^\d{4}$/.test(String(y)))
-      .sort((a, b) => Number(b) - Number(a)); // desc
-    const result = [];
-    for (const y of years) {
-      if (result.length >= maxYears) break;
-      const row = yearlyObj[y];
-      if (row && typeof row === "object") {
-        result.push({ year: Number(y), row });
-      }
-    }
-    return result;
-  }
-
-  function deriveProfitTrend(netIncomeSeries) {
-    // netIncomeSeries: [{ year, value }, ...] most recent first
-    if (!Array.isArray(netIncomeSeries) || netIncomeSeries.length < 2) {
-      return "unknown";
-    }
-    const vals = netIncomeSeries
-      .map((x) => x.value)
-      .filter((v) => typeof v === "number" && Number.isFinite(v));
-
-    if (vals.length < 2) return "unknown";
-
-    const first = vals[vals.length - 1]; // oldest
-    const last = vals[0]; // latest
-
-    if (!Number.isFinite(first) || first === 0) return "unknown";
-
-    const changePct = (last - first) / Math.abs(first);
-
-    const POS_THRESH = 0.05; // +5%
-    const NEG_THRESH = -0.05; // -5%
-
-    if (changePct > POS_THRESH) return "up";
-    if (changePct < NEG_THRESH) return "down";
-    return "flat";
-  }
-
-  function deriveLeverageBucket(netDebt, marketCap) {
-    if (
-      typeof netDebt !== "number" ||
-      !Number.isFinite(netDebt) ||
-      typeof marketCap !== "number" ||
-      !Number.isFinite(marketCap) ||
-      marketCap <= 0
-    ) {
-      return "unknown";
-    }
-    if (netDebt <= 0) return "net-cash";
-
-    const ratio = netDebt / marketCap; // debt as % of market value
-    if (ratio <= 0.2) return "low-debt";
-    return "high-debt";
-  }
-
   function extractEquityFundamentals(f) {
     if (!f || typeof f !== "object") return {};
 
@@ -322,7 +243,6 @@ exports.handler = async function (event) {
 
     const splitsDiv = f.SplitsDividends || {};
 
-    // Helper: pick the first numeric value out of several candidates
     const pickNumber = (...vals) => {
       for (const v of vals) {
         if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -347,11 +267,9 @@ exports.handler = async function (event) {
     let revenueLastYear = null;
     let netIncomeLastYear = null;
 
-    // Prefer yearly income statement if available
     if (incomeYearly && typeof incomeYearly === "object") {
       const entries = Object.entries(incomeYearly);
       if (entries.length > 0) {
-        // Keys are usually like "2024-06-30" or "2024"
         entries.sort((a, b) => (a[0] > b[0] ? 1 : a[0] < b[0] ? -1 : 0));
         const latest = entries[entries.length - 1][1] || {};
 
@@ -370,7 +288,6 @@ exports.handler = async function (event) {
       }
     }
 
-    // Fallback: Highlights TTM-style fields if yearly isn’t populated
     if (revenueLastYear === null) {
       revenueLastYear = pickNumber(
         highlights.RevenueTTM,
@@ -386,13 +303,12 @@ exports.handler = async function (event) {
       );
     }
 
-    // --- Dividends per share & paysDividend flag ---
+    // --- Dividends ---
     let dividendsPerShareLastYear = null;
     let paysDividend = false;
 
     if (splitsDiv.Dividends && typeof splitsDiv.Dividends === "object") {
       const d = splitsDiv.Dividends;
-      // EODHD often exposes LastDiv for last dividend per share
       const lastDiv = pickNumber(d.LastDiv, d.lastDiv);
       if (lastDiv !== null) {
         dividendsPerShareLastYear = lastDiv;
@@ -408,7 +324,7 @@ exports.handler = async function (event) {
       paysDividend = true;
     }
 
-    // --- Size bucket by market cap (very rough, but good for a simple view) ---
+    // --- Size bucket ---
     let sizeBucket = null;
     if (typeof marketCap === "number") {
       if (marketCap >= 10_000_000_000) sizeBucket = "mega";
@@ -417,7 +333,7 @@ exports.handler = async function (event) {
       else sizeBucket = "small";
     }
 
-    // --- Leverage bucket (simple placeholder for now) ---
+    // --- Leverage bucket (simple) ---
     let leverageBucket = "unknown";
     const debtToEquity = pickNumber(
       highlights.TotalDebtToEquity,
@@ -458,135 +374,19 @@ exports.handler = async function (event) {
           ? fmt(highlights.EarningsShare, 2)
           : null,
 
-      netDebt: null, // could be added later from Balance_Sheet
+      netDebt: null,
       leverageBucket,
     };
   }
 
   // -------------------------------
-  // History config
+  // History caching helpers (equities)
   // -------------------------------
   const DEFAULT_HISTORY_MONTHS = 6;
   const HISTORY_MONTHS = Number(
     process.env.HISTORY_MONTHS || DEFAULT_HISTORY_MONTHS
   );
 
-  // -------------------------------
-  // Metals helpers (Metals-API, USD history)
-  // -------------------------------
-  const METALS_API_KEY = process.env.METALS_API_KEY || null;
-
-  // Map symbols to their "real world" unit (for Metals-API unit param)
-  const METAL_UNITS = {
-    XAU: "Troy Ounce",
-    XAG: "Troy Ounce",
-    IRON: "Ton",
-    "LITH-CAR": "Ton",
-    NI: "Ton",
-    URANIUM: "Pound",
-  };
-
-  // Simple label map for metals
-  const METAL_NAMES = {
-    XAU: "Gold",
-    XAG: "Silver",
-    IRON: "Iron Ore 62% Fe",
-    "LITH-CAR": "Lithium Carbonate (battery grade)",
-    NI: "Nickel",
-    URANIUM: "Uranium (U\u2083O\u2088)",
-  };
-
-  // Like monthsAgoDateString, but anchored to a specific end date string (YYYY-MM-DD)
-  function monthsAgoFromDateString(endDateStr, months) {
-    const d = new Date(endDateStr + "T00:00:00Z");
-    d.setMonth(d.getMonth() - months);
-    return toDateString(d);
-  }
-
-  // Fetch Metals-API timeseries for a single symbol, return [date, priceUSD] points
-  async function fetchMetalTimeseries(symbol, startDate, endDate) {
-    if (!METALS_API_KEY) {
-      throw new Error("Missing METALS_API_KEY env");
-    }
-
-    const unit = METAL_UNITS[symbol] || null;
-
-    let url =
-      `https://metals-api.com/api/timeseries` +
-      `?access_key=${encodeURIComponent(METALS_API_KEY)}` +
-      `&base=USD` +
-      `&symbols=${encodeURIComponent(symbol)}` +
-      `&start_date=${encodeURIComponent(startDate)}` +
-      `&end_date=${encodeURIComponent(endDate)}`;
-
-    if (unit) {
-      url += `&unit=${encodeURIComponent(unit)}`;
-    }
-
-    const res = await fetchWithTimeout(url, {}, 12000);
-    const txt = await res.text().catch(() => "");
-    if (!res.ok) {
-      throw new Error(
-        `Metals-API timeseries error ${res.status}: ${
-          txt.slice(0, 300) || "no body"
-        }`
-      );
-    }
-
-    let json = null;
-    try {
-      json = txt ? JSON.parse(txt) : null;
-    } catch (e) {
-      throw new Error("Failed to parse Metals-API timeseries JSON");
-    }
-
-    if (!json || !json.success || !json.rates || typeof json.rates !== "object") {
-      throw new Error("Metals-API timeseries missing rates");
-    }
-
-    const ratesByDate = json.rates;
-    const dates = Object.keys(ratesByDate).sort();
-    const out = [];
-
-    for (const date of dates) {
-      const dayRates = ratesByDate[date] || {};
-      const usdKey = `USD${symbol}`;
-      let priceUSD = null;
-
-      // Preferred: explicit USD<symbol> (e.g. USDIRON)
-      if (
-        typeof dayRates[usdKey] === "number" &&
-        Number.isFinite(dayRates[usdKey])
-      ) {
-        priceUSD = dayRates[usdKey];
-      } else if (
-        typeof dayRates[symbol] === "number" &&
-        dayRates[symbol] > 0
-      ) {
-        // Fallback: invert if we only get <symbol> per USD
-        priceUSD = 1 / dayRates[symbol];
-      }
-
-      if (typeof priceUSD === "number" && Number.isFinite(priceUSD)) {
-        out.push([date, priceUSD]);
-      }
-    }
-
-    return out; // [ [YYYY-MM-DD, priceUSD], ... ]
-  }
-
-  // Build or reuse cached 6-month history in USD
-  async function getOrBuildMetalHistory(symbol, months) {
-    const key = `history:metal:daily:${symbol}`;
-    const cached = await redisGetJson(key);
-    // We trust snapshot-metals to keep this trimmed to ~months
-    return cached;
-  }
-
-
-  // -------------------------------
-  // Equity history caching helpers
-  // -------------------------------
   async function getOrBuildEquityHistory(fullCode, months) {
     const key = `history:equity:daily:${fullCode}`;
     const cached = await redisGetJson(key);
@@ -638,7 +438,7 @@ exports.handler = async function (event) {
   }
 
   // -------------------------------
-  // ASX200 latest snapshot helper
+  // ASX200 latest snapshot helper (equities)
   // -------------------------------
   async function getAsx200LatestRows() {
     const snapshot = await redisGetJson("asx200:latest");
@@ -663,8 +463,6 @@ exports.handler = async function (event) {
   // -------------------------------
   // Full code resolver (equities)
   // -------------------------------
-  // IMPORTANT: EODHD uses .AU for ASX, not .AX.
-  // Default order: try .AU first, then .AX, then .ASX
   const DEFAULT_TRY_SUFFIXES = ["AU", "AX", "ASX"];
   const TRY_SUFFIXES = (process.env.TRY_SUFFIXES ||
     DEFAULT_TRY_SUFFIXES.join(","))
@@ -735,7 +533,7 @@ exports.handler = async function (event) {
       });
     }
 
-    // 2) Decide what symbol to send to EODHD (must include suffix for ASX)
+    // 2) Decide what symbol to send to EODHD
     let asxSymbolCode = null;
     if (asxRow) {
       asxSymbolCode = asxRow.fullCode || asxRow.code || baseCode;
@@ -892,8 +690,8 @@ exports.handler = async function (event) {
     };
   }
 
-    // -------------------------------
-  // Metal handler (Upstash-only; no direct Metals-API calls)
+  // -------------------------------
+  // Metal handler (Upstash-only; no Metals-API calls)
   // -------------------------------
   async function handleMetal(codeRaw) {
     if (!codeRaw) {
@@ -1033,9 +831,9 @@ exports.handler = async function (event) {
       name: METAL_NAMES[symbol] || symbol,
       unit: latest.unit,
       latest,
-      history, // may be null or a { symbol, startDate, endDate, points } object
-      fundamentals: null, // no fundamentals for metals for now
-      news: [], // can be wired later if we add commodity news
+      history, // { symbol, startDate, endDate, points } or null
+      fundamentals: null,
+      news: [],
       debug,
       generatedAt: nowIso,
     };
@@ -1045,7 +843,6 @@ exports.handler = async function (event) {
       body: JSON.stringify(payload),
     };
   }
-
 
   // -------------------------------
   // Main handler
