@@ -1119,7 +1119,39 @@
 
       <div id="newsList" style="margin-top:0.9rem;">Loading…</div>
     </section>
-  </div>
+
+    <!-- DAILY BRIEF SIGNUP CARD -->
+    <section id="subscribe" class="card" style="margin-top:1.5rem;">
+      <h2 style="margin:0 0 0.4rem 0;">Get the MatesMorning Daily Email</h2>
+      <p style="margin:0 0 0.75rem 0;font-size:0.9rem;color:var(--muted);max-width:32rem;">
+        One short ASX morning briefing each day. No spam.
+      </p>
+
+      <form id="dailyBriefForm" novalidate>
+        <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;">
+          <input
+            type="email"
+            id="dailyBriefEmail"
+            name="email"
+            required
+            placeholder="you@example.com"
+            style="
+              flex:1;
+              min-width:200px;
+              padding:0.6rem 0.9rem;
+              border-radius:999px;
+              border:1px solid var(--border);
+              font-size:0.9rem;
+            "
+          />
+          <button type="submit" class="btn" style="white-space:nowrap;">
+            Subscribe
+          </button>
+        </div>
+        <div id="dailyBriefStatus" style="margin-top:0.45rem;font-size:0.85rem;color:var(--muted);"></div>
+      </form>
+    </section>
+  </div> <!-- end .page-shell -->
 
   <!-- All JS from your existing page, unchanged -->
   <script>
@@ -2176,37 +2208,6 @@ categoryRow.onclick = (e) => {
       </div>
     </div>
   </div>
-<section id="subscribe" class="card" style="margin-top:1.5rem;">
-  <h2 style="margin:0 0 0.4rem 0;">Get the MatesMorning Daily Email</h2>
-  <p style="margin:0 0 0.75rem 0;font-size:0.9rem;color:var(--muted);max-width:32rem;">
-    One short ASX morning briefing each day. No spam.
-  </p>
-
-  <form id="dailyBriefForm" novalidate>
-    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;">
-      <input
-        type="email"
-        id="dailyBriefEmail"
-        name="email"
-        required
-        placeholder="you@example.com"
-        style="
-          flex:1;
-          min-width:200px;
-          padding:0.6rem 0.9rem;
-          border-radius:999px;
-          border:1px solid var(--border);
-          font-size:0.9rem;
-        "
-      />
-      <button type="submit" class="btn" style="white-space:nowrap;">
-        Subscribe
-      </button>
-    </div>
-    <div id="dailyBriefStatus" style="margin-top:0.45rem;font-size:0.85rem;color:var(--muted);"></div>
-  </form>
-</section>
-
 </div>
 <script>
   // -------- Fetch helper --------
