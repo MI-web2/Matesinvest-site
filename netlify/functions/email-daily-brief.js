@@ -1,11 +1,11 @@
 // netlify/functions/email-daily-brief.js
 // Scheduled function: sends the Morning Brief email to all subscribers.
-// Triggered daily by Netlify [[scheduled]] cron (see netlify.toml).
 
 const fetch = (...args) => global.fetch(...args);
 
-// Import the existing morning-brief function so we reuse its logic
+// Import existing functions so we reuse their logic
 const morningBriefFn = require("./morning-brief");
+const matesMorningNoteFn = require("./matesMorningNote");
 
 exports.handler = async function () {
   const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
@@ -55,14 +55,17 @@ exports.handler = async function () {
 
   async function getSubscribers() {
     const key = "email:subscribers";
-    const url =
-      `${UPSTASH_URL}/smembers/` + encodeURIComponent(key);
+    const url = `${UPSTASH_URL}/smembers/` + encodeURIComponent(key);
 
-    const res = await fetchWithTimeout(url, {
-      headers: {
-        Authorization: `Bearer ${UPSTASH_TOKEN}`,
+    const res = await fetchWithTimeout(
+      url,
+      {
+        headers: {
+          Authorization: `Bearer ${UPSTASH_TOKEN}`,
+        },
       },
-    }, 8000);
+      8000
+    );
 
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
@@ -109,8 +112,24 @@ exports.handler = async function () {
     }
   }
 
-  // Build HTML email from morning-brief payload
-  function buildEmailHtml(payload) {
+  // Fetch the Mates Morning Note via the existing function
+  async function getMorningNote() {
+    try {
+      const resp = await matesMorningNoteFn.handler({}, {});
+      if (!resp || resp.statusCode !== 200) {
+        console.warn("matesMorningNote handler failed", resp);
+        return null;
+      }
+      const data = JSON.parse(resp.body || "{}");
+      return data.note || null;
+    } catch (err) {
+      console.error("Error fetching morning note:", err && err.message);
+      return null;
+    }
+  }
+
+  // Build HTML email from morning-brief payload + morning note
+  function buildEmailHtml(payload, morningNote) {
     const aestNow = getAestDate();
     const niceDate = aestNow.toLocaleDateString("en-AU", {
       weekday: "long",
@@ -217,6 +236,8 @@ exports.handler = async function () {
     <tr>
       <td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+
+          <!-- Header -->
           <tr>
             <td style="padding:18px 20px 6px 20px;border-bottom:1px solid #e5e7eb;">
               <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">
@@ -227,6 +248,34 @@ exports.handler = async function () {
             </td>
           </tr>
 
+          <!-- Mates Morning Note -->
+          ${
+            morningNote
+              ? `
+          <tr>
+            <td style="padding:16px 20px 6px 20px;">
+              <h2 style="margin:0 0 4px 0;font-size:14px;color:#111827;">Mates Morning Note</h2>
+              <div style="
+                background:#f9fafb;
+                border:1px solid #e5e7eb;
+                padding:10px 14px;
+                border-radius:8px;
+                font-size:13px;
+                line-height:1.45;
+                color:#111827;
+              ">
+                ${morningNote.replace(/\n/g, "<br/>")}
+              </div>
+              <div style="margin-top:6px;font-size:11px;color:#9ca3af;">
+                Updated 6:00am AEST · Not financial advice
+              </div>
+            </td>
+          </tr>
+          `
+              : ""
+          }
+
+          <!-- Top performers -->
           ${
             top.length
               ? `
@@ -252,6 +301,7 @@ exports.handler = async function () {
               : ""
           }
 
+          <!-- Commodities -->
           ${
             metalsRows
               ? `
@@ -277,6 +327,7 @@ exports.handler = async function () {
               : ""
           }
 
+          <!-- Footer -->
           <tr>
             <td style="padding:12px 20px 18px 20px;border-top:1px solid #e5e7eb;">
               <p style="margin:0 0 6px 0;font-size:12px;color:#6b7280;">
@@ -336,25 +387,28 @@ exports.handler = async function () {
       };
     }
 
-    // 3) Build subject + HTML
+    // 3) Get the Mates Morning Note
+    const morningNote = await getMorningNote();
+
+    // 4) Build subject + HTML
     const subjectDate = formatAestForSubject(new Date());
     const subject = `MatesMorning – ASX Briefing for ${subjectDate}`;
-    const html = buildEmailHtml(payload);
+    const html = buildEmailHtml(payload, morningNote);
 
-    // 4) Send via Resend
+    // 5) Send via Resend
     await sendEmail(subscribers, subject, html);
 
-    console.log(
-      "Sent daily brief to subscribers",
-      subscribers.length
-    );
+    console.log("Sent daily brief to subscribers", subscribers.length);
 
     return {
       statusCode: 200,
       body: `Sent to ${subscribers.length} subscribers`,
     };
   } catch (err) {
-    console.error("email-daily-brief error", err && (err.stack || err.message));
+    console.error(
+      "email-daily-brief error",
+      err && (err.stack || err.message)
+    );
     return {
       statusCode: 500,
       body: "Internal error",
