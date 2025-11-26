@@ -1,182 +1,372 @@
-#!/usr/bin/env node
-// backfill-metals-once.js
-// One-off local script to backfill Upstash history:metal:daily for specified canonical symbols.
-// Usage:
-//   METALS_API_KEY=xxx UPSTASH_REDIS_REST_URL=https://... UPSTASH_REDIS_REST_TOKEN=yyy node backfill-metals-once.js
+// netlify/functions/metals-history-backfill-once.js
 //
-// Edit the 'targets' array or pass symbols via env SYM_LIST="NI,LITH-CAR"
+// One-off backfill for metals history using Metals-API /timeseries.
+// Intended mainly to fix NI & LITH-CAR which weren’t being backfilled.
+//
+// It writes to Upstash keys:
+//   history:metal:daily:<SYMBOL>
+//
+// Usage (once off):
+//   /.netlify/functions/metals-history-backfill-once
+//   /.netlify/functions/metals-history-backfill-once?symbols=NI,LITH-CAR
+//
+// Env required:
+// - METALS_API_KEY
+// - UPSTASH_REDIS_REST_URL
+// - UPSTASH_REDIS_REST_TOKEN
+//
+// Notes:
+// - For NI & LITH-CAR we DO NOT send &unit=… on timeseries,
+//   and we treat the raw Metals-API rate as an index (no sanity ranges).
 
-const HISTORY_MONTHS = Number(process.env.HISTORY_MONTHS || 6);
-const METALS_API_KEY = process.env.METALS_API_KEY;
-const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
-const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const fetch = (...args) => global.fetch(...args);
 
-if (!METALS_API_KEY || !UPSTASH_URL || !UPSTASH_TOKEN) {
-  console.error("Missing required env. Set METALS_API_KEY, UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.");
-  process.exit(1);
-}
+exports.handler = async function (event) {
+  const nowIso = new Date().toISOString();
 
-const fetchWithTimeout = async (url, opts = {}, timeout = 15000) => {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const res = await fetch(url, { ...opts, signal: controller.signal });
-    clearTimeout(id);
-    return res;
-  } catch (e) {
-    clearTimeout(id);
-    throw e;
-  }
-};
+  // --- Date helpers (AEST) ---
 
-function toDateISO(d){ return new Date(d).toISOString().slice(0,10); }
-function monthsAgoISO(months, from = new Date()){
-  const d = new Date(from);
-  d.setMonth(d.getMonth() - months);
-  return toDateISO(d);
-}
-function addDaysISO(dateStr, days){
-  const d = new Date(dateStr + "T00:00:00Z");
-  d.setDate(d.getDate() + days);
-  return toDateISO(d);
-}
-
-const METAL_UNITS = {
-  XAU: "Troy Ounce",
-  XAG: "Troy Ounce",
-  IRON: "Ton",
-  "LITH-CAR": "Ton",
-  NI: "Ton",
-  URANIUM: "Pound",
-};
-
-// Candidate names to try for each canonical symbol — edit if you know better names from Metals-API
-const CANDIDATES = {
-  NI: ["NI", "NICKEL", "NICKEL_TON", "NICKEL_ORE", "NICKEL.LME"],
-  "LITH-CAR": ["LITH-CAR", "LITHIUM", "LITHIUM_CARBONATE", "LITHIUM_CARBONATE_TON", "LITHIUM-CARBONATE"],
-};
-
-async function fetchUsdToAud(){
-  try{
-    let r = await fetchWithTimeout("https://open.er-api.com/v6/latest/USD", {}, 7000);
-    const txt = await r.text().catch(()=>"");
-    const j = txt ? JSON.parse(txt) : null;
-    if (r.ok && j && j.rates && typeof j.rates.AUD === "number") return Number(j.rates.AUD);
-  }catch(e){}
-  try{
-    let r = await fetchWithTimeout("https://api.exchangerate.host/latest?base=USD&symbols=AUD", {}, 7000);
-    const txt = await r.text().catch(()=>"");
-    const j = txt ? JSON.parse(txt) : null;
-    if (r.ok && j && j.rates && typeof j.rates.AUD === "number") return Number(j.rates.AUD);
-  }catch(e){}
-  return null;
-}
-
-async function fetchTimeseries(candidate, canonical, start, end, unitParam){
-  const unitQ = unitParam ? `&unit=${encodeURIComponent(unitParam)}` : "";
-  const url = `https://metals-api.com/api/timeseries?access_key=${encodeURIComponent(METALS_API_KEY)}&base=USD&symbols=${encodeURIComponent(candidate)}&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}${unitQ}`;
-  const res = await fetchWithTimeout(url, {}, 15000);
-  const txt = await res.text().catch(()=>"");
-  let json = null;
-  try{ json = txt ? JSON.parse(txt) : null; }catch(e){ json=null; }
-  return { ok: res.ok, status: res.status, bodyText: txt, json };
-}
-
-async function redisSet(key, obj){
-  const val = encodeURIComponent(JSON.stringify(obj));
-  const url = `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${val}`;
-  const res = await fetchWithTimeout(url, { method: "POST", headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } }, 10000);
-  const txt = await res.text().catch(()=>"");
-  return { ok: res.ok, status: res.status, bodyPreview: txt.slice(0,1000) };
-}
-
-(async()=>{
-  const symListEnv = (process.env.SYM_LIST || "").trim();
-  const targets = symListEnv ? symListEnv.split(",").map(s=>s.trim().toUpperCase()) : ["NI","LITH-CAR"];
-  const today = new Date();
-  // Metals-API timeseries tends to be valid up to yesterday; use yesterday
-  const end = addDaysISO(toDateISO(today), -1);
-  const start = monthsAgoISO(HISTORY_MONTHS, today);
-  if (start > end) {
-    console.error("Computed start > end; adjust HISTORY_MONTHS or dates.");
-    process.exit(2);
+  function getTodayAestDateString(baseDate = new Date()) {
+    const AEST_OFFSET_MINUTES = 10 * 60; // UTC+10
+    const aestTime = new Date(
+      baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000
+    );
+    return aestTime.toISOString().slice(0, 10);
   }
 
-  const usdToAud = await fetchUsdToAud();
-  console.log("USD->AUD:", usdToAud === null ? "(not available, storing USD)" : usdToAud);
+  function monthsAgoDateStringAest(months, baseDate = new Date()) {
+    const AEST_OFFSET_MINUTES = 10 * 60;
+    const aestTime = new Date(
+      baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000
+    );
+    aestTime.setMonth(aestTime.getMonth() - months);
+    return aestTime.toISOString().slice(0, 10);
+  }
 
-  for (const canonical of targets){
-    console.log(`\n--- ${canonical} -> trying candidates: ${CANDIDATES[canonical] ? CANDIDATES[canonical].join(",") : canonical}`);
-    let success = null;
-    const unitParam = METAL_UNITS[canonical] || null;
+  function addDays(dateStr, days) {
+    const d = new Date(dateStr + "T00:00:00Z");
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
 
-    const candidates = CANDIDATES[canonical] ? CANDIDATES[canonical] : [canonical];
-    for (const cand of candidates){
-      try{
-        const r = await fetchTimeseries(cand, canonical, start, end, unitParam);
-        console.log(`candidate ${cand}: HTTP ${r.status} (ok=${r.ok})`);
-        if (!r.ok){
-          console.log("  preview:", (r.bodyText || "").slice(0,300));
-          continue;
-        }
-        if (!r.json || r.json.success === false){
-          console.log("  api error:", r.json && r.json.error ? r.json.error : "(no json)");
-          continue;
-        }
-        const ratesByDate = r.json.rates || {};
-        const dates = Object.keys(ratesByDate).sort();
-        const usdKey = `USD${canonical}`;
-        const points = [];
-        for (const d of dates){
-          const dayRates = ratesByDate[d] || {};
-          let priceUSD = null;
-          if (typeof dayRates[usdKey] === "number" && dayRates[usdKey] > 0){
-            priceUSD = dayRates[usdKey];
-          } else if (typeof dayRates[cand] === "number" && dayRates[cand] > 0){
-            priceUSD = 1 / dayRates[cand];
-          }
-          if (typeof priceUSD === "number" && Number.isFinite(priceUSD)){
-            const value = usdToAud != null ? Number((priceUSD * usdToAud).toFixed(2)) : Number(priceUSD.toFixed(6));
-            points.push([d, value]);
-          }
-        }
+  // --- Fetch + Upstash helpers ---
 
-        console.log(`  candidate ${cand} returned ${points.length} points (sample: ${points.slice(0,3).map(p=>p.join(":")).join(", ")})`);
-        if (points.length > 3){
-          success = { candidate: cand, points };
-          break;
-        } else {
-          console.log("  too few points, trying next candidate");
-        }
-      }catch(err){
-        console.log(`  candidate ${cand} fetch error:`, err && err.message ? err.message : String(err));
+  async function fetchWithTimeout(url, opts = {}, timeout = 10000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(url, { ...opts, signal: controller.signal });
+      clearTimeout(id);
+      return res;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
+    }
+  }
+
+  const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || null;
+  const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
+
+  async function redisSet(key, value) {
+    if (!UPSTASH_URL || !UPSTASH_TOKEN) return false;
+    try {
+      const encoded =
+        typeof value === "string" ? value : JSON.stringify(value);
+      const res = await fetchWithTimeout(
+        `${UPSTASH_URL}/set/${encodeURIComponent(
+          key
+        )}/${encodeURIComponent(encoded)}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+        },
+        8000
+      );
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        console.warn("redisSet failed", key, res.status, txt.slice(0, 300));
+      }
+      return res.ok;
+    } catch (e) {
+      console.warn("redisSet error", key, e && e.message);
+      return false;
+    }
+  }
+
+  async function redisGet(key) {
+    if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
+    try {
+      const res = await fetchWithTimeout(
+        `${UPSTASH_URL}/get/${encodeURIComponent(key)}`,
+        {
+          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+        },
+        8000
+      );
+      if (!res.ok) return null;
+      const j = await res.json().catch(() => null);
+      if (!j || typeof j.result === "undefined") return null;
+      return j.result;
+    } catch (e) {
+      console.warn("redisGet error", key, e && e.message);
+      return null;
+    }
+  }
+
+  async function redisGetJson(key) {
+    const raw = await redisGet(key);
+    if (!raw) return null;
+    if (typeof raw === "string") {
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        console.warn("redisGetJson parse error", key, e && e.message);
+        return null;
       }
     }
-
-    if (!success){
-      console.error(`❌ No successful candidate for ${canonical}. Check API preview above or extend CANDIDATES list.`);
-      continue;
-    }
-
-    // persist under canonical key
-    const trimmed = success.points.filter(p => p && p[0]);
-    const history = {
-      symbol: canonical,
-      startDate: trimmed.length ? trimmed[0][0] : start,
-      endDate: trimmed.length ? trimmed[trimmed.length-1][0] : end,
-      lastUpdated: new Date().toISOString(),
-      points: trimmed,
-      meta: { candidateUsed: success.candidate, storedIn: usdToAud ? "AUD" : "USD", usdToAud: usdToAud || null }
-    };
-
-    const key = `history:metal:daily:${canonical}`;
-    try{
-      const res = await redisSet(key, history);
-      console.log(`Wrote ${key}: ok=${res.ok} status=${res.status} preview=${res.bodyPreview && res.bodyPreview.slice(0,200)}`);
-    }catch(e){
-      console.error("Upstash set failed:", e && e.message ? e.message : e);
-    }
+    if (typeof raw === "object") return raw;
+    return null;
   }
 
-  console.log("\nDone.");
-})();
+  const fmt = (n) =>
+    typeof n === "number" && Number.isFinite(n) ? Number(n.toFixed(2)) : null;
+
+  // --- FX to AUD (for consistency – we can still chart in "index" if needed) ---
+
+  async function fetchUsdToAud() {
+    try {
+      let fRes = await fetchWithTimeout(
+        "https://open.er-api.com/v6/latest/USD",
+        {},
+        7000
+      );
+      let ftxt = await fRes.text().catch(() => "");
+      let fj = null;
+      try {
+        fj = ftxt ? JSON.parse(ftxt) : null;
+      } catch {
+        fj = null;
+      }
+      if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === "number") {
+        return Number(fj.rates.AUD);
+      }
+
+      // fallback
+      fRes = await fetchWithTimeout(
+        "https://api.exchangerate.host/latest?base=USD&symbols=AUD",
+        {},
+        7000
+      );
+      ftxt = await fRes.text().catch(() => "");
+      try {
+        fj = ftxt ? JSON.parse(ftxt) : null;
+      } catch {
+        fj = null;
+      }
+      if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === "number") {
+        return Number(fj.rates.AUD);
+      }
+    } catch (e) {
+      console.warn("fx fetch error", e && e.message);
+    }
+    return null;
+  }
+
+  // --- Metals-API backfill for a single symbol ---
+  // IMPORTANT: no &unit=... here, to match your working NI request.
+
+  async function backfillSymbolTimeseries(symbol, fromStr, toStr, apiKey, usdToAud) {
+    const WINDOW_DAYS = 30;
+    let cursor = fromStr;
+    const pointsMap = new Map(); // date -> value
+
+    const chunkErrors = [];
+
+    while (cursor <= toStr) {
+      const endCandidate = addDays(cursor, WINDOW_DAYS - 1);
+      const endStr = endCandidate > toStr ? toStr : endCandidate;
+
+      const url =
+        `https://metals-api.com/api/timeseries` +
+        `?access_key=${encodeURIComponent(apiKey)}` +
+        `&base=USD` +
+        `&symbols=${encodeURIComponent(symbol)}` +
+        `&start_date=${encodeURIComponent(cursor)}` +
+        `&end_date=${encodeURIComponent(endStr)}`;
+
+      let json = null;
+      let txt = "";
+      let status = null;
+
+      try {
+        const res = await fetchWithTimeout(url, {}, 12000);
+        status = res.status;
+        txt = await res.text().catch(() => "");
+        try {
+          json = txt ? JSON.parse(txt) : null;
+        } catch {
+          json = null;
+        }
+
+        if (!res.ok || !json || json.success === false) {
+          console.warn(
+            "metals-api timeseries backfill error",
+            symbol,
+            cursor,
+            endStr,
+            txt.slice(0, 300)
+          );
+          chunkErrors.push({
+            start: cursor,
+            end: endStr,
+            status,
+            bodyPreview: txt.slice(0, 300),
+          });
+          // break instead of looping forever
+          break;
+        }
+      } catch (e) {
+        console.warn(
+          "metals-api timeseries fetch error",
+          symbol,
+          cursor,
+          endStr,
+          e && e.message
+        );
+        chunkErrors.push({
+          start: cursor,
+          end: endStr,
+          status: null,
+          bodyPreview: String(e && e.message),
+        });
+        break;
+      }
+
+      const ratesByDate = json.rates || {};
+      for (const [date, dailyRates] of Object.entries(ratesByDate)) {
+        if (!dailyRates || typeof dailyRates !== "object") continue;
+
+        const rawRate = dailyRates[symbol];
+        if (typeof rawRate !== "number" || !Number.isFinite(rawRate) || rawRate <= 0) {
+          continue;
+        }
+
+        // For NI & LITH-CAR we just treat rawRate as an index.
+        // (We don't try to enforce USD/ton sanity ranges here.)
+        let value = rawRate;
+
+        // If you really want to see these in "AUD index" you can multiply:
+        if (usdToAud != null) {
+          value = rawRate * usdToAud;
+        }
+
+        const v = fmt(value);
+        if (v == null) continue;
+
+        // Only set if not already present (earlier chunk shouldn't be overwritten)
+        if (!pointsMap.has(date)) {
+          pointsMap.set(date, v);
+        }
+      }
+
+      cursor = addDays(endStr, 1);
+    }
+
+    const dates = Array.from(pointsMap.keys()).sort();
+    const points = dates.map((d) => [d, pointsMap.get(d)]);
+
+    return { points, chunkErrors };
+  }
+
+  // --- Main ---
+
+  try {
+    const METALS_API_KEY = process.env.METALS_API_KEY || null;
+    if (!METALS_API_KEY) {
+      return { statusCode: 500, body: "Missing METALS_API_KEY" };
+    }
+    if (!UPSTASH_URL || !UPSTASH_TOKEN) {
+      return { statusCode: 500, body: "Missing Upstash env vars" };
+    }
+
+    const qs = (event && event.queryStringParameters) || {};
+    const SYMBOLS_PARAM = (qs.symbols || "").trim();
+    const symbols =
+      SYMBOLS_PARAM.length > 0
+        ? SYMBOLS_PARAM.split(",").map((s) => s.trim().toUpperCase())
+        : ["NI", "LITH-CAR"]; // default to the two problematic ones
+
+    const HISTORY_MONTHS = Number(process.env.HISTORY_MONTHS || 6);
+    const todayAest = getTodayAestDateString();
+    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+
+    const usdToAud = await fetchUsdToAud();
+
+    const results = [];
+
+    for (const symbol of symbols) {
+      // Backfill entire 6m window for this symbol
+      const { points, chunkErrors } = await backfillSymbolTimeseries(
+        symbol,
+        fromStr,
+        todayAest,
+        METALS_API_KEY,
+        usdToAud
+      );
+
+      if (!points || points.length === 0) {
+        results.push({
+          symbol,
+          skipped: false,
+          points: 0,
+          error: "no_points_returned",
+          chunkErrors,
+        });
+        continue;
+      }
+
+      // Overwrite any existing history for this symbol in Upstash
+      const historyKey = `history:metal:daily:${symbol}`;
+      const historyObj = {
+        symbol,
+        startDate: points[0][0],
+        endDate: points[points.length - 1][0],
+        lastUpdated: nowIso,
+        points,
+      };
+
+      await redisSet(historyKey, historyObj);
+
+      results.push({
+        symbol,
+        skipped: false,
+        points: points.length,
+        error: null,
+        chunkErrors,
+      });
+    }
+
+    const payload = {
+      ranAt: nowIso,
+      usdToAud,
+      symbols,
+      results,
+    };
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify(payload),
+    };
+  } catch (err) {
+    console.error(
+      "metals-history-backfill-once error",
+      err && (err.stack || err.message || err)
+    );
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error: (err && err.message) || String(err),
+      }),
+    };
+  }
+};
