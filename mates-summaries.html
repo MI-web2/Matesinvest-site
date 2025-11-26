@@ -2561,6 +2561,79 @@ function miRenderChart(history) {
       miCloseInstrumentModal();
     }
   });
+/* Robust price extraction + formatting for the modal */
+function getPriceFromItem(item) {
+  if (!item || typeof item !== 'object') return null;
+
+  // Common fields we might find
+  const fields = ['price','last','close','value','last_price','mid','midPrice','current'];
+
+  for (const f of fields) {
+    if (item[f] !== undefined && item[f] !== null && item[f] !== '') {
+      return item[f];
+    }
+  }
+
+  // If there's a history/time-series, take the last close
+  if (Array.isArray(item.history) && item.history.length) {
+    const lastEntry = item.history[item.history.length - 1];
+    if (lastEntry) {
+      if (lastEntry.close !== undefined && lastEntry.close !== null) return lastEntry.close;
+      if (lastEntry.price !== undefined && lastEntry.price !== null) return lastEntry.price;
+      // Some APIs use 'c' or 'y' etc. inspect and adapt if needed
+    }
+  }
+
+  // Some payloads nest under `quote` or `quoteData`
+  if (item.quote && typeof item.quote === 'object') {
+    return getPriceFromItem(item.quote);
+  }
+  if (item.quoteData && typeof item.quoteData === 'object') {
+    return getPriceFromItem(item.quoteData);
+  }
+
+  return null;
+}
+
+function formatPriceForModal(raw, unit) {
+  if (raw === null || raw === undefined || raw === '') return '—';
+
+  // ensure number
+  const n = Number(String(raw).replace(/,/g, ''));
+  if (Number.isNaN(n)) return String(raw); // show raw if not a number
+
+  // choose formatting (commas, 2 decimals)
+  const formatted = n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '$' + formatted + (unit ? `/${unit}` : '');
+}
+
+/* Example usage: call this when opening the modal for an item.
+   Replace `item` with the actual object you pass into the modal,
+   and ensure the modal has an element with class `.mi-ins-price`. */
+function populateModalPrice(item) {
+  // debug: inspect the object so you can see what fields exist
+  console.log('Opening modal for item:', item);
+
+  const priceEl = document.querySelector('.mi-ins-price');
+  if (!priceEl) return;
+
+  const rawPrice = getPriceFromItem(item);
+  // attempt to pull a unit string (e.g. 'oz') if present on object
+  const unit = item.unit || item.uom || item.unitOfMeasure || item.quoteUnit;
+
+  priceEl.textContent = formatPriceForModal(rawPrice, unit);
+}
+
+/* If your modal open handler is named openModal / showModal / renderModal, call populateModalPrice(item) from there.
+   Example:
+   document.querySelectorAll('.commodity-card').forEach(el => {
+     el.addEventListener('click', () => {
+       const item = /* get data for this commodity * /;
+       populateModalPrice(item);
+       openModal(item);
+     });
+   });
+*/
 </script>
 
 </body>
