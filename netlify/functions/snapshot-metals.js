@@ -2,7 +2,7 @@
 // Snapshot multiple metals and write to Upstash:
 //   - metals:YYYY-MM-DD (AEST)
 //   - metals:latest
-//   - history:metal:daily:<SYMBOL> (rolling history for charts)
+//   - history:metal:daily:<SYMBOL> (rolling history for charts) - DAILY APPEND only (no backfill)
 //
 // Env required:
 // - METALS_API_KEY
@@ -11,9 +11,10 @@
 //
 // Symbols stored: XAU, XAG, IRON, LITH-CAR, NI, URANIUM
 //
-// One-off backfill:
-//   Call with ?backfill=all                -> backfill all metals
-//   Call with ?backfill=NI,LITH-CAR       -> backfill specific metals only
+// NOTE: This version NO LONGER backfills. Each run:
+//  - fetches unit-aware latests (for your daily cards)
+//  - fetches raw no-unit latests (for history)
+//  - appends the raw no-unit USD number into history:metal:daily:<SYMBOL>
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -30,12 +31,16 @@ exports.handler = async function (event) {
   }
 
   function monthsAgoDateStringAest(months, baseDate = new Date()) {
-    const AEST_OFFSET_MINUTES = 10 * 60;
-    const aestTime = new Date(
-      baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000
-    );
-    aestTime.setMonth(aestTime.getMonth() - months);
-    return aestTime.toISOString().slice(0, 10);
+    const AEST_OFFSET_MIN = 10 * 60;
+    const aest = new Date(baseDate.getTime() + AEST_OFFSET_MIN * 60 * 1000);
+    aest.setMonth(aest.getMonth() - months);
+    return aest.toISOString().slice(0, 10);
+  }
+
+  function addDays(dateStr, days) {
+    const d = new Date(dateStr + "T00:00:00Z");
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
   }
 
   async function fetchWithTimeout(url, opts = {}, timeout = 9000) {
@@ -196,13 +201,7 @@ exports.handler = async function (event) {
 
   const HISTORY_MONTHS = Number(process.env.HISTORY_MONTHS || 6);
 
-  function addDays(dateStr, days) {
-    const d = new Date(dateStr + "T00:00:00Z");
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
-  }
-
-  // Metals-API unit mapping for timeseries backfill
+  // Metals-API unit mapping (for unit-aware latests)
   const METAL_UNIT_PARAMS = {
     XAU: "Troy Ounce",
     XAG: "Troy Ounce",
@@ -211,200 +210,6 @@ exports.handler = async function (event) {
     NI: "Ton",
     URANIUM: "Pound",
   };
-
-  // Backfill ~HISTORY_MONTHS of history from Metals-API timeseries in 30-day chunks
-  async function backfillMetalHistory(symbol, usdToAud, apiKey) {
-    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
-    const toStr = getTodayAestDateString();
-    const unitParam = METAL_UNIT_PARAMS[symbol] || "Troy Ounce";
-
-    const pointsMap = new Map(); // date -> price (AUD preferred, fallback USD)
-
-    let cursor = fromStr;
-    const WINDOW_DAYS = 30;
-
-    while (cursor <= toStr) {
-      const endStrCandidate = addDays(cursor, WINDOW_DAYS - 1);
-      const endStr = endStrCandidate > toStr ? toStr : endStrCandidate;
-
-      const url =
-        `https://metals-api.com/api/timeseries` +
-        `?access_key=${encodeURIComponent(apiKey)}` +
-        `&base=USD` +
-        `&symbols=${encodeURIComponent(symbol)}` +
-        `&unit=${encodeURIComponent(unitParam)}` +
-        `&start_date=${encodeURIComponent(cursor)}` +
-        `&end_date=${encodeURIComponent(endStr)}`;
-
-      let json = null;
-      let txt = "";
-      try {
-        const res = await fetchWithTimeout(url, {}, 12000);
-        txt = await res.text().catch(() => "");
-        try {
-          json = txt ? JSON.parse(txt) : null;
-        } catch {
-          json = null;
-        }
-        if (!res.ok || !json || json.success === false) {
-          console.warn(
-            "metals-api timeseries backfill error",
-            symbol,
-            cursor,
-            endStr,
-            txt.slice(0, 300)
-          );
-          break; // partial history still better than none
-        }
-      } catch (e) {
-        console.warn(
-          "metals-api timeseries fetch error",
-          symbol,
-          cursor,
-          endStr,
-          e && e.message
-        );
-        break;
-      }
-
-      const ratesByDate = json.rates || {};
-      const usdKey = `USD${symbol}`;
-
-      for (const [date, dailyRates] of Object.entries(ratesByDate)) {
-        if (!dailyRates || typeof dailyRates !== "object") continue;
-
-        const directUsd =
-          typeof dailyRates[usdKey] === "number" && dailyRates[usdKey] > 0
-            ? dailyRates[usdKey]
-            : null;
-
-        const rawRate =
-          typeof dailyRates[symbol] === "number" && dailyRates[symbol] > 0
-            ? dailyRates[symbol]
-            : null;
-
-        let priceUSD = null;
-
-        if (directUsd !== null && isInRange(symbol, directUsd)) {
-          priceUSD = directUsd;
-        } else {
-          const derived = deriveFromRawRate(symbol, rawRate);
-          priceUSD = derived.priceUSD;
-        }
-
-        if (priceUSD == null) continue;
-
-        const priceAUD =
-          usdToAud != null ? fmt(priceUSD * usdToAud) : null;
-        const value = priceAUD != null ? priceAUD : fmt(priceUSD);
-        if (value == null) continue;
-
-        if (!pointsMap.has(date)) {
-          pointsMap.set(date, value);
-        }
-      }
-
-      cursor = addDays(endStr, 1);
-    }
-
-    const dates = Array.from(pointsMap.keys()).sort();
-    const points = dates.map((d) => [d, pointsMap.get(d)]);
-
-    return {
-      symbol,
-      startDate: dates[0] || fromStr,
-      endDate: dates[dates.length - 1] || toStr,
-      lastUpdated: nowIso,
-      points,
-    };
-  }
-
-  // Only run backfill once per metal (when 6m window isn't already covered)
-  async function ensureMetalHistorySeed(symbol, usdToAud, apiKey) {
-    const key = `history:metal:daily:${symbol}`;
-    const existing = await redisGetJson(key);
-    const todayAest = getTodayAestDateString();
-    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
-
-    if (
-      existing &&
-      existing.startDate &&
-      existing.endDate &&
-      existing.startDate <= fromStr &&
-      existing.endDate >= todayAest &&
-      Array.isArray(existing.points) &&
-      existing.points.length > 0
-    ) {
-      // Already have a full window; no need to backfill again
-      console.log("history seed already present for", symbol);
-      return;
-    }
-
-    const history = await backfillMetalHistory(symbol, usdToAud, apiKey);
-    if (history && Array.isArray(history.points) && history.points.length > 0) {
-      await redisSet(key, history);
-      console.log(
-        "history seed stored for",
-        symbol,
-        "points=",
-        history.points.length
-      );
-    } else {
-      console.warn("history seed failed/empty for", symbol);
-    }
-  }
-
-  // Each day, append today's price from snapshot and trim to ~6m window.
-  async function updateMetalHistoryWithToday(symbols, snapshot, todayDateAest) {
-    const coll = snapshot.metals || snapshot.symbols || {};
-    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
-
-    for (const s of symbols) {
-      const m = coll[s];
-      if (!m) continue;
-
-      const historyKey = `history:metal:daily:${s}`;
-      const existing = (await redisGetJson(historyKey)) || {
-        symbol: s,
-        startDate: todayDateAest,
-        endDate: todayDateAest,
-        lastUpdated: nowIso,
-        points: [],
-      };
-
-      const points = Array.isArray(existing.points)
-        ? existing.points.filter((p) => p && p[0] !== todayDateAest)
-        : [];
-
-      const value =
-        typeof m.priceAUD === "number"
-          ? m.priceAUD
-          : typeof m.priceUSD === "number"
-          ? m.priceUSD
-          : null;
-      if (value == null) continue;
-
-      points.push([todayDateAest, value]);
-
-      // Trim to last ~6m
-      const trimmed = points.filter((p) => p[0] >= fromStr);
-      const newStart = trimmed.length > 0 ? trimmed[0][0] : fromStr;
-      const newEnd =
-        trimmed.length > 0
-          ? trimmed[trimmed.length - 1][0]
-          : todayDateAest;
-
-      const updated = {
-        symbol: s,
-        startDate: newStart,
-        endDate: newEnd,
-        lastUpdated: nowIso,
-        points: trimmed,
-      };
-
-      await redisSet(historyKey, updated);
-    }
-  }
 
   try {
     const METALS_API_KEY = process.env.METALS_API_KEY || null;
@@ -416,10 +221,10 @@ exports.handler = async function (event) {
     }
 
     const qs = (event && event.queryStringParameters) || {};
-    const backfillParam = (qs.backfill || "").trim();
+    // backfill removed: ignore qs.backfill
 
     // -------------------------------
-    // 1) Fetch metals prices in realistic units (latest only)
+    // 1) Fetch metals prices in realistic units (latest) — for daily cards
     // -------------------------------
     const groups = [
       {
@@ -490,7 +295,7 @@ exports.handler = async function (event) {
     }
 
     // -------------------------------
-    // 2) FX to AUD (today's USD->AUD)
+    // 2) FX to AUD (today's USD->AUD) — still fetched for snapshot.priceAUD
     // -------------------------------
     let usdToAud = null;
     try {
@@ -529,10 +334,54 @@ exports.handler = async function (event) {
     }
 
     // -------------------------------
-    // 3) Build snapshot payload
+    // 3) Fetch raw latest rates (no unit param) for history storage
     // -------------------------------
     const outputSymbols = ["XAU", "XAG", "IRON", "LITH-CAR", "NI", "URANIUM"];
+    try {
+      const rawUrl =
+        `https://metals-api.com/api/latest` +
+        `?access_key=${encodeURIComponent(METALS_API_KEY)}` +
+        `&base=USD` +
+        `&symbols=${encodeURIComponent(outputSymbols.join(","))}`;
+      const rawRes = await fetchWithTimeout(rawUrl, {}, 10000);
+      const rawTxt = await rawRes.text().catch(() => "");
+      let rawJson = null;
+      try {
+        rawJson = rawTxt ? JSON.parse(rawTxt) : null;
+      } catch {
+        rawJson = null;
+      }
+      previews.push({ url: rawUrl, status: rawRes.status, bodyPreview: rawTxt.slice(0, 600) });
+      const rawRates = rawJson && rawJson.rates ? rawJson.rates : null;
 
+      // Attach apiRawPrice to allRates entries for later snapshot use
+      for (const s of outputSymbols) {
+        const usdKey = `USD${s}`;
+        const directUsd =
+          rawRates && typeof rawRates[usdKey] === "number" && rawRates[usdKey] > 0
+            ? rawRates[usdKey]
+            : null;
+        const rawRate =
+          rawRates && typeof rawRates[s] === "number" && rawRates[s] > 0
+            ? rawRates[s]
+            : null;
+        let apiRawPrice = null;
+        if (directUsd !== null && isInRange(s, directUsd)) {
+          apiRawPrice = directUsd;
+        } else {
+          const derived = deriveFromRawRate(s, rawRate);
+          apiRawPrice = derived.priceUSD;
+        }
+        if (!allRates[s]) allRates[s] = { rates: {}, unitParam: METAL_UNIT_PARAMS[s] || "Troy Ounce" };
+        allRates[s].apiRawPrice = apiRawPrice;
+      }
+    } catch (e) {
+      console.warn("raw latest fetch failed", e && e.message);
+    }
+
+    // -------------------------------
+    // 4) Build snapshot payload (with USD{symbol} priority) — include apiPriceRaw
+    // -------------------------------
     const snapshot = {
       snappedAt: nowIso,
       usdToAud,
@@ -595,8 +444,10 @@ exports.handler = async function (event) {
         });
       }
 
+      // Attach both unit-aware derived USD (apiPriceUSD) and the raw no-unit USD (apiPriceRaw)
       snapshot.symbols[s] = {
         apiPriceUSD: priceUSD,
+        apiPriceRaw: entry && typeof entry.apiRawPrice === "number" ? entry.apiRawPrice : null,
         priceUSD: priceUSD === null ? null : fmt(priceUSD),
         priceAUD,
         usdToAud: usdToAud === null ? null : Number(usdToAud.toFixed(6)),
@@ -605,45 +456,69 @@ exports.handler = async function (event) {
       };
     }
 
-    snapshot.metals = snapshot.symbols; // alias
+    snapshot.metals = snapshot.symbols; // alias for convenience
 
     const todayDateAest = getTodayAestDateString();
 
     // -------------------------------
-    // 4) Optional one-off backfill (timeseries) – only when ?backfill=...
+    // 5) Update rolling history with today's snapshot point (append raw USD)
     // -------------------------------
-    let backfillSymbols = [];
-    if (backfillParam) {
-      if (
-        backfillParam === "1" ||
-        backfillParam.toLowerCase() === "all"
-      ) {
-        backfillSymbols = outputSymbols.slice();
-      } else {
-        const requested = backfillParam
-          .split(",")
-          .map((s) => s.trim().toUpperCase())
-          .filter(Boolean);
-        backfillSymbols = outputSymbols.filter((s) =>
-          requested.includes(s)
-        );
+    async function updateMetalHistoryWithToday(symbols, snapshot, todayDateAest) {
+      const coll = snapshot.metals || snapshot.symbols || {};
+      const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+
+      for (const s of symbols) {
+        const m = coll[s];
+        if (!m) continue;
+
+        const historyKey = `history:metal:daily:${s}`;
+        const existing = (await redisGetJson(historyKey)) || {
+          symbol: s,
+          startDate: todayDateAest,
+          endDate: todayDateAest,
+          lastUpdated: nowIso,
+          points: [],
+        };
+
+        const points = Array.isArray(existing.points)
+          ? existing.points.filter((p) => p && p[0] !== todayDateAest)
+          : [];
+
+        // Prefer the raw no-unit API price for history append, fall back to
+        // apiPriceUSD, then to priceAUD.
+        const value =
+          typeof m.apiPriceRaw === "number" && Number.isFinite(m.apiPriceRaw)
+            ? m.apiPriceRaw
+            : typeof m.apiPriceUSD === "number" && Number.isFinite(m.apiPriceUSD)
+            ? m.apiPriceUSD
+            : typeof m.priceAUD === "number" && Number.isFinite(m.priceAUD)
+            ? m.priceAUD
+            : null;
+
+        if (value == null) continue;
+
+        points.push([todayDateAest, value]);
+
+        // Trim to last ~HISTORY_MONTHS
+        const trimmed = points.filter((p) => p[0] >= fromStr);
+        const newStart = trimmed.length > 0 ? trimmed[0][0] : fromStr;
+        const newEnd =
+          trimmed.length > 0
+            ? trimmed[trimmed.length - 1][0]
+            : todayDateAest;
+
+        const updated = {
+          symbol: s,
+          startDate: newStart,
+          endDate: newEnd,
+          lastUpdated: nowIso,
+          points: trimmed,
+        };
+
+        await redisSet(historyKey, updated);
       }
     }
 
-    if (backfillSymbols.length > 0) {
-      console.log("Running one-off metals backfill for:", backfillSymbols);
-      for (const sym of backfillSymbols) {
-        try {
-          await ensureMetalHistorySeed(sym, usdToAud, METALS_API_KEY);
-        } catch (e) {
-          console.warn("ensureMetalHistorySeed error", sym, e && e.message);
-        }
-      }
-    }
-
-    // -------------------------------
-    // 5) Update rolling history with today's snapshot
-    // -------------------------------
     await updateMetalHistoryWithToday(outputSymbols, snapshot, todayDateAest);
 
     // -------------------------------
@@ -659,7 +534,6 @@ exports.handler = async function (event) {
       okLatest,
       payload: snapshot,
       previews,
-      backfillSymbols,
     };
 
     return {
