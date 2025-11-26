@@ -2304,20 +2304,33 @@ if (data.history) {
     // AI summary
     const summaryEl = document.getElementById("mi-ins-ai-summary");
     if (summaryEl) {
-      summaryEl.textContent = "We’re loading a short AI snapshot for this company…";
+      const aiSection = summaryEl.closest(".mi-ins-section");
+      const instrumentType = (data.type || "equity").toLowerCase();
 
-      miFetchAiSummary(data.type || "equity", data.code || "")
-        .then((s) => {
-          if (s && s.summary) {
-            summaryEl.textContent = s.summary;
-          } else {
-            summaryEl.textContent = "We couldn’t generate a summary right now.";
-          }
-        })
-        .catch((err) => {
-          console.error("AI summary error", err);
-          summaryEl.textContent = "We couldn’t generate a summary right now.";
-        });
+      // For commodities/metals: hide the AI section completely
+      if (instrumentType === "metal") {
+        if (aiSection) aiSection.style.display = "none";
+      } else {
+        // For equities: show AI summary as normal
+        if (aiSection) aiSection.style.display = "";
+        summaryEl.textContent =
+          "We’re loading a short AI snapshot for this company…";
+
+        miFetchAiSummary(instrumentType, data.code || "")
+          .then((s) => {
+            if (s && s.summary) {
+              summaryEl.textContent = s.summary;
+            } else {
+              summaryEl.textContent =
+                "We couldn’t generate a summary right now.";
+            }
+          })
+          .catch((err) => {
+            console.error("AI summary error", err);
+            summaryEl.textContent =
+              "We couldn’t generate a summary right now.";
+          });
+      }
     }    
     // Show overlay
     overlay.style.display = "flex";
