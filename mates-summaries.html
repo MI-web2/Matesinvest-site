@@ -1614,6 +1614,7 @@ function relativeTime(iso) {
 }
 
 /*
+/*
   Render the morning brief:
   - Inserts placeholders for Mates Morning Note and Stock of the Day (so loaders can populate them)
   - Renders metals grid using payload.symbols or payload.metals
@@ -1625,62 +1626,80 @@ function renderMorningBrief(payload) {
     return;
   }
 
-const sourceNote = (payload._debug && payload._debug.fxSource)
-  ? `Source: Metals-API · FX: ${payload._debug.fxSource}`
-  : 'Source: Metals-API';
+  const sourceNote = (payload._debug && payload._debug.fxSource)
+    ? `Source: Metals-API · FX: ${payload._debug.fxSource}`
+    : "Source: Metals-API";
 
-const cachedHint = (payload._debug && payload._debug.cached)
-  ? '<span style="color:var(--muted);font-size:0.7rem"> · cached</span>'
-  : '';
-
+  const cachedHint =
+    payload._debug && payload._debug.cached
+      ? '<span style="color:var(--muted);font-size:0.7rem"> · cached</span>'
+      : "";
 
   // Accept either payload.metals (old) or payload.symbols (snapshot-metals.js)
-  const metalsObj = (payload.metals && typeof payload.metals === 'object')
-    ? payload.metals
-    : (payload.symbols && typeof payload.symbols === 'object')
+  const metalsObj =
+    payload.metals && typeof payload.metals === "object"
+      ? payload.metals
+      : payload.symbols && typeof payload.symbols === "object"
       ? payload.symbols
       : null;
 
   // Build top performers HTML if present
-  let topPerfHtml = '';
+  let topPerfHtml = "";
   if (Array.isArray(payload.topPerformers) && payload.topPerformers.length) {
-const items = payload.topPerformers.map(tp => {
-  const pct = (typeof tp.pctGain === 'number') ? tp.pctGain : (tp.pctGain ? Number(tp.pctGain) : null);
-  const pctClass = (pct === null) ? 'perf-pct neutral' : (pct > 0 ? 'perf-pct up' : (pct < 0 ? 'perf-pct down' : 'perf-pct neutral'));
-  const lastClose = (typeof tp.lastClose === 'number') ? `$${formatMoney(tp.lastClose)}` : (tp.lastClose ? escapeHtml(String(tp.lastClose)) : '—');
-  // NOTE: removed the small company name under the ticker (kept perf-note at bottom)
-  return `
-    <button
-      type="button"
-      class="perf-card mi-performer-chip"
-      data-type="equity"
-      data-code="${escapeHtml(tp.symbol || '')}"
-      aria-label="Top performer ${escapeHtml(tp.symbol || '')}"
-    >
-      <div class="perf-top">
-        <div>
-          <div class="perf-symbol">${escapeHtml(tp.symbol || '')}</div>
-        </div>
-        <div>
-          <div class="perf-last">${lastClose}</div>
-          <div class="${pctClass}">
-            ${
-              pct === null
-                ? '—'
-                : (pct > 0
-                    ? '▲ ' + Math.abs(pct).toFixed(2) + '%'
-                    : (pct < 0
-                        ? '▼ ' + Math.abs(pct).toFixed(2) + '%'
-                        : `${pct}%`))
-            }
-          </div>
-        </div>
-      </div>
-      <div class="perf-note">${escapeHtml(tp.name || '')}</div>
-    </button>
-  `;
-
-}).join('');
+    const items = payload.topPerformers
+      .map((tp) => {
+        const pct =
+          typeof tp.pctGain === "number"
+            ? tp.pctGain
+            : tp.pctGain
+            ? Number(tp.pctGain)
+            : null;
+        const pctClass =
+          pct === null
+            ? "perf-pct neutral"
+            : pct > 0
+            ? "perf-pct up"
+            : pct < 0
+            ? "perf-pct down"
+            : "perf-pct neutral";
+        const lastClose =
+          typeof tp.lastClose === "number"
+            ? `$${formatMoney(tp.lastClose)}`
+            : tp.lastClose
+            ? escapeHtml(String(tp.lastClose))
+            : "—";
+        return `
+          <button
+            type="button"
+            class="perf-card mi-performer-chip"
+            data-type="equity"
+            data-code="${escapeHtml(tp.symbol || "")}"
+            aria-label="Top performer ${escapeHtml(tp.symbol || "")}"
+          >
+            <div class="perf-top">
+              <div>
+                <div class="perf-symbol">${escapeHtml(tp.symbol || "")}</div>
+              </div>
+              <div>
+                <div class="perf-last">${lastClose}</div>
+                <div class="${pctClass}">
+                  ${
+                    pct === null
+                      ? "—"
+                      : pct > 0
+                      ? "▲ " + Math.abs(pct).toFixed(2) + "%"
+                      : pct < 0
+                      ? "▼ " + Math.abs(pct).toFixed(2) + "%"
+                      : `${pct}%`
+                  }
+                </div>
+              </div>
+            </div>
+            <div class="perf-note">${escapeHtml(tp.name || "")}</div>
+          </button>
+        `;
+      })
+      .join("");
     topPerfHtml = `
       <div>
         <strong style="display:block;margin-bottom:6px">Yesterday's Top Performers</strong>
@@ -1691,21 +1710,22 @@ const items = payload.topPerformers.map(tp => {
     `;
   }
 
-  // Top meta row + placeholders for Mates note and SOTD
-// INSERT/REPLACE this block inside renderMorningBrief(), right after topMetaHtml is defined
-  const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(sourceNote)}${cachedHint}</div></div>`;
+  // Top meta row
+  const topMetaHtml = `<div class="brief-top-meta"><div></div><div style="text-align:right">${escapeHtml(
+    sourceNote
+  )}${cachedHint}</div></div>`;
 
   // Choose "Stock of the Day" candidate from top performers (if any)
   let sotdCandidate = null;
   if (Array.isArray(payload.topPerformers) && payload.topPerformers.length) {
     const pool = payload.topPerformers.slice(0, 5); // only the first 5
-    const idx = Math.floor(Math.random() * pool.length); // or 0 if you always want #1
+    const idx = Math.floor(Math.random() * pool.length);
     sotdCandidate = pool[idx] || pool[0];
   }
   // Expose globally so loadStockOfTheDay() can use the same stock
   window._mates_sotd = sotdCandidate;
 
-  // Build placeholders for Mates Morning Note and Stock of the Day
+  // Mates Morning Note placeholder
   const matesPlaceholder = `
     <div id="matesMorningNote" class="mates-note" style="display:none;">
       <div class="mates-note-header">
@@ -1716,13 +1736,25 @@ const items = payload.topPerformers.map(tp => {
     </div>
   `;
 
-  // SOTD placeholder (include data-* attrs + summary area)
-  const sotdTickerText = sotdCandidate && (sotdCandidate.symbol || sotdCandidate.ticker) ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker) : '—';
-  const sotdNameText = sotdCandidate && sotdCandidate.name ? escapeHtml(sotdCandidate.name) : '';
+  // SOTD placeholder
+  const sotdTickerText =
+    sotdCandidate && (sotdCandidate.symbol || sotdCandidate.ticker)
+      ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker)
+      : "—";
+  const sotdNameText =
+    sotdCandidate && sotdCandidate.name
+      ? escapeHtml(sotdCandidate.name)
+      : "";
   const sotdPlaceholder = `
     <div id="stockOfDay" class="sotd-card" style="display:none;"
-         data-symbol="${sotdCandidate ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker || '') : ''}"
-         data-name="${sotdCandidate ? escapeHtml(sotdCandidate.name || '') : ''}">
+         data-symbol="${
+           sotdCandidate
+             ? escapeHtml(sotdCandidate.symbol || sotdCandidate.ticker || "")
+             : ""
+         }"
+         data-name="${
+           sotdCandidate ? escapeHtml(sotdCandidate.name || "") : ""
+         }">
       <div class="sotd-header">
         <div class="sotd-title-left">
           <span class="sotd-pill">Stock of the Day</span>
@@ -1732,64 +1764,111 @@ const items = payload.topPerformers.map(tp => {
         <span id="sotdExchange" class="sotd-exchange">ASX</span>
       </div>
 
-      <!-- Summary area that loadStockOfTheDay() expects -->
       <div id="sotdSummary" class="sotd-summary" style="min-height:48px;color:#0b1220">
         Loading Stock of the Day…
       </div>
 
-      <!-- small disclaimer / footer -->
       <div class="sotd-disclaimer" style="margin-top:8px;color:var(--muted-2);font-size:0.78rem">
         Not financial advice — brief informational snapshot only.
       </div>
     </div>
   `;
-    if (metalsObj) {
+
+  // ---------- METALS SECTION (now clickable buttons feeding the modal) ----------
+  if (metalsObj) {
     const symbols = Object.keys(metalsObj);
-    const friendly = { XAU: 'Gold', XAG: 'Silver', IRON: 'Iron Ore 62% Fe', 'LITH-CAR':'Lithium Carbonate', NI: 'Nickel', URANIUM: 'Uranium' };
+    const friendly = {
+      XAU: "Gold",
+      XAG: "Silver",
+      IRON: "Iron Ore 62% Fe",
+      "LITH-CAR": "Lithium Carbonate",
+      NI: "Nickel",
+      URANIUM: "Uranium",
+    };
 
-    const cards = symbols.map(sym => {
-      const m = metalsObj[sym] || {};
-      const priceAUDraw = (typeof m.priceAUD === 'number') ? m.priceAUD : null;
-      const pct = (typeof m.pctChange === 'number') ? m.pctChange : null;
+    const cards = symbols
+      .map((sym) => {
+        const m = metalsObj[sym] || {};
 
-      // Prefer explicit unit from snapshot; fallback to heuristic
-      const unitFromSnapshot = (m.unit || m.unit === '' ? m.unit : (m.unitName || '')).toString().trim();
-      const unit = unitFromSnapshot || ((sym === 'XAU' || sym === 'XAG') ? 'oz' : (sym === 'IRON' ? 'tonne' : 'unit'));
+        const priceAUDraw =
+          typeof m.priceAUD === "number" ? m.priceAUD : null;
+        const pct =
+          typeof m.pctChange === "number" && Number.isFinite(m.pctChange)
+            ? m.pctChange
+            : null;
 
-const priceDisplay = priceAUDraw !== null 
-    ? `$${formatMoney(priceAUDraw)}`
-    : '<span style="color:#ffd166">Unavailable</span>';
+        // Unit from snapshot, fallback heuristic
+        const unitFromSnapshot = (
+          m.unit || m.unit === "" ? m.unit : m.unitName || ""
+        )
+          .toString()
+          .trim();
+        const unit =
+          unitFromSnapshot ||
+          (sym === "XAU" || sym === "XAG"
+            ? "oz"
+            : sym === "IRON"
+            ? "tonne"
+            : "unit");
 
+        const priceDisplay =
+          priceAUDraw !== null
+            ? `$${formatMoney(priceAUDraw)}`
+            : '<span style="color:#ffd166">Unavailable</span>';
 
-      // pct badge
-      let pctHtml = `<span class="brief-badge no-data" aria-hidden="true">—</span>`;
-      if (pct !== null) {
-        if (pct > 0) pctHtml = `<span class="brief-badge up" aria-label="${pct}% up">▲ ${Math.abs(pct)}%</span>`;
-        else if (pct < 0) pctHtml = `<span class="brief-badge down" aria-label="${pct}% down">▼ ${Math.abs(pct)}%</span>`;
-        else pctHtml = `<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>`;
-      }
+        // pct badge
+        let pctHtml =
+          '<span class="brief-badge no-data" aria-hidden="true">—</span>';
+        if (pct !== null) {
+          if (pct > 0) {
+            pctHtml = `<span class="brief-badge up" aria-label="${pct.toFixed(
+              2
+            )}% up">▲ ${pct.toFixed(2)}%</span>`;
+          } else if (pct < 0) {
+            pctHtml = `<span class="brief-badge down" aria-label="${pct.toFixed(
+              2
+            )}% down">▼ ${Math.abs(pct).toFixed(2)}%</span>`;
+          } else {
+            pctHtml =
+              '<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>';
+          }
+        }
 
-      // optional trace: show original API USD (apiPriceUSD) small hint if present
-      const apiUsdRaw = (typeof m.apiPriceUSD === 'number') ? m.apiPriceUSD : (typeof m.apiPriceUsd === 'number' ? m.apiPriceUsd : null);
-      const apiHint = (apiUsdRaw !== null) ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:6px">api: $${formatMoney(apiUsdRaw)} USD</div>` : '';
-
-      return `
-        <div class="card-metal" role="group" aria-label="${escapeHtml(friendly[sym] || sym)} price card">
-          <div class="metal-head">
-            <div>
-              <div class="metal-name"><strong>${escapeHtml(friendly[sym] || sym)}</strong> <small style="color:var(--muted)">(${escapeHtml(sym)})</small></div>
-              <div class="metal-price">${priceDisplay} <small class="metal-sub" style="color:var(--muted);font-weight:600">${escapeHtml('/' + unit)}</small></div>
+        return `
+          <button
+            type="button"
+            class="card-metal mi-performer-chip"
+            data-type="metal"
+            data-code="${escapeHtml(sym)}"
+            aria-label="View recent price chart for ${escapeHtml(
+              friendly[sym] || sym
+            )}"
+          >
+            <div class="metal-head">
+              <div>
+                <div class="metal-name">
+                  <strong>${escapeHtml(friendly[sym] || sym)}</strong>
+                  <small style="color:var(--muted)"> (${escapeHtml(
+                    sym
+                  )})</small>
+                </div>
+                <div class="metal-price">
+                  ${priceDisplay}
+                  <small class="metal-sub" style="color:var(--muted);font-weight:600">
+                    ${escapeHtml("/" + unit)}
+                  </small>
+                </div>
+              </div>
+              <div style="text-align:right">
+                ${pctHtml}
+              </div>
             </div>
-            <div style="text-align:right">
-              ${pctHtml}
-            </div>
-          </div>
-          ${apiHint}
-        </div>
-      `;
-    }).join("");
+          </button>
+        `;
+      })
+      .join("");
 
-    // Assemble final HTML: topMeta, topPerformers (if any), top two cards (mates note & sotd), then metals grid
+    // Final HTML: top meta, top performers, top cards, then metals grid
     briefContent.innerHTML = `
       ${topMetaHtml}
       ${topPerfHtml}
@@ -1798,7 +1877,12 @@ const priceDisplay = priceAUDraw !== null
         ${sotdPlaceholder}
       </div>
       <div class="brief-grid">
-        ${cards}
+        <div class="metals-header-row">
+          <div class="metals-title">Key Commodities</div>
+        </div>
+        <div class="metals-grid">
+          ${cards}
+        </div>
       </div>
     `;
 
@@ -1806,13 +1890,19 @@ const priceDisplay = priceAUDraw !== null
   }
 
   // Fallback: old single-gold payload shape — include top performers if present
-  const narrative = payload.narrative || (payload.priceAUD ? `The spot gold price is currently $${payload.priceAUD} AUD.` : 'The spot gold price is currently unavailable.');
+  const narrative =
+    payload.narrative ||
+    (payload.priceAUD
+      ? `The spot gold price is currently $${payload.priceAUD} AUD.`
+      : "The spot gold price is currently unavailable.");
   const fallbackHtml = `
     ${topMetaHtml}
     ${topPerfHtml}
     <div style="padding:0.6rem;border-radius:8px;background:linear-gradient(180deg, rgba(20,24,40,0.84), rgba(12,14,26,0.78));border:1px solid rgba(255,255,255,0.03)">
       <div style="font-size:0.9rem;color:var(--muted)"><strong>Spot gold</strong></div>
-      <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(narrative)}</div>
+      <div style="margin-top:0.35rem;color:#fff;font-weight:600">${escapeHtml(
+        narrative
+      )}</div>
     </div>
   `;
   briefContent.innerHTML = fallbackHtml;
