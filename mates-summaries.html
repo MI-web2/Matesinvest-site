@@ -1033,6 +1033,32 @@
 .segmented button {
   background-image: none !important;
 }
+/* Reusable pill button matching "MatesInvest summary" */
+.btn-pill {
+  display:inline-block;
+  padding:0.28rem 0.65rem;
+  border-radius:999px;
+  font-size:0.82rem;
+  line-height:1;
+  text-decoration:none;
+  border:1px solid var(--border);
+  background:#ffffff;
+  color:#0b1220;
+  cursor:pointer;
+  white-space:nowrap;
+  box-shadow:none;
+  transition:background .12s ease, border-color .12s ease, transform .08s ease;
+}
+
+.btn-pill-primary {
+  background:var(--accent);
+  color:#001220;
+  border-color:transparent;
+}
+
+.btn-pill-primary:active {
+  transform:translateY(1px);
+}
 
 
   </style>
@@ -1090,15 +1116,14 @@
     </section>
 <a href="#subscribe"
    style="
-     display:inline-block;
-     margin-top:4px;
-     font-size:0.85rem;
-     color:#00BFFF;
+     font-size:0.9rem;
+     color:var(--navy);
      text-decoration:none;
      font-weight:600;
    ">
    Subscribe to the Daily Email →
 </a>
+
     <!-- LATEST HEADLINES -->
     <section id="news" class="card" aria-labelledby="latest-headlines">
       <h2 id="latest-headlines">Latest Headlines</h2>
@@ -1153,35 +1178,19 @@
               font-size:0.9rem;
             "
           />
-<button type="submit"
-  style="
-    padding: 0.48rem 1rem;
-    border-radius: 999px;
-    background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-    border: 1px solid #1e4fd7;
-    color: #ffffff;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    box-shadow: 0 2px 3px rgba(0,0,0,0.08);
-    transition: all 0.15s ease-in-out;
-  "
-  onmouseover="this.style.background='linear-gradient(180deg,#2563eb 0%,#1d4ed8 100%)'"
-  onmouseout="this.style.background='linear-gradient(180deg,#3b82f6 0%,#2563eb 100%)'">
+<button type="submit" class="btn-pill btn-pill-primary">
   Subscribe
 </button>
-
-
 <div style="margin-top:1rem;font-size:0.85rem;">
-  <a href="#top"
-     style="
-       color:#00BFFF;
-       text-decoration:none;
-       font-weight:600;
-     ">
-     Back to top →
-  </a>
+<a href="#top"
+   style="
+     color:var(--navy);
+     text-decoration:none;
+     font-weight:600;
+   ">
+   Back to top →
+</a>
+
 </div>
         </div>
         <div id="dailyBriefStatus" style="margin-top:0.45rem;font-size:0.85rem;color:var(--muted);"></div>
