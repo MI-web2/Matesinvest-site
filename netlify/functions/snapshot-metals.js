@@ -179,7 +179,7 @@ exports.handler = async function (event) {
 
   const HISTORY_MONTHS = Number(process.env.HISTORY_MONTHS || 6);
 
-  // Metals-API unit mapping for timeseries
+  // Metals-API unit mapping for timeseries / historical
   const METAL_UNIT_PARAMS = {
     XAU: "Troy Ounce",
     XAG: "Troy Ounce",
@@ -204,113 +204,245 @@ exports.handler = async function (event) {
     return d.toISOString().slice(0, 10);
   }
 
-  // Backfill ~6m of history from Metals-API timeseries in 30-day chunks
-  async function backfillMetalHistory(symbol, usdToAud, apiKey) {
-    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
-    const toStr = getTodayAestDateString();
-    const unitParam = METAL_UNIT_PARAMS[symbol] || "Troy Ounce";
+  // Fetch a single day's price for a symbol via /historical
+  async function fetchHistoricalRateForDay(symbol, dateStr, unitParam, apiKey) {
+    const url =
+      `https://metals-api.com/api/${encodeURIComponent(dateStr)}` +
+      `?access_key=${encodeURIComponent(apiKey)}` +
+      `&base=USD` +
+      `&symbols=${encodeURIComponent(symbol)}` +
+      `&unit=${encodeURIComponent(unitParam)}`;
 
-    const pointsMap = new Map(); // date -> price (AUD preferred, fallback USD)
-
-    let cursor = fromStr;
-    const WINDOW_DAYS = 30;
-
-    while (cursor <= toStr) {
-      const endStrCandidate = addDays(cursor, WINDOW_DAYS - 1);
-      const endStr =
-        endStrCandidate > toStr ? toStr : endStrCandidate;
-
-      const url =
-        `https://metals-api.com/api/timeseries` +
-        `?access_key=${encodeURIComponent(apiKey)}` +
-        `&base=USD` +
-        `&symbols=${encodeURIComponent(symbol)}` +
-        `&unit=${encodeURIComponent(unitParam)}` +
-        `&start_date=${encodeURIComponent(cursor)}` +
-        `&end_date=${encodeURIComponent(endStr)}`;
-
-      let json = null;
-      let txt = "";
+    let json = null;
+    let txt = "";
+    try {
+      const res = await fetchWithTimeout(url, {}, 10000);
+      txt = await res.text().catch(() => "");
       try {
-        const res = await fetchWithTimeout(url, {}, 12000);
-        txt = await res.text().catch(() => "");
-        try {
-          json = txt ? JSON.parse(txt) : null;
-        } catch {
-          json = null;
-        }
-        if (!res.ok || !json || json.success === false) {
-          console.warn(
-            "metals-api timeseries backfill error",
-            symbol,
-            cursor,
-            endStr,
-            txt.slice(0, 300)
-          );
-          break; // don't loop forever; partial history is still better than none
-        }
-      } catch (e) {
-        console.warn(
-          "metals-api timeseries fetch error",
-          symbol,
-          cursor,
-          endStr,
-          e && e.message
-        );
-        break;
+        json = txt ? JSON.parse(txt) : null;
+      } catch {
+        json = null;
       }
 
-      const ratesByDate = json.rates || {};
-      const usdKey = `USD${symbol}`;
+      if (!res.ok || !json || json.success === false) {
+        console.warn(
+          "metals-api historical error",
+          symbol,
+          dateStr,
+          txt.slice(0, 300)
+        );
+        return null;
+      }
+    } catch (e) {
+      console.warn(
+        "metals-api historical fetch error",
+        symbol,
+        dateStr,
+        e && e.message
+      );
+      return null;
+    }
 
-      for (const [date, dailyRates] of Object.entries(ratesByDate)) {
-        if (!dailyRates || typeof dailyRates !== "object") continue;
+    const rates = json.rates || {};
+    const usdKey = `USD${symbol}`;
+    const directUsd =
+      typeof rates[usdKey] === "number" && rates[usdKey] > 0
+        ? rates[usdKey]
+        : null;
+    const rawRate =
+      typeof rates[symbol] === "number" && rates[symbol] > 0
+        ? rates[symbol]
+        : null;
 
-        const directUsd =
-          typeof dailyRates[usdKey] === "number" && dailyRates[usdKey] > 0
-            ? dailyRates[usdKey]
-            : null;
+    let priceUSD = null;
 
-        const rawRate =
-          typeof dailyRates[symbol] === "number" && dailyRates[symbol] > 0
-            ? dailyRates[symbol]
-            : null;
+    if (directUsd !== null && isInRange(symbol, directUsd)) {
+      priceUSD = directUsd;
+    } else {
+      const derived = deriveFromRawRate(symbol, rawRate);
+      priceUSD = derived.priceUSD;
+    }
 
-        let priceUSD = null;
+    return priceUSD;
+  }
 
-        if (directUsd !== null && isInRange(symbol, directUsd)) {
-          priceUSD = directUsd;
-        } else {
-          const derived = deriveFromRawRate(symbol, rawRate);
-          priceUSD = derived.priceUSD;
-        }
+  // Backfill using per-day /historical calls for ~6 months
+  async function backfillMetalHistoryViaHistorical(
+    symbol,
+    usdToAud,
+    apiKey,
+    fromStr,
+    toStr
+  ) {
+    const unitParam = METAL_UNIT_PARAMS[symbol] || "Troy Ounce";
+    const points = [];
 
-        if (priceUSD == null) continue;
-
+    let cursor = fromStr;
+    while (cursor <= toStr) {
+      const priceUSD = await fetchHistoricalRateForDay(
+        symbol,
+        cursor,
+        unitParam,
+        apiKey
+      );
+      if (priceUSD != null) {
         const priceAUD =
           usdToAud != null ? fmt(priceUSD * usdToAud) : null;
         const value =
           priceAUD != null ? priceAUD : fmt(priceUSD);
-        if (value == null) continue;
-
-        if (!pointsMap.has(date)) {
-          pointsMap.set(date, value);
+        if (value != null) {
+          points.push([cursor, value]);
         }
       }
-
-      cursor = addDays(endStr, 1);
+      cursor = addDays(cursor, 1);
     }
 
-    const dates = Array.from(pointsMap.keys()).sort();
-    const points = dates.map((d) => [d, pointsMap.get(d)]);
+    points.sort((a, b) => (a[0] > b[0] ? 1 : a[0] < b[0] ? -1 : 0));
+
+    const startDate = points.length ? points[0][0] : fromStr;
+    const endDate = points.length ? points[points.length - 1][0] : toStr;
 
     return {
       symbol,
-      startDate: fromStr,
-      endDate: toStr,
+      startDate,
+      endDate,
       lastUpdated: nowIso,
       points,
     };
+  }
+
+  // Backfill ~6m of history from Metals-API timeseries in 30-day chunks,
+  // with fallback to /historical if timeseries is too thin.
+  async function backfillMetalHistory(symbol, usdToAud, apiKey) {
+    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+    const todayStr = getTodayAestDateString();
+    // We'll get today from the /latest snapshot; timeseries covers up to yesterday
+    const timeseriesEnd = addDays(todayStr, -1);
+    const unitParam = METAL_UNIT_PARAMS[symbol] || "Troy Ounce";
+
+    const pointsMap = new Map(); // date -> price (AUD preferred, fallback USD)
+
+    // ---------- 1) Try /timeseries in 30-day chunks ----------
+    if (fromStr <= timeseriesEnd) {
+      let cursor = fromStr;
+      const WINDOW_DAYS = 30;
+
+      while (cursor <= timeseriesEnd) {
+        const endCandidate = addDays(cursor, WINDOW_DAYS - 1);
+        const endStr =
+          endCandidate > timeseriesEnd ? timeseriesEnd : endCandidate;
+
+        const url =
+          `https://metals-api.com/api/timeseries` +
+          `?access_key=${encodeURIComponent(apiKey)}` +
+          `&base=USD` +
+          `&symbols=${encodeURIComponent(symbol)}` +
+          `&unit=${encodeURIComponent(unitParam)}` +
+          `&start_date=${encodeURIComponent(cursor)}` +
+          `&end_date=${encodeURIComponent(endStr)}`;
+
+        let json = null;
+        let txt = "";
+        try {
+          const res = await fetchWithTimeout(url, {}, 12000);
+          txt = await res.text().catch(() => "");
+          try {
+            json = txt ? JSON.parse(txt) : null;
+          } catch {
+            json = null;
+          }
+          if (!res.ok || !json || json.success === false) {
+            console.warn(
+              "metals-api timeseries backfill error",
+              symbol,
+              cursor,
+              endStr,
+              txt.slice(0, 300)
+            );
+            // stop timeseries attempt; we'll fallback
+            break;
+          }
+        } catch (e) {
+          console.warn(
+            "metals-api timeseries fetch error",
+            symbol,
+            cursor,
+            endStr,
+            e && e.message
+          );
+          break;
+        }
+
+        const ratesByDate = json.rates || {};
+        const usdKey = `USD${symbol}`;
+
+        for (const [date, dailyRates] of Object.entries(ratesByDate)) {
+          if (!dailyRates || typeof dailyRates !== "object") continue;
+
+          const directUsd =
+            typeof dailyRates[usdKey] === "number" && dailyRates[usdKey] > 0
+              ? dailyRates[usdKey]
+              : null;
+
+          const rawRate =
+            typeof dailyRates[symbol] === "number" && dailyRates[symbol] > 0
+              ? dailyRates[symbol]
+              : null;
+
+          let priceUSD = null;
+
+          if (directUsd !== null && isInRange(symbol, directUsd)) {
+            priceUSD = directUsd;
+          } else {
+            const derived = deriveFromRawRate(symbol, rawRate);
+            priceUSD = derived.priceUSD;
+          }
+
+          if (priceUSD == null) continue;
+
+          const priceAUD =
+            usdToAud != null ? fmt(priceUSD * usdToAud) : null;
+          const value =
+            priceAUD != null ? priceAUD : fmt(priceUSD);
+          if (value == null) continue;
+
+          if (!pointsMap.has(date)) {
+            pointsMap.set(date, value);
+          }
+        }
+
+        cursor = addDays(endStr, 1);
+      }
+    }
+
+    // ---------- 2) If timeseries gave us a decent history, use it ----------
+    const MIN_POINTS_FOR_TIMESERIES = 60; // roughly 3 months of trading days
+    if (pointsMap.size >= MIN_POINTS_FOR_TIMESERIES) {
+      const dates = Array.from(pointsMap.keys()).sort();
+      const points = dates.map((d) => [d, pointsMap.get(d)]);
+      return {
+        symbol,
+        startDate: dates[0],
+        endDate: dates[dates.length - 1],
+        lastUpdated: nowIso,
+        points,
+      };
+    }
+
+    // ---------- 3) Fallback: use per-day /historical endpoint ----------
+    console.warn(
+      "backfillMetalHistory: falling back to /historical for",
+      symbol,
+      "pointsMap.size=",
+      pointsMap.size
+    );
+    return await backfillMetalHistoryViaHistorical(
+      symbol,
+      usdToAud,
+      apiKey,
+      fromStr,
+      timeseriesEnd
+    );
   }
 
   // Only run backfill once per metal (when 6m window isn't already covered)
@@ -329,7 +461,7 @@ exports.handler = async function (event) {
       Array.isArray(existing.points) &&
       existing.points.length > 0
     ) {
-      // Already have a full 6m window; no need to backfill again
+      // Already have a full ~6m window; no need to backfill again
       return;
     }
 
@@ -584,11 +716,11 @@ exports.handler = async function (event) {
       };
     }
 
-    snapshot.metals = snapshot.symbols; // alias
+    snapshot.metals = snapshot.symbols; // alias for convenience
 
     const todayDateAest = getTodayAestDateString();
 
-    // 4) Seed 6m history once per metal, using Metals-API timeseries
+    // 4) Seed 6m history once per metal, using Metals-API timeseries + historical fallback
     await Promise.all(
       outputSymbols.map((s) =>
         ensureMetalHistorySeed(s, usdToAud, METALS_API_KEY)
