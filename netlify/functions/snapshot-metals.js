@@ -1,5 +1,8 @@
 // netlify/functions/snapshot-metals.js
-// Snapshot multiple metals and write to Upstash: metals:YYYY-MM-DD and metals:latest
+// Snapshot multiple metals and write to Upstash:
+//   - metals:YYYY-MM-DD (AEST)
+//   - metals:latest
+//   - history:metal:daily:<SYMBOL> (6m rolling history for charts)
 //
 // Env required:
 // - METALS_API_KEY
@@ -7,34 +10,8 @@
 // - UPSTASH_REDIS_REST_TOKEN
 //
 // Symbols stored: XAU, XAG, IRON, LITH-CAR, NI, URANIUM
-//
-// How this works:
-// - We call Metals-API /latest with base=USD and the correct unit parameter:
-//     XAU, XAG              -> unit=Troy Ounce  (USD per oz target)
-//     IRON, LITH-CAR, NI    -> unit=Ton         (USD per tonne target)
-//     URANIUM               -> unit=Pound       (USD per lb target)
-//
-// - Metals-API response example (for IRON):
-//   {
-//     "base": "USD",
-//     "rates": {
-//       "IRON": 10826469.433475018,
-//       "USD": 1,
-//       "USDIRON": 114.9270710242
-//     }
-//   }
-//
-//   In this shape:
-//   - USDIRON is the direct "USD per unit" price we want.
-//   - IRON is a normalization rate (metal per USD) that we generally ignore.
-//
-// - For each symbol we therefore:
-//   1) Prefer rates[`USD${symbol}`] if present and sane (e.g. USDIRON).
-//   2) If that is missing, fall back to interpreting rates[symbol] via
-//      direct vs inverse + sanity ranges.
-//
-// - We convert USD -> AUD via FX and store priceAUD alongside priceUSD.
-// - We attach a "sanity" section with any symbols that failed checks.
+
+const fetch = (...args) => global.fetch(...args);
 
 exports.handler = async function (event) {
   const nowIso = new Date().toISOString();
@@ -42,20 +19,12 @@ exports.handler = async function (event) {
   // Return YYYY-MM-DD string using AEST (Australia/Brisbane, UTC+10, no DST)
   function getTodayAestDateString(baseDate = new Date()) {
     const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane is UTC+10 all year
-    const aestTime = new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
+    const aestTime = new Date(
+      baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000
+    );
     return aestTime.toISOString().slice(0, 10);
   }
 
-  // -----------------------------
-  // Helpers
-  // -----------------------------
-  async function fetchWithTimeout(url, opts = {}, timeout = 9000) {
-    ...
-
-
-  // -----------------------------
-  // Helpers
-  // -----------------------------
   async function fetchWithTimeout(url, opts = {}, timeout = 9000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
@@ -75,9 +44,12 @@ exports.handler = async function (event) {
   async function redisSet(key, value) {
     if (!UPSTASH_URL || !UPSTASH_TOKEN) return false;
     try {
-      const encoded = encodeURIComponent(JSON.stringify(value));
+      const encoded =
+        typeof value === "string" ? value : JSON.stringify(value);
       const res = await fetchWithTimeout(
-        `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${encoded}`,
+        `${UPSTASH_URL}/set/${encodeURIComponent(
+          key
+        )}/${encodeURIComponent(encoded)}`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
@@ -93,6 +65,41 @@ exports.handler = async function (event) {
       console.warn("redisSet error", key, e && e.message);
       return false;
     }
+  }
+
+  async function redisGet(key) {
+    if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
+    try {
+      const res = await fetchWithTimeout(
+        `${UPSTASH_URL}/get/${encodeURIComponent(key)}`,
+        {
+          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+        },
+        8000
+      );
+      if (!res.ok) return null;
+      const j = await res.json().catch(() => null);
+      if (!j || typeof j.result === "undefined") return null;
+      return j.result;
+    } catch (e) {
+      console.warn("redisGet error", key, e && e.message);
+      return null;
+    }
+  }
+
+  async function redisGetJson(key) {
+    const raw = await redisGet(key);
+    if (!raw) return null;
+    if (typeof raw === "string") {
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        console.warn("redisGetJson parse error", key, e && e.message);
+        return null;
+      }
+    }
+    if (typeof raw === "object") return raw;
+    return null;
   }
 
   const fmt = (n) =>
@@ -116,33 +123,32 @@ exports.handler = async function (event) {
   };
 
   // Rough sanity ranges in USD per unit for each symbol.
-  // Intentionally wide – just enough to filter out absurd values.
   const VALID_RANGES = {
-    XAU: { min: 800, max: 7000 },            // gold per oz
-    XAG: { min: 5, max: 150 },               // silver per oz
-    IRON: { min: 30, max: 500 },             // iron ore per tonne
-    "LITH-CAR": { min: 3000, max: 150000 },  // lithium carbonate per tonne
-    NI: { min: 8000, max: 150000 },          // nickel per tonne
-    URANIUM: { min: 10, max: 500 },          // uranium per lb
+    XAU: { min: 800, max: 7000 }, // gold per oz
+    XAG: { min: 5, max: 150 }, // silver per oz
+    IRON: { min: 30, max: 500 }, // iron ore per tonne
+    "LITH-CAR": { min: 3000, max: 150000 }, // lithium carbonate per tonne
+    NI: { min: 8000, max: 150000 }, // nickel per tonne
+    URANIUM: { min: 10, max: 500 }, // uranium per lb
   };
 
-  // Given a candidate price and a symbol, check if it's within our sanity window
   function isInRange(symbol, price) {
     const range = VALID_RANGES[symbol];
-    if (!range || typeof price !== "number" || !Number.isFinite(price)) return false;
+    if (!range || typeof price !== "number" || !Number.isFinite(price)) {
+      return false;
+    }
     return price >= range.min && price <= range.max;
   }
 
   // Fallback interpreter for when USD{SYMBOL} is missing:
-  // Try treating rate as USD per unit or unit per USD and see what fits.
   function deriveFromRawRate(symbol, rateRaw) {
     if (typeof rateRaw !== "number" || !Number.isFinite(rateRaw) || rateRaw <= 0) {
       return { priceUSD: null, mode: "invalid_rate" };
     }
 
     const range = VALID_RANGES[symbol];
-    const candDirect = rateRaw;      // treat as USD per unit
-    const candInverse = 1 / rateRaw; // treat as unit price inverted
+    const candDirect = rateRaw; // treat as USD per unit
+    const candInverse = 1 / rateRaw;
 
     if (!range) {
       // No range defined: default to inverse (Metals-API base=USD docs behaviour)
@@ -156,7 +162,6 @@ exports.handler = async function (event) {
     if (!directOK && inverseOK) return { priceUSD: candInverse, mode: "inverse" };
 
     if (directOK && inverseOK) {
-      // Pick whichever is closer to the middle of the range
       const mid = (range.min + range.max) / 2;
       const dDist = Math.abs(candDirect - mid);
       const iDist = Math.abs(candInverse - mid);
@@ -165,12 +170,226 @@ exports.handler = async function (event) {
         : { priceUSD: candInverse, mode: "inverse_both_ok" };
     }
 
-    // Neither in range – treat as unusable.
     return {
       priceUSD: null,
       mode: "out_of_range",
       debug: { candDirect, candInverse, range },
     };
+  }
+
+  const HISTORY_MONTHS = Number(process.env.HISTORY_MONTHS || 6);
+
+  // Metals-API unit mapping for timeseries
+  const METAL_UNIT_PARAMS = {
+    XAU: "Troy Ounce",
+    XAG: "Troy Ounce",
+    IRON: "Ton",
+    "LITH-CAR": "Ton",
+    NI: "Ton",
+    URANIUM: "Pound",
+  };
+
+  function monthsAgoDateStringAest(months, baseDate = new Date()) {
+    const AEST_OFFSET_MINUTES = 10 * 60;
+    const aestTime = new Date(
+      baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000
+    );
+    aestTime.setMonth(aestTime.getMonth() - months);
+    return aestTime.toISOString().slice(0, 10);
+  }
+
+  function addDays(dateStr, days) {
+    const d = new Date(dateStr + "T00:00:00Z");
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // Backfill ~6m of history from Metals-API timeseries in 30-day chunks
+  async function backfillMetalHistory(symbol, usdToAud, apiKey) {
+    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+    const toStr = getTodayAestDateString();
+    const unitParam = METAL_UNIT_PARAMS[symbol] || "Troy Ounce";
+
+    const pointsMap = new Map(); // date -> price (AUD preferred, fallback USD)
+
+    let cursor = fromStr;
+    const WINDOW_DAYS = 30;
+
+    while (cursor <= toStr) {
+      const endStrCandidate = addDays(cursor, WINDOW_DAYS - 1);
+      const endStr =
+        endStrCandidate > toStr ? toStr : endStrCandidate;
+
+      const url =
+        `https://metals-api.com/api/timeseries` +
+        `?access_key=${encodeURIComponent(apiKey)}` +
+        `&base=USD` +
+        `&symbols=${encodeURIComponent(symbol)}` +
+        `&unit=${encodeURIComponent(unitParam)}` +
+        `&start_date=${encodeURIComponent(cursor)}` +
+        `&end_date=${encodeURIComponent(endStr)}`;
+
+      let json = null;
+      let txt = "";
+      try {
+        const res = await fetchWithTimeout(url, {}, 12000);
+        txt = await res.text().catch(() => "");
+        try {
+          json = txt ? JSON.parse(txt) : null;
+        } catch {
+          json = null;
+        }
+        if (!res.ok || !json || json.success === false) {
+          console.warn(
+            "metals-api timeseries backfill error",
+            symbol,
+            cursor,
+            endStr,
+            txt.slice(0, 300)
+          );
+          break; // don't loop forever; partial history is still better than none
+        }
+      } catch (e) {
+        console.warn(
+          "metals-api timeseries fetch error",
+          symbol,
+          cursor,
+          endStr,
+          e && e.message
+        );
+        break;
+      }
+
+      const ratesByDate = json.rates || {};
+      const usdKey = `USD${symbol}`;
+
+      for (const [date, dailyRates] of Object.entries(ratesByDate)) {
+        if (!dailyRates || typeof dailyRates !== "object") continue;
+
+        const directUsd =
+          typeof dailyRates[usdKey] === "number" && dailyRates[usdKey] > 0
+            ? dailyRates[usdKey]
+            : null;
+
+        const rawRate =
+          typeof dailyRates[symbol] === "number" && dailyRates[symbol] > 0
+            ? dailyRates[symbol]
+            : null;
+
+        let priceUSD = null;
+
+        if (directUsd !== null && isInRange(symbol, directUsd)) {
+          priceUSD = directUsd;
+        } else {
+          const derived = deriveFromRawRate(symbol, rawRate);
+          priceUSD = derived.priceUSD;
+        }
+
+        if (priceUSD == null) continue;
+
+        const priceAUD =
+          usdToAud != null ? fmt(priceUSD * usdToAud) : null;
+        const value =
+          priceAUD != null ? priceAUD : fmt(priceUSD);
+        if (value == null) continue;
+
+        if (!pointsMap.has(date)) {
+          pointsMap.set(date, value);
+        }
+      }
+
+      cursor = addDays(endStr, 1);
+    }
+
+    const dates = Array.from(pointsMap.keys()).sort();
+    const points = dates.map((d) => [d, pointsMap.get(d)]);
+
+    return {
+      symbol,
+      startDate: fromStr,
+      endDate: toStr,
+      lastUpdated: nowIso,
+      points,
+    };
+  }
+
+  // Only run backfill once per metal (when 6m window isn't already covered)
+  async function ensureMetalHistorySeed(symbol, usdToAud, apiKey) {
+    const key = `history:metal:daily:${symbol}`;
+    const existing = await redisGetJson(key);
+    const todayAest = getTodayAestDateString();
+    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+
+    if (
+      existing &&
+      existing.startDate &&
+      existing.endDate &&
+      existing.startDate <= fromStr &&
+      existing.endDate >= todayAest &&
+      Array.isArray(existing.points) &&
+      existing.points.length > 0
+    ) {
+      // Already have a full 6m window; no need to backfill again
+      return;
+    }
+
+    const history = await backfillMetalHistory(symbol, usdToAud, apiKey);
+    if (history && Array.isArray(history.points) && history.points.length > 0) {
+      await redisSet(key, history);
+    }
+  }
+
+  // Each day, append today's price from snapshot and trim to 6m window
+  async function updateMetalHistoryWithToday(symbols, snapshot, todayDateAest) {
+    const coll = snapshot.metals || snapshot.symbols || {};
+    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+
+    for (const s of symbols) {
+      const m = coll[s];
+      if (!m) continue;
+
+      const historyKey = `history:metal:daily:${s}`;
+      const existing = (await redisGetJson(historyKey)) || {
+        symbol: s,
+        startDate: todayDateAest,
+        endDate: todayDateAest,
+        lastUpdated: nowIso,
+        points: [],
+      };
+
+      const points = Array.isArray(existing.points)
+        ? existing.points.filter((p) => p && p[0] !== todayDateAest)
+        : [];
+
+      const value =
+        typeof m.priceAUD === "number"
+          ? m.priceAUD
+          : typeof m.priceUSD === "number"
+          ? m.priceUSD
+          : null;
+      if (value == null) continue;
+
+      points.push([todayDateAest, value]);
+
+      // Trim to last ~6m
+      const trimmed = points.filter((p) => p[0] >= fromStr);
+      const newStart =
+        trimmed.length > 0 ? trimmed[0][0] : fromStr;
+      const newEnd =
+        trimmed.length > 0
+          ? trimmed[trimmed.length - 1][0]
+          : todayDateAest;
+
+      const updated = {
+        symbol: s,
+        startDate: newStart,
+        endDate: newEnd,
+        lastUpdated: nowIso,
+        points: trimmed,
+      };
+
+      await redisSet(historyKey, updated);
+    }
   }
 
   try {
@@ -183,7 +402,7 @@ exports.handler = async function (event) {
     }
 
     // -------------------------------
-    // 1) Fetch metals prices in realistic units
+    // 1) Fetch metals prices in realistic units (latest)
     // -------------------------------
     const groups = [
       {
@@ -218,7 +437,7 @@ exports.handler = async function (event) {
       previews.push({
         url,
         status: res.status,
-        bodyPreview: txt.slice(0, 1200),
+        bodyPreview: txt.slice(0, 600),
       });
 
       let json = null;
@@ -250,11 +469,10 @@ exports.handler = async function (event) {
     }
 
     // -------------------------------
-    // 2) FX to AUD
+    // 2) FX to AUD (today's USD->AUD, used for snapshot & backfill)
     // -------------------------------
     let usdToAud = null;
     try {
-      // Primary FX source
       let fRes = await fetchWithTimeout(
         "https://open.er-api.com/v6/latest/USD",
         {},
@@ -264,13 +482,12 @@ exports.handler = async function (event) {
       let fj = null;
       try {
         fj = ftxt ? JSON.parse(ftxt) : null;
-      } catch (e) {
+      } catch {
         fj = null;
       }
       if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === "number") {
         usdToAud = Number(fj.rates.AUD);
       } else {
-        // Fallback FX source
         fRes = await fetchWithTimeout(
           "https://api.exchangerate.host/latest?base=USD&symbols=AUD",
           {},
@@ -279,15 +496,10 @@ exports.handler = async function (event) {
         ftxt = await fRes.text().catch(() => "");
         try {
           fj = ftxt ? JSON.parse(ftxt) : null;
-        } catch (e) {
+        } catch {
           fj = null;
         }
-        if (
-          fRes.ok &&
-          fj &&
-          fj.rates &&
-          typeof fj.rates.AUD === "number"
-        ) {
+        if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === "number") {
           usdToAud = Number(fj.rates.AUD);
         }
       }
@@ -330,19 +542,16 @@ exports.handler = async function (event) {
       let mode = null;
       let debugInfo = null;
 
-      // 1) Prefer the USD{symbol} field if it exists and is sane
       if (directUsd !== null && isInRange(s, directUsd)) {
         priceUSD = directUsd;
         mode = "direct_usd_key";
       } else if (directUsd !== null && !isInRange(s, directUsd)) {
-        // USD key exists but is crazy – treat as issue, try raw fallback
         debugInfo = { usdKey, directUsd };
         const derived = deriveFromRawRate(s, rawRate);
         priceUSD = derived.priceUSD;
         mode = derived.mode;
         if (derived.debug) debugInfo = { ...debugInfo, ...derived.debug };
       } else {
-        // 2) No USD{symbol} field; derive from rawRate only
         const derived = deriveFromRawRate(s, rawRate);
         priceUSD = derived.priceUSD;
         mode = derived.mode;
@@ -375,15 +584,24 @@ exports.handler = async function (event) {
       };
     }
 
-    // Backwards compatibility alias
-    snapshot.metals = snapshot.symbols;
+    snapshot.metals = snapshot.symbols; // alias
 
-    // Persist under metals:YYYY-MM-DD (AEST date) and metals:latest
     const todayDateAest = getTodayAestDateString();
-    const key = `metals:${todayDateAest}`; // metals:YYYY-MM-DD (AEST)
+
+    // 4) Seed 6m history once per metal, using Metals-API timeseries
+    await Promise.all(
+      outputSymbols.map((s) =>
+        ensureMetalHistorySeed(s, usdToAud, METALS_API_KEY)
+      )
+    );
+
+    // 5) Update history with today's snapshot point
+    await updateMetalHistoryWithToday(outputSymbols, snapshot, todayDateAest);
+
+    // 6) Persist daily snapshot & latest
+    const key = `metals:${todayDateAest}`;
     const okToday = await redisSet(key, snapshot);
     const okLatest = await redisSet("metals:latest", snapshot);
-
 
     const debugPayload = {
       key,
