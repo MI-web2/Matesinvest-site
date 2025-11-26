@@ -248,6 +248,19 @@
       margin-top: 8px;
       align-items: start;
     }
+    .metals-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .metals-grid {
+    grid-template-columns: 1fr; /* Single column on small phones */
+  }
+}
+
 
     .brief-top-cards {
       display:grid;
