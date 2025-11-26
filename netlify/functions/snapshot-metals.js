@@ -445,13 +445,14 @@ exports.handler = async function (event) {
     );
   }
 
-  // Only run backfill once per metal (when 6m window isn't already covered)
+   // Only run backfill once per metal (when 6m window isn't already covered)
   async function ensureMetalHistorySeed(symbol, usdToAud, apiKey) {
     const key = `history:metal:daily:${symbol}`;
     const existing = await redisGetJson(key);
     const todayAest = getTodayAestDateString();
     const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
 
+    // If we already have a window that covers last 6 months, don't backfill again
     if (
       existing &&
       existing.startDate &&
@@ -461,14 +462,32 @@ exports.handler = async function (event) {
       Array.isArray(existing.points) &&
       existing.points.length > 0
     ) {
-      // Already have a full ~6m window; no need to backfill again
       return;
     }
 
+    // Try to backfill once
     const history = await backfillMetalHistory(symbol, usdToAud, apiKey);
+
     if (history && Array.isArray(history.points) && history.points.length > 0) {
+      // Successful backfill – save full window
       await redisSet(key, history);
+      return;
     }
+
+    // Backfill failed or returned no points (e.g. 429 Too Many Requests).
+    // Save a minimal stub so we DON'T keep hammering Metals-API every day.
+    const stub = {
+      symbol,
+      startDate: fromStr,
+      endDate: todayAest,
+      lastUpdated: nowIso,
+      points:
+        existing && Array.isArray(existing.points)
+          ? existing.points
+          : [], // might be empty; daily snapshot updater will fill this over time
+    };
+
+    await redisSet(key, stub);
   }
 
   // Each day, append today's price from snapshot and trim to 6m window
