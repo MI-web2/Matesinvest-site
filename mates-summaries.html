@@ -2561,12 +2561,22 @@ function miRenderChart(history) {
       miCloseInstrumentModal();
     }
   });
-/* Robust price extraction + formatting for the modal */
+/* Robust price extraction + modal population for commodities */
+
+/* Keep a ref to the currently clicked card as a fallback */
+let __mi_lastClickedCard = null;
+document.addEventListener('click', (e) => {
+  const card = e.target.closest('.card-metal, .metal-card, .card'); // adjust selectors if needed
+  if (card) __mi_lastClickedCard = card;
+});
+
 function getPriceFromItem(item) {
   if (!item || typeof item !== 'object') return null;
 
-  // Common fields we might find
-  const fields = ['price','last','close','value','last_price','mid','midPrice','current'];
+  // Common keys to try
+  const fields = [
+    'price','last','close','value','last_price','mid','current','lastPrice','last_trade_price','last_trade'
+  ];
 
   for (const f of fields) {
     if (item[f] !== undefined && item[f] !== null && item[f] !== '') {
@@ -2574,22 +2584,23 @@ function getPriceFromItem(item) {
     }
   }
 
-  // If there's a history/time-series, take the last close
+  // Nested quote containers
+  if (item.quote && typeof item.quote === 'object') {
+    const q = getPriceFromItem(item.quote);
+    if (q !== null) return q;
+  }
+  if (item.quoteData && typeof item.quoteData === 'object') {
+    const q = getPriceFromItem(item.quoteData);
+    if (q !== null) return q;
+  }
+
+  // If there's a history/time-series, use the last close/price
   if (Array.isArray(item.history) && item.history.length) {
     const lastEntry = item.history[item.history.length - 1];
     if (lastEntry) {
       if (lastEntry.close !== undefined && lastEntry.close !== null) return lastEntry.close;
       if (lastEntry.price !== undefined && lastEntry.price !== null) return lastEntry.price;
-      // Some APIs use 'c' or 'y' etc. inspect and adapt if needed
     }
-  }
-
-  // Some payloads nest under `quote` or `quoteData`
-  if (item.quote && typeof item.quote === 'object') {
-    return getPriceFromItem(item.quote);
-  }
-  if (item.quoteData && typeof item.quoteData === 'object') {
-    return getPriceFromItem(item.quoteData);
   }
 
   return null;
@@ -2598,42 +2609,76 @@ function getPriceFromItem(item) {
 function formatPriceForModal(raw, unit) {
   if (raw === null || raw === undefined || raw === '') return '—';
 
-  // ensure number
-  const n = Number(String(raw).replace(/,/g, ''));
-  if (Number.isNaN(n)) return String(raw); // show raw if not a number
-
-  // choose formatting (commas, 2 decimals)
-  const formatted = n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return '$' + formatted + (unit ? `/${unit}` : '');
+  // try parse number; if not a number, return raw string
+  const numeric = Number(String(raw).replace(/[, ]+/g,''));
+  if (Number.isNaN(numeric)) {
+    return String(raw);
+  }
+  const formatted = numeric.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (unit ? '' : '$') + formatted + (unit ? `/${unit}` : '');
 }
 
-/* Example usage: call this when opening the modal for an item.
-   Replace `item` with the actual object you pass into the modal,
-   and ensure the modal has an element with class `.mi-ins-price`. */
-function populateModalPrice(item) {
-  // debug: inspect the object so you can see what fields exist
-  console.log('Opening modal for item:', item);
+/* Read visual price from the card DOM (fallback)
+   Expects .metal-price inside the clicked card; adjust selector if your markup differs. */
+function getPriceFromLastClickedCard() {
+  if (!__mi_lastClickedCard) return null;
+  const priceEl = __mi_lastClickedCard.querySelector('.metal-price, .price, .perf-last');
+  if (!priceEl) return null;
+  const txt = priceEl.textContent.trim();
+  // strip currency symbols/commas and try return numeric
+  const cleaned = txt.replace(/[^\d\.\-]+/g,'').trim();
+  if (cleaned === '') return null;
+  return cleaned;
+}
 
+/* Call this from your modal-open routine, passing the item object that the modal should show */
+function populateModalPrice(item) {
+  console.log('populateModalPrice item:', item);
   const priceEl = document.querySelector('.mi-ins-price');
   if (!priceEl) return;
 
-  const rawPrice = getPriceFromItem(item);
-  // attempt to pull a unit string (e.g. 'oz') if present on object
-  const unit = item.unit || item.uom || item.unitOfMeasure || item.quoteUnit;
+  let raw = getPriceFromItem(item);
 
-  priceEl.textContent = formatPriceForModal(rawPrice, unit);
+  // fallback: read from clicked card text if still missing
+  if (raw === null) {
+    raw = getPriceFromLastClickedCard();
+  }
+
+  // fallback: look for a 'priceText' or similar
+  if (raw === null && item && typeof item === 'object') {
+    if (item.priceText) raw = item.priceText;
+    if (item.display && item.display.price) raw = item.display.price;
+  }
+
+  const unit = (item && (item.unit || item.uom || item.unitOfMeasure || item.quoteUnit)) || '';
+  priceEl.textContent = formatPriceForModal(raw, unit);
 }
 
-/* If your modal open handler is named openModal / showModal / renderModal, call populateModalPrice(item) from there.
-   Example:
-   document.querySelectorAll('.commodity-card').forEach(el => {
-     el.addEventListener('click', () => {
-       const item = /* get data for this commodity * /;
-       populateModalPrice(item);
-       openModal(item);
-     });
-   });
+/* Example: attach to commodity cards automatically if your list is static.
+   If you already have a modal open function, call populateModalPrice(item) from it instead.
 */
+document.querySelectorAll('.card-metal').forEach(card => {
+  card.addEventListener('click', (ev) => {
+    // If you have a data object serialized on the element, parse that:
+    // const item = card.dataset.item ? JSON.parse(card.dataset.item) : null;
+    // If you keep the item in a JS array, look it up by symbol/id here.
+    // For now we'll attempt to use dataset.* fallbacks:
+    const item = (card.dataset && card.dataset.item) ? JSON.parse(card.dataset.item) : null;
+
+    // populate price using what we have
+    populateModalPrice(item);
+
+    // If you have an existing openModal(item) function, call it so the modal shows:
+    if (typeof openModal === 'function') {
+      openModal(item);
+    } else {
+      // fallback: show overlay/modal element if you manage it manually
+      const overlay = document.querySelector('.mi-ins-overlay');
+      if (overlay) overlay.style.display = 'flex';
+    }
+  });
+});
+
 </script>
 
 </body>
