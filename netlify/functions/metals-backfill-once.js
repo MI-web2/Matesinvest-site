@@ -190,6 +190,23 @@ exports.handler = async function (event) {
     URANIUM: "Pound",
   };
 
+  // Alternate candidate names to try when canonical symbol returns no points.
+  // Extend via env ALT_METAL_SYNONYMS as JSON string if you prefer.
+  const DEFAULT_ALT_CANDIDATES = {
+    "LITH-CAR": ["LITHIUM", "LITHIUM_CARBONATE", "LITHIUM-CARBONATE"],
+    NI: ["NICKEL"],
+  };
+
+  let ALT_CANDIDATES = DEFAULT_ALT_CANDIDATES;
+  try {
+    if (process.env.ALT_METAL_SYNONYMS) {
+      const parsed = JSON.parse(process.env.ALT_METAL_SYNONYMS);
+      ALT_CANDIDATES = { ...DEFAULT_ALT_CANDIDATES, ...parsed };
+    }
+  } catch (e) {
+    // ignore, use defaults
+  }
+
   const HISTORY_MONTHS = Number(process.env.HISTORY_MONTHS || 6);
 
   async function fetchUsdToAud() {
@@ -231,27 +248,32 @@ exports.handler = async function (event) {
     return usdToAud;
   }
 
-  // Backfill a single symbol using /timeseries in ~30-day windows
-  async function backfillSymbol(symbol, usdToAud, apiKey) {
-    const unitParam = METAL_UNIT_PARAMS[symbol] || "Troy Ounce";
+  // Internal: fetch timeseries in ~30-day windows for a given candidate symbol.
+  // Returns { pointsMap: Map(date->value), chunkErrors: [] } where values are AUD if usdToAud present else USD
+  async function fetchChunksForCandidate(candidate, canonicalSymbol, usdToAud, apiKey) {
+    const unitParam = METAL_UNIT_PARAMS[canonicalSymbol] || "Troy Ounce";
     const today = getTodayAestDateString();
+    // Use yesterday (AEST) as metals-api timeseries end
+    const endDate = addDays(today, -1);
     const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
-    const WINDOW_DAYS = 30;
+    if (fromStr > endDate) {
+      return { pointsMap: new Map(), chunkErrors: [{ start: fromStr, end: endDate, error: "invalid_date_range" }] };
+    }
 
-    const pointsMap = new Map(); // date -> AUD/ USD value
+    const WINDOW_DAYS = 30;
+    const pointsMap = new Map();
     const debugChunkErrors = [];
 
     let cursor = fromStr;
-
-    while (cursor <= today) {
+    while (cursor <= endDate) {
       const endCandidate = addDays(cursor, WINDOW_DAYS - 1);
-      const chunkEnd = endCandidate > today ? today : endCandidate;
+      const chunkEnd = endCandidate > endDate ? endDate : endCandidate;
 
       const url =
         `https://metals-api.com/api/timeseries` +
         `?access_key=${encodeURIComponent(apiKey)}` +
         `&base=USD` +
-        `&symbols=${encodeURIComponent(symbol)}` +
+        `&symbols=${encodeURIComponent(candidate)}` +
         `&unit=${encodeURIComponent(unitParam)}` +
         `&start_date=${encodeURIComponent(cursor)}` +
         `&end_date=${encodeURIComponent(chunkEnd)}`;
@@ -278,7 +300,7 @@ exports.handler = async function (event) {
             bodyPreview: txt.slice(0, 300),
           });
 
-          // If timeframe is invalid or similar, stop trying more chunks
+          // If timeframe invalid, stop trying further chunks
           if (
             json &&
             json.error &&
@@ -288,7 +310,6 @@ exports.handler = async function (event) {
             break;
           }
 
-          // Otherwise skip this chunk and continue
           cursor = addDays(chunkEnd, 1);
           continue;
         }
@@ -304,40 +325,55 @@ exports.handler = async function (event) {
       }
 
       const ratesByDate = json.rates || {};
-      const usdKey = `USD${symbol}`;
 
       for (const [date, dailyRates] of Object.entries(ratesByDate)) {
         if (!dailyRates || typeof dailyRates !== "object") continue;
 
-        const directUsd =
-          typeof dailyRates[usdKey] === "number" && dailyRates[usdKey] > 0
-            ? dailyRates[usdKey]
+        // Try multiple keys: USD<canonical>, USD<candidate>, <candidate> (raw), <canonical> (raw)
+        const usdKeyCanonical = `USD${canonicalSymbol}`;
+        const usdKeyCandidate = `USD${candidate}`;
+        const directUsdCanonical =
+          typeof dailyRates[usdKeyCanonical] === "number" && dailyRates[usdKeyCanonical] > 0
+            ? dailyRates[usdKeyCanonical]
+            : null;
+        const directUsdCandidate =
+          typeof dailyRates[usdKeyCandidate] === "number" && dailyRates[usdKeyCandidate] > 0
+            ? dailyRates[usdKeyCandidate]
             : null;
 
-        const rawRate =
-          typeof dailyRates[symbol] === "number" && dailyRates[symbol] > 0
-            ? dailyRates[symbol]
+        const rawRateCandidate =
+          typeof dailyRates[candidate] === "number" && dailyRates[candidate] > 0
+            ? dailyRates[candidate]
+            : null;
+
+        const rawRateCanonical =
+          typeof dailyRates[canonicalSymbol] === "number" && dailyRates[canonicalSymbol] > 0
+            ? dailyRates[canonicalSymbol]
             : null;
 
         let priceUSD = null;
 
-        if (directUsd !== null && isInRange(symbol, directUsd)) {
-          priceUSD = directUsd;
+        // Prefer explicit USD for canonical symbol if present
+        if (directUsdCanonical !== null && isInRange(canonicalSymbol, directUsdCanonical)) {
+          priceUSD = directUsdCanonical;
+        } else if (directUsdCandidate !== null && isInRange(canonicalSymbol, directUsdCandidate)) {
+          // USD provided under candidate key (e.g. USDNICKEL)
+          priceUSD = directUsdCandidate;
         } else {
-          const derived = deriveFromRawRate(symbol, rawRate);
+          // Try deriving from raw rates (candidate raw first, then canonical raw)
+          let derived = deriveFromRawRate(canonicalSymbol, rawRateCandidate);
+          if (derived.priceUSD == null) {
+            derived = deriveFromRawRate(canonicalSymbol, rawRateCanonical);
+          }
           priceUSD = derived.priceUSD;
         }
 
         if (priceUSD == null) continue;
 
-        const priceAUD =
-          usdToAud != null ? fmt(priceUSD * usdToAud) : null;
-        const value =
-          priceAUD != null ? priceAUD : fmt(priceUSD);
-
+        const priceAUD = usdToAud != null ? fmt(priceUSD * usdToAud) : null;
+        const value = priceAUD != null ? priceAUD : fmt(priceUSD);
         if (value == null) continue;
 
-        // First write wins for a given day
         if (!pointsMap.has(date)) {
           pointsMap.set(date, value);
         }
@@ -346,18 +382,53 @@ exports.handler = async function (event) {
       cursor = addDays(chunkEnd, 1);
     }
 
-    const dates = Array.from(pointsMap.keys()).sort();
-    const points = dates.map((d) => [d, pointsMap.get(d)]);
+    return { pointsMap, chunkErrors: debugChunkErrors };
+  }
 
-    if (points.length === 0) {
+  // Backfill a single canonical symbol. Tries canonical first, then alternates.
+  async function backfillSymbol(symbol, usdToAud, apiKey) {
+    const today = getTodayAestDateString();
+    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+    const endDate = addDays(today, -1);
+    if (fromStr > endDate) {
+      return {
+        symbol,
+        skipped: false,
+        points: 0,
+        error: "invalid_date_range",
+        chunkErrors: [],
+      };
+    }
+
+    // try canonical + alternates
+    const candidates = [symbol].concat(ALT_CANDIDATES[symbol] || []);
+    let finalPointsMap = null;
+    let finalChunkErrors = [];
+    let usedCandidate = null;
+
+    for (const cand of candidates) {
+      const { pointsMap, chunkErrors } = await fetchChunksForCandidate(cand, symbol, usdToAud, apiKey);
+      finalChunkErrors = finalChunkErrors.concat(chunkErrors || []);
+      if (pointsMap && pointsMap.size > 0) {
+        finalPointsMap = pointsMap;
+        usedCandidate = cand;
+        break;
+      }
+    }
+
+    if (!finalPointsMap || finalPointsMap.size === 0) {
       return {
         symbol,
         skipped: false,
         points: 0,
         error: "no_points_returned",
-        chunkErrors: debugChunkErrors,
+        usedCandidate: null,
+        chunkErrors: finalChunkErrors,
       };
     }
+
+    const dates = Array.from(finalPointsMap.keys()).sort();
+    const points = dates.map((d) => [d, finalPointsMap.get(d)]);
 
     const historyKey = `history:metal:daily:${symbol}`;
     const existing = (await redisGetJson(historyKey)) || null;
@@ -383,6 +454,10 @@ exports.handler = async function (event) {
       endDate: mergedDates[mergedDates.length - 1],
       lastUpdated: nowIso,
       points: mergedPoints,
+      meta: {
+        usedCandidate: usedCandidate,
+        storedAs: usdToAud != null ? "AUD" : "USD",
+      },
     };
 
     await redisSet(historyKey, out);
@@ -392,7 +467,8 @@ exports.handler = async function (event) {
       skipped: false,
       points: mergedPoints.length,
       error: null,
-      chunkErrors: debugChunkErrors,
+      usedCandidate,
+      chunkErrors: finalChunkErrors,
     };
   }
 
