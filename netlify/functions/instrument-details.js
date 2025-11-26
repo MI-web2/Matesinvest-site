@@ -576,43 +576,13 @@ exports.handler = async function (event) {
   }
 
   // Build or reuse cached 6-month history in USD
-  async function getOrBuildMetalHistory(symbol, fromDateStr, toDateStr) {
+  async function getOrBuildMetalHistory(symbol, months) {
     const key = `history:metal:daily:${symbol}`;
     const cached = await redisGetJson(key);
-
-    const windowCovers = (h) =>
-      h &&
-      h.startDate &&
-      h.endDate &&
-      h.startDate <= fromDateStr &&
-      h.endDate >= toDateStr &&
-      Array.isArray(h.points) &&
-      h.points.length > 0;
-
-    const nowIsoLocal = new Date().toISOString();
-
-    // If we already have a good window, just reuse it
-    if (windowCovers(cached)) {
-      return cached;
-    }
-
-    // Otherwise fetch fresh 6-month window from Metals-API
-    const usdSeries = await fetchMetalTimeseries(symbol, fromDateStr, toDateStr);
-
-    const points = usdSeries.map(([date, priceUSD]) => [date, fmt(priceUSD, 4)]);
-
-    const history = {
-      symbol,
-      currency: "USD",
-      startDate: fromDateStr,
-      endDate: toDateStr,
-      lastUpdated: nowIsoLocal,
-      points,
-    };
-
-    await redisSet(key, history);
-    return history;
+    // We trust snapshot-metals to keep this trimmed to ~months
+    return cached;
   }
+
 
   // -------------------------------
   // Equity history caching helpers
