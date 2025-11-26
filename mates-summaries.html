@@ -241,18 +241,24 @@
     }
 
     /* Morning brief grid & cards */
-    .brief-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 12px;
-      margin-top: 8px;
-      align-items: start;
-    }
-    .metals-grid {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  width: 100%;
+.brief-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+    .metals-header-row {
+  padding: 0 2px 2px;
+}
+.metals-title {
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+/* Stack commodity cards full-width */
+.metals-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 @media (max-width: 480px) {
@@ -272,45 +278,46 @@
       .brief-top-cards { grid-template-columns: 1fr; }
     }
 
-      .card-metal {
-      padding: 0.9rem 1rem;
-      border-radius: 16px;
-      background: #f9fbff;
-      border: 1px solid #e2e8f0;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-height: 84px;
-      box-shadow: 0 14px 30px rgba(15,23,42,0.10);
-      transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
-      color:#0f172a;
-    }
-    .card-metal:hover {
-      transform: translateY(-3px);
-      background:#ffffff;
-      box-shadow: 0 18px 40px rgba(15,23,42,0.16);
-    }
-    .metal-head {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:8px;
-    }
-    .metal-name {
-      font-size:0.9rem;
-      font-weight:600;
-      color:#0f172a;
-    }
-    .metal-price {
-      font-weight:800;
-      font-size:1.05rem;
-      color:#0f172a;
-      margin-top:4px;
-    }
-    .metal-sub {
-      font-size:0.82rem;
-      color:var(--muted-2);
-    }
+.card-metal {
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  background: #f9fbff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 14px 30px rgba(15,23,42,0.10);
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  color: #0f172a;
+  width: 100%;
+  text-align: left;
+}
+.card-metal:hover {
+  transform: translateY(-3px);
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(15,23,42,0.16);
+}
+.metal-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: center;
+}
+.metal-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+.metal-price {
+  margin-top: 4px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.metal-sub {
+  font-size: 0.82rem;
+  color: var(--muted-2);
+}
 
     /* Mates Morning Note & SOTD cards */
     .mates-note {
