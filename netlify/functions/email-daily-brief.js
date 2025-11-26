@@ -129,122 +129,156 @@ exports.handler = async function () {
   }
 
   // Build HTML email from morning-brief payload + morning note
-  function buildEmailHtml(payload, morningNote) {
-    const aestNow = getAestDate();
-    const niceDate = aestNow.toLocaleDateString("en-AU", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+function buildEmailHtml(payload, morningNote) {
+  const aestNow = getAestDate();
+  const niceDate = aestNow.toLocaleDateString("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
-    const top = Array.isArray(payload.topPerformers)
-      ? payload.topPerformers
-      : [];
+  const top = Array.isArray(payload.topPerformers)
+    ? payload.topPerformers
+    : [];
 
-    const metalsObj = payload.metals || payload.symbols || {};
-    const friendly = {
-      XAU: "Gold",
-      XAG: "Silver",
-      IRON: "Iron Ore 62% Fe",
-      "LITH-CAR": "Lithium Carbonate",
-      NI: "Nickel",
-      URANIUM: "Uranium",
-    };
+  const metalsObj = payload.metals || payload.symbols || {};
+  const friendly = {
+    XAU: "Gold",
+    XAG: "Silver",
+    IRON: "Iron Ore 62% Fe",
+    "LITH-CAR": "Lithium Carbonate",
+    NI: "Nickel",
+    URANIUM: "Uranium",
+  };
 
-    const topRows = top
-      .map((tp) => {
-        const sym = tp.symbol || tp.code || "";
-        const name = tp.name || "";
-        const last =
-          typeof tp.lastClose === "number"
-            ? "$" + formatMoney(tp.lastClose)
-            : "—";
-        const pct =
-          typeof tp.pctGain === "number"
-            ? tp.pctGain.toFixed(2) + "%"
-            : tp.pctGain
-            ? String(tp.pctGain)
-            : "—";
-        const isUp =
-          typeof tp.pctGain === "number" && tp.pctGain > 0;
-        const color = isUp ? "#16a34a" : "#dc2626";
-        const arrow = isUp ? "▲" : "▼";
-        return `
-          <tr>
-            <td style="padding:8px 6px;font-weight:600;font-size:13px;">${sym}</td>
-            <td style="padding:8px 6px;font-size:13px;color:#4b5563;">${name}</td>
-            <td style="padding:8px 6px;font-size:13px;text-align:right;">${last}</td>
-            <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
-              ${pct !== "—" ? `${arrow} ${pct}` : pct}
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
+  const topRows = top
+    .map((tp) => {
+      const sym = tp.symbol || tp.code || "";
+      const name = tp.name || "";
+      const last =
+        typeof tp.lastClose === "number"
+          ? "$" + formatMoney(tp.lastClose)
+          : "—";
+      const pct =
+        typeof tp.pctGain === "number"
+          ? tp.pctGain.toFixed(2) + "%"
+          : tp.pctGain
+          ? String(tp.pctGain)
+          : "—";
+      const isUp =
+        typeof tp.pctGain === "number" && tp.pctGain > 0;
+      const isDown =
+        typeof tp.pctGain === "number" && tp.pctGain < 0;
+      const color = isUp
+        ? "#16a34a"
+        : isDown
+        ? "#dc2626"
+        : "#64748b";
+      const arrow = isUp ? "▲" : isDown ? "▼" : "";
+      return `
+        <tr>
+          <td style="padding:8px 6px;font-weight:600;font-size:13px;color:#0b1220;">${sym}</td>
+          <td style="padding:8px 6px;font-size:13px;color:#64748b;">${name}</td>
+          <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${last}</td>
+          <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
+            ${pct !== "—" ? `${arrow} ${pct}` : pct}
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
 
-    const metalsRows = Object.keys(metalsObj)
-      .map((sym) => {
-        const m = metalsObj[sym] || {};
-        const label = friendly[sym] || sym;
-        const unit = m.unit || (sym === "IRON" ? "tonne" : "unit");
-        const price =
-          typeof m.priceAUD === "number"
-            ? "$" + formatMoney(m.priceAUD) + ` / ${unit}`
-            : "Unavailable";
-        const pct =
-          typeof m.pctChange === "number"
-            ? m.pctChange.toFixed(2) + "%"
-            : "—";
-        const isUp =
-          typeof m.pctChange === "number" && m.pctChange > 0;
-        const isDown =
-          typeof m.pctChange === "number" && m.pctChange < 0;
-        const color = isUp
-          ? "#16a34a"
-          : isDown
-          ? "#dc2626"
-          : "#6b7280";
-        const arrow = isUp ? "▲" : isDown ? "▼" : "";
-        return `
-          <tr>
-            <td style="padding:8px 6px;font-size:13px;">${label} <span style="color:#9ca3af;">(${sym})</span></td>
-            <td style="padding:8px 6px;font-size:13px;text-align:right;">${price}</td>
-            <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
-              ${pct !== "—" ? `${arrow} ${pct}` : pct}
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
+  const metalsRows = Object.keys(metalsObj)
+    .map((sym) => {
+      const m = metalsObj[sym] || {};
+      const label = friendly[sym] || sym;
+      const unit = m.unit || (sym === "IRON" ? "tonne" : "unit");
+      const price =
+        typeof m.priceAUD === "number"
+          ? "$" + formatMoney(m.priceAUD) + ` / ${unit}`
+          : "Unavailable";
+      const pct =
+        typeof m.pctChange === "number"
+          ? m.pctChange.toFixed(2) + "%"
+          : "—";
+      const isUp =
+        typeof m.pctChange === "number" && m.pctChange > 0;
+      const isDown =
+        typeof m.pctChange === "number" && m.pctChange < 0;
+      const color = isUp
+        ? "#16a34a"
+        : isDown
+        ? "#dc2626"
+        : "#64748b";
+      const arrow = isUp ? "▲" : isDown ? "▼" : "";
+      return `
+        <tr>
+          <td style="padding:8px 6px;font-size:13px;color:#0b1220;">
+            ${label}
+            <span style="color:#94a3b8;">(${sym})</span>
+          </td>
+          <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${price}</td>
+          <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
+            ${pct !== "—" ? `${arrow} ${pct}` : pct}
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
 
-    const sourceNote =
-      payload._debug && payload._debug.metalsDataSource
-        ? `Metals source: ${payload._debug.metalsDataSource}`
-        : "Metals snapshot – not live prices";
+  const sourceNote =
+    payload._debug && payload._debug.metalsDataSource
+      ? `Metals source: ${payload._debug.metalsDataSource}`
+      : "Metals snapshot – not live prices";
 
-    // Simple, single-column HTML email
-    return `
+  // Brand colours from mates-summaries.html:
+  // navy: #002040, cyan: #00BFFF, bg: #f5f7fb, card: #ffffff,
+  // border: #e2e8f0, muted: #64748b, muted-2: #94a3b8
+  return `
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>MatesMorning – ASX Briefing</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f3f4f6;padding:24px 0;">
+<body style="margin:0;padding:0;background-color:#f5f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f7fb;padding:24px 0;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background-color:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 30px rgba(15,23,42,0.10);">
 
-          <!-- Header -->
+          <!-- Header (matches MatesSummaries nav style) -->
           <tr>
-            <td style="padding:18px 20px 6px 20px;border-bottom:1px solid #e5e7eb;">
-              <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">
-                MatesInvest · Daily
+            <td style="padding:18px 20px 10px 20px;border-bottom:1px solid #e2e8f0;background:radial-gradient(circle at top left,#e2ebff 0,#f5f7fb 60%);">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+                <div>
+                  <div style="font-size:12px;color:#64748b;margin-bottom:4px;">
+                    <span style="
+                      display:inline-block;
+                      padding:2px 9px;
+                      border-radius:999px;
+                      background:#e7f7ff;
+                      border:1px solid #c5e5ff;
+                      color:#083a59;
+                      font-size:11px;
+                      font-weight:600;
+                    ">
+                      MatesInvest · MatesMorning
+                    </span>
+                  </div>
+                  <h1 style="margin:2px 0 2px 0;font-size:19px;color:#002040;">
+                    ASX Morning Briefing
+                  </h1>
+                  <div style="font-size:13px;color:#64748b;">
+                    ${niceDate}
+                  </div>
+                </div>
+                <div style="text-align:right;font-size:11px;color:#94a3b8;line-height:1.4;max-width:160px;">
+                  Built for Australian retail investors.<br/>
+                  Short, plain-English, not financial advice.
+                </div>
               </div>
-              <h1 style="margin:4px 0 2px 0;font-size:19px;color:#111827;">MatesMorning – ASX Briefing</h1>
-              <div style="font-size:13px;color:#6b7280;">${niceDate}</div>
             </td>
           </tr>
 
@@ -253,20 +287,20 @@ exports.handler = async function () {
             morningNote
               ? `
           <tr>
-            <td style="padding:16px 20px 6px 20px;">
-              <h2 style="margin:0 0 4px 0;font-size:14px;color:#111827;">Mates Morning Note</h2>
+            <td style="padding:14px 20px 4px 20px;">
+              <h2 style="margin:0 0 4px 0;font-size:14px;color:#002040;">Mates Morning Note</h2>
               <div style="
-                background:#f9fafb;
-                border:1px solid #e5e7eb;
+                background:#f9fbff;
+                border:1px solid #dbeafe;
                 padding:10px 14px;
-                border-radius:8px;
+                border-radius:12px;
                 font-size:13px;
                 line-height:1.45;
-                color:#111827;
+                color:#0b1220;
               ">
                 ${morningNote.replace(/\n/g, "<br/>")}
               </div>
-              <div style="margin-top:6px;font-size:11px;color:#9ca3af;">
+              <div style="margin-top:6px;font-size:11px;color:#94a3b8;">
                 Updated 6:00am AEST · Not financial advice
               </div>
             </td>
@@ -281,14 +315,14 @@ exports.handler = async function () {
               ? `
           <tr>
             <td style="padding:14px 20px 6px 20px;">
-              <h2 style="margin:0 0 6px 0;font-size:14px;color:#111827;">Yesterday's Top Performers</h2>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Yesterday's Top Performers</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
                 <thead>
-                  <tr>
-                    <th align="left" style="padding:6px 6px 4px 6px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Code</th>
-                    <th align="left" style="padding:6px 6px 4px 6px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Name</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Close</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Move</th>
+                  <tr style="background:#edf2ff;">
+                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Code</th>
+                    <th align="left" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Name</th>
+                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Close</th>
+                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Move</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -306,21 +340,23 @@ exports.handler = async function () {
             metalsRows
               ? `
           <tr>
-            <td style="padding:10px 20px 12px 20px;">
-              <h2 style="margin:0 0 6px 0;font-size:14px;color:#111827;">Key Commodities</h2>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+            <td style="padding:10px 20px 14px 20px;">
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Key Commodities</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
                 <thead>
-                  <tr>
-                    <th align="left" style="padding:6px 6px 4px 6px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Commodity</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Price (AUD)</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">1D</th>
+                  <tr style="background:#edf2ff;">
+                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Commodity</th>
+                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Price (AUD)</th>
+                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">1D</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${metalsRows}
                 </tbody>
               </table>
-              <div style="margin-top:6px;font-size:11px;color:#9ca3af;">${sourceNote}. Not financial advice.</div>
+              <div style="margin-top:6px;font-size:11px;color:#94a3b8;">
+                ${sourceNote}. Not financial advice.
+              </div>
             </td>
           </tr>
           `
@@ -329,19 +365,21 @@ exports.handler = async function () {
 
           <!-- Footer -->
           <tr>
-            <td style="padding:12px 20px 18px 20px;border-top:1px solid #e5e7eb;">
-              <p style="margin:0 0 6px 0;font-size:12px;color:#6b7280;">
+            <td style="padding:12px 20px 18px 20px;border-top:1px solid #e2e8f0;background-color:#ffffff;">
+              <p style="margin:0 0 6px 0;font-size:12px;color:#64748b;">
                 View the live version and full AI summaries on
-                <a href="https://matesinvest.com/mates-summaries" style="color:#0284c7;text-decoration:none;">MatesFeed</a>.
+                <a href="https://matesinvest.com/mates-summaries" style="color:#00BFFF;text-decoration:none;font-weight:600;">
+                  MatesFeed
+                </a>.
               </p>
-              <p style="margin:0;font-size:11px;color:#9ca3af;">
+              <p style="margin:0;font-size:11px;color:#94a3b8;">
                 This email is general information only and is not financial advice.
               </p>
             </td>
           </tr>
         </table>
 
-        <div style="max-width:640px;margin-top:8px;font-size:10px;color:#9ca3af;">
+        <div style="max-width:640px;margin-top:8px;font-size:10px;color:#94a3b8;">
           You’re receiving this because you subscribed to the MatesInvest daily briefing.
         </div>
       </td>
@@ -349,8 +387,9 @@ exports.handler = async function () {
   </table>
 </body>
 </html>
-    `;
-  }
+  `;
+}
+
 
   try {
     // 1) Get the morning brief payload by calling the existing handler
