@@ -1,537 +1,182 @@
-// netlify/functions/metals-backfill-once.js
+#!/usr/bin/env node
+// backfill-metals-once.js
+// One-off local script to backfill Upstash history:metal:daily for specified canonical symbols.
+// Usage:
+//   METALS_API_KEY=xxx UPSTASH_REDIS_REST_URL=https://... UPSTASH_REDIS_REST_TOKEN=yyy node backfill-metals-once.js
 //
-// One-off backfill for missing metals history.
-// - Uses Metals-API /timeseries ONLY (no /latest).
-// - Backfills a 6-month window in ~30-day chunks per symbol.
-// - Writes to Upstash keys: history:metal:daily:<SYMBOL>
-//
-// Usage (manual, once-off):
-//   /.netlify/functions/metals-backfill-once        -> default symbols NI,LITH-CAR
-//   /.netlify/functions/metals-backfill-once?symbols=NI,LITH-CAR,XAU
-//
-// Env required:
-//   METALS_API_KEY
-//   UPSTASH_REDIS_REST_URL
-//   UPSTASH_REDIS_REST_TOKEN
-//
-// This does NOT touch metals:latest or metals:YYYY-MM-DD.
-// Your snapshot-metals.js continues to run daily and append new points.
-//
+// Edit the 'targets' array or pass symbols via env SYM_LIST="NI,LITH-CAR"
 
-const fetch = (...args) => global.fetch(...args);
+const HISTORY_MONTHS = Number(process.env.HISTORY_MONTHS || 6);
+const METALS_API_KEY = process.env.METALS_API_KEY;
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-exports.handler = async function (event) {
-  const nowIso = new Date().toISOString();
+if (!METALS_API_KEY || !UPSTASH_URL || !UPSTASH_TOKEN) {
+  console.error("Missing required env. Set METALS_API_KEY, UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.");
+  process.exit(1);
+}
 
-  // --- Simple date helpers (AEST aware) ---
-  function getTodayAestDateString(baseDate = new Date()) {
-    const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane UTC+10
-    const aestTime = new Date(
-      baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000
-    );
-    return aestTime.toISOString().slice(0, 10);
-  }
-
-  function monthsAgoDateStringAest(months, baseDate = new Date()) {
-    const AEST_OFFSET_MINUTES = 10 * 60;
-    const aestTime = new Date(
-      baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000
-    );
-    aestTime.setMonth(aestTime.getMonth() - months);
-    return aestTime.toISOString().slice(0, 10);
-  }
-
-  function addDays(dateStr, days) {
-    const d = new Date(dateStr + "T00:00:00Z");
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
-  }
-
-  // --- Upstash helpers ---
-  const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || null;
-  const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
-
-  async function fetchWithTimeout(url, opts = {}, timeout = 12000) {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    try {
-      const res = await fetch(url, { ...opts, signal: controller.signal });
-      clearTimeout(id);
-      return res;
-    } catch (err) {
-      clearTimeout(id);
-      throw err;
-    }
-  }
-
-  async function redisSet(key, value) {
-    if (!UPSTASH_URL || !UPSTASH_TOKEN) return false;
-    try {
-      const encoded =
-        typeof value === "string" ? value : JSON.stringify(value);
-      const res = await fetchWithTimeout(
-        `${UPSTASH_URL}/set/${encodeURIComponent(
-          key
-        )}/${encodeURIComponent(encoded)}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
-        },
-        8000
-      );
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        console.warn("redisSet failed", key, res.status, txt.slice(0, 300));
-      }
-      return res.ok;
-    } catch (e) {
-      console.warn("redisSet error", key, e && e.message);
-      return false;
-    }
-  }
-
-  async function redisGet(key) {
-    if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
-    try {
-      const res = await fetchWithTimeout(
-        `${UPSTASH_URL}/get/${encodeURIComponent(key)}`,
-        {
-          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
-        },
-        8000
-      );
-      if (!res.ok) return null;
-      const j = await res.json().catch(() => null);
-      if (!j || typeof j.result === "undefined") return null;
-      return j.result;
-    } catch (e) {
-      console.warn("redisGet error", key, e && e.message);
-      return null;
-    }
-  }
-
-  async function redisGetJson(key) {
-    const raw = await redisGet(key);
-    if (!raw) return null;
-    if (typeof raw === "string") {
-      try {
-        return JSON.parse(raw);
-      } catch (e) {
-        console.warn("redisGetJson parse error", key, e && e.message);
-        return null;
-      }
-    }
-    if (typeof raw === "object") return raw;
-    return null;
-  }
-
-  const fmt = (n) =>
-    typeof n === "number" && Number.isFinite(n) ? Number(n.toFixed(2)) : null;
-
-  // --- sanity ranges + helper reused from snapshot-metals.js ---
-  const VALID_RANGES = {
-    XAU: { min: 800, max: 7000 }, // gold per oz
-    XAG: { min: 5, max: 150 }, // silver per oz
-    IRON: { min: 30, max: 500 }, // iron ore per tonne
-    "LITH-CAR": { min: 3000, max: 150000 }, // lithium carbonate per tonne
-    NI: { min: 8000, max: 150000 }, // nickel per tonne
-    URANIUM: { min: 10, max: 500 }, // uranium per lb
-  };
-
-  function isInRange(symbol, price) {
-    const range = VALID_RANGES[symbol];
-    if (!range || typeof price !== "number" || !Number.isFinite(price)) {
-      return false;
-    }
-    return price >= range.min && price <= range.max;
-  }
-
-  function deriveFromRawRate(symbol, rateRaw) {
-    if (typeof rateRaw !== "number" || !Number.isFinite(rateRaw) || rateRaw <= 0) {
-      return { priceUSD: null, mode: "invalid_rate" };
-    }
-
-    const range = VALID_RANGES[symbol];
-    const candDirect = rateRaw;
-    const candInverse = 1 / rateRaw;
-
-    if (!range) {
-      return { priceUSD: candInverse, mode: "inverse_no_range" };
-    }
-
-    const directOK = isInRange(symbol, candDirect);
-    const inverseOK = isInRange(symbol, candInverse);
-
-    if (directOK && !inverseOK) return { priceUSD: candDirect, mode: "direct" };
-    if (!directOK && inverseOK) return { priceUSD: candInverse, mode: "inverse" };
-
-    if (directOK && inverseOK) {
-      const mid = (range.min + range.max) / 2;
-      const dDist = Math.abs(candDirect - mid);
-      const iDist = Math.abs(candInverse - mid);
-      return dDist <= iDist
-        ? { priceUSD: candDirect, mode: "direct_both_ok" }
-        : { priceUSD: candInverse, mode: "inverse_both_ok" };
-    }
-
-    return {
-      priceUSD: null,
-      mode: "out_of_range",
-    };
-  }
-
-  // Metals-API unit mapping for timeseries
-  const METAL_UNIT_PARAMS = {
-    XAU: "Troy Ounce",
-    XAG: "Troy Ounce",
-    IRON: "Ton",
-    "LITH-CAR": "Ton",
-    NI: "Ton",
-    URANIUM: "Pound",
-  };
-
-  // Alternate candidate names to try when canonical symbol returns no points.
-  // Extend via env ALT_METAL_SYNONYMS as JSON string if you prefer.
-  const DEFAULT_ALT_CANDIDATES = {
-    "LITH-CAR": ["LITHIUM", "LITHIUM_CARBONATE", "LITHIUM-CARBONATE"],
-    NI: ["NICKEL"],
-  };
-
-  let ALT_CANDIDATES = DEFAULT_ALT_CANDIDATES;
+const fetchWithTimeout = async (url, opts = {}, timeout = 15000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
   try {
-    if (process.env.ALT_METAL_SYNONYMS) {
-      const parsed = JSON.parse(process.env.ALT_METAL_SYNONYMS);
-      ALT_CANDIDATES = { ...DEFAULT_ALT_CANDIDATES, ...parsed };
-    }
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    clearTimeout(id);
+    return res;
   } catch (e) {
-    // ignore, use defaults
-  }
-
-  const HISTORY_MONTHS = Number(process.env.HISTORY_MONTHS || 6);
-
-  async function fetchUsdToAud() {
-    let usdToAud = null;
-    try {
-      let fRes = await fetchWithTimeout(
-        "https://open.er-api.com/v6/latest/USD",
-        {},
-        7000
-      );
-      let ftxt = await fRes.text().catch(() => "");
-      let fj = null;
-      try {
-        fj = ftxt ? JSON.parse(ftxt) : null;
-      } catch {
-        fj = null;
-      }
-      if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === "number") {
-        usdToAud = Number(fj.rates.AUD);
-      } else {
-        fRes = await fetchWithTimeout(
-          "https://api.exchangerate.host/latest?base=USD&symbols=AUD",
-          {},
-          7000
-        );
-        ftxt = await fRes.text().catch(() => "");
-        try {
-          fj = ftxt ? JSON.parse(ftxt) : null;
-        } catch {
-          fj = null;
-        }
-        if (fRes.ok && fj && fj.rates && typeof fj.rates.AUD === "number") {
-          usdToAud = Number(fj.rates.AUD);
-        }
-      }
-    } catch (e) {
-      console.warn("fx fetch error", e && e.message);
-    }
-    return usdToAud;
-  }
-
-  // Internal: fetch timeseries in ~30-day windows for a given candidate symbol.
-  // Returns { pointsMap: Map(date->value), chunkErrors: [] } where values are AUD if usdToAud present else USD
-  async function fetchChunksForCandidate(candidate, canonicalSymbol, usdToAud, apiKey) {
-    const unitParam = METAL_UNIT_PARAMS[canonicalSymbol] || "Troy Ounce";
-    const today = getTodayAestDateString();
-    // Use yesterday (AEST) as metals-api timeseries end
-    const endDate = addDays(today, -1);
-    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
-    if (fromStr > endDate) {
-      return { pointsMap: new Map(), chunkErrors: [{ start: fromStr, end: endDate, error: "invalid_date_range" }] };
-    }
-
-    const WINDOW_DAYS = 30;
-    const pointsMap = new Map();
-    const debugChunkErrors = [];
-
-    let cursor = fromStr;
-    while (cursor <= endDate) {
-      const endCandidate = addDays(cursor, WINDOW_DAYS - 1);
-      const chunkEnd = endCandidate > endDate ? endDate : endCandidate;
-
-      const url =
-        `https://metals-api.com/api/timeseries` +
-        `?access_key=${encodeURIComponent(apiKey)}` +
-        `&base=USD` +
-        `&symbols=${encodeURIComponent(candidate)}` +
-        `&unit=${encodeURIComponent(unitParam)}` +
-        `&start_date=${encodeURIComponent(cursor)}` +
-        `&end_date=${encodeURIComponent(chunkEnd)}`;
-
-      let json = null;
-      let txt = "";
-      let status = null;
-
-      try {
-        const res = await fetchWithTimeout(url, {}, 12000);
-        status = res.status;
-        txt = await res.text().catch(() => "");
-        try {
-          json = txt ? JSON.parse(txt) : null;
-        } catch {
-          json = null;
-        }
-
-        if (!res.ok || !json || json.success === false || !json.rates) {
-          debugChunkErrors.push({
-            start: cursor,
-            end: chunkEnd,
-            status,
-            bodyPreview: txt.slice(0, 300),
-          });
-
-          // If timeframe invalid, stop trying further chunks
-          if (
-            json &&
-            json.error &&
-            typeof json.error.type === "string" &&
-            json.error.type.toLowerCase().includes("timeframe")
-          ) {
-            break;
-          }
-
-          cursor = addDays(chunkEnd, 1);
-          continue;
-        }
-      } catch (e) {
-        debugChunkErrors.push({
-          start: cursor,
-          end: chunkEnd,
-          status,
-          error: e && e.message,
-        });
-        cursor = addDays(chunkEnd, 1);
-        continue;
-      }
-
-      const ratesByDate = json.rates || {};
-
-      for (const [date, dailyRates] of Object.entries(ratesByDate)) {
-        if (!dailyRates || typeof dailyRates !== "object") continue;
-
-        // Try multiple keys: USD<canonical>, USD<candidate>, <candidate> (raw), <canonical> (raw)
-        const usdKeyCanonical = `USD${canonicalSymbol}`;
-        const usdKeyCandidate = `USD${candidate}`;
-        const directUsdCanonical =
-          typeof dailyRates[usdKeyCanonical] === "number" && dailyRates[usdKeyCanonical] > 0
-            ? dailyRates[usdKeyCanonical]
-            : null;
-        const directUsdCandidate =
-          typeof dailyRates[usdKeyCandidate] === "number" && dailyRates[usdKeyCandidate] > 0
-            ? dailyRates[usdKeyCandidate]
-            : null;
-
-        const rawRateCandidate =
-          typeof dailyRates[candidate] === "number" && dailyRates[candidate] > 0
-            ? dailyRates[candidate]
-            : null;
-
-        const rawRateCanonical =
-          typeof dailyRates[canonicalSymbol] === "number" && dailyRates[canonicalSymbol] > 0
-            ? dailyRates[canonicalSymbol]
-            : null;
-
-        let priceUSD = null;
-
-        // Prefer explicit USD for canonical symbol if present
-        if (directUsdCanonical !== null && isInRange(canonicalSymbol, directUsdCanonical)) {
-          priceUSD = directUsdCanonical;
-        } else if (directUsdCandidate !== null && isInRange(canonicalSymbol, directUsdCandidate)) {
-          // USD provided under candidate key (e.g. USDNICKEL)
-          priceUSD = directUsdCandidate;
-        } else {
-          // Try deriving from raw rates (candidate raw first, then canonical raw)
-          let derived = deriveFromRawRate(canonicalSymbol, rawRateCandidate);
-          if (derived.priceUSD == null) {
-            derived = deriveFromRawRate(canonicalSymbol, rawRateCanonical);
-          }
-          priceUSD = derived.priceUSD;
-        }
-
-        if (priceUSD == null) continue;
-
-        const priceAUD = usdToAud != null ? fmt(priceUSD * usdToAud) : null;
-        const value = priceAUD != null ? priceAUD : fmt(priceUSD);
-        if (value == null) continue;
-
-        if (!pointsMap.has(date)) {
-          pointsMap.set(date, value);
-        }
-      }
-
-      cursor = addDays(chunkEnd, 1);
-    }
-
-    return { pointsMap, chunkErrors: debugChunkErrors };
-  }
-
-  // Backfill a single canonical symbol. Tries canonical first, then alternates.
-  async function backfillSymbol(symbol, usdToAud, apiKey) {
-    const today = getTodayAestDateString();
-    const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
-    const endDate = addDays(today, -1);
-    if (fromStr > endDate) {
-      return {
-        symbol,
-        skipped: false,
-        points: 0,
-        error: "invalid_date_range",
-        chunkErrors: [],
-      };
-    }
-
-    // try canonical + alternates
-    const candidates = [symbol].concat(ALT_CANDIDATES[symbol] || []);
-    let finalPointsMap = null;
-    let finalChunkErrors = [];
-    let usedCandidate = null;
-
-    for (const cand of candidates) {
-      const { pointsMap, chunkErrors } = await fetchChunksForCandidate(cand, symbol, usdToAud, apiKey);
-      finalChunkErrors = finalChunkErrors.concat(chunkErrors || []);
-      if (pointsMap && pointsMap.size > 0) {
-        finalPointsMap = pointsMap;
-        usedCandidate = cand;
-        break;
-      }
-    }
-
-    if (!finalPointsMap || finalPointsMap.size === 0) {
-      return {
-        symbol,
-        skipped: false,
-        points: 0,
-        error: "no_points_returned",
-        usedCandidate: null,
-        chunkErrors: finalChunkErrors,
-      };
-    }
-
-    const dates = Array.from(finalPointsMap.keys()).sort();
-    const points = dates.map((d) => [d, finalPointsMap.get(d)]);
-
-    const historyKey = `history:metal:daily:${symbol}`;
-    const existing = (await redisGetJson(historyKey)) || null;
-
-    // Merge with existing points if present, preferring backfill for overlaps
-    const mergedMap = new Map();
-
-    if (existing && Array.isArray(existing.points)) {
-      for (const [d, v] of existing.points) {
-        if (!mergedMap.has(d)) mergedMap.set(d, v);
-      }
-    }
-    for (const [d, v] of points) {
-      mergedMap.set(d, v);
-    }
-
-    const mergedDates = Array.from(mergedMap.keys()).sort();
-    const mergedPoints = mergedDates.map((d) => [d, mergedMap.get(d)]);
-
-    const out = {
-      symbol,
-      startDate: mergedDates[0],
-      endDate: mergedDates[mergedDates.length - 1],
-      lastUpdated: nowIso,
-      points: mergedPoints,
-      meta: {
-        usedCandidate: usedCandidate,
-        storedAs: usdToAud != null ? "AUD" : "USD",
-      },
-    };
-
-    await redisSet(historyKey, out);
-
-    return {
-      symbol,
-      skipped: false,
-      points: mergedPoints.length,
-      error: null,
-      usedCandidate,
-      chunkErrors: finalChunkErrors,
-    };
-  }
-
-  try {
-    const METALS_API_KEY = process.env.METALS_API_KEY || null;
-    if (!METALS_API_KEY) {
-      return { statusCode: 500, body: "Missing METALS_API_KEY" };
-    }
-    if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-      return { statusCode: 500, body: "Missing Upstash env vars" };
-    }
-
-    // Parse optional ?symbols= query, default to NI + LITH-CAR
-    const qs = (event && event.queryStringParameters) || {};
-    const symbolsParam = qs.symbols || qs.symbol || "";
-    let symbols;
-    if (symbolsParam) {
-      symbols = symbolsParam
-        .split(",")
-        .map((s) => s.trim().toUpperCase())
-        .filter(Boolean);
-    } else {
-      symbols = ["NI", "LITH-CAR"];
-    }
-
-    const usdToAud = await fetchUsdToAud();
-
-    const results = [];
-    for (const sym of symbols) {
-      try {
-        const r = await backfillSymbol(sym, usdToAud, METALS_API_KEY);
-        results.push(r);
-      } catch (e) {
-        results.push({
-          symbol: sym,
-          skipped: false,
-          points: 0,
-          error: e && e.message ? String(e.message) : "unknown_error",
-        });
-      }
-    }
-
-    const payload = {
-      ranAt: nowIso,
-      usdToAud,
-      symbols,
-      results,
-    };
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(payload),
-    };
-  } catch (err) {
-    console.error(
-      "metals-backfill-once error",
-      err && (err.stack || err.message || err)
-    );
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        error: (err && err.message) || String(err),
-      }),
-    };
+    clearTimeout(id);
+    throw e;
   }
 };
+
+function toDateISO(d){ return new Date(d).toISOString().slice(0,10); }
+function monthsAgoISO(months, from = new Date()){
+  const d = new Date(from);
+  d.setMonth(d.getMonth() - months);
+  return toDateISO(d);
+}
+function addDaysISO(dateStr, days){
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setDate(d.getDate() + days);
+  return toDateISO(d);
+}
+
+const METAL_UNITS = {
+  XAU: "Troy Ounce",
+  XAG: "Troy Ounce",
+  IRON: "Ton",
+  "LITH-CAR": "Ton",
+  NI: "Ton",
+  URANIUM: "Pound",
+};
+
+// Candidate names to try for each canonical symbol — edit if you know better names from Metals-API
+const CANDIDATES = {
+  NI: ["NI", "NICKEL", "NICKEL_TON", "NICKEL_ORE", "NICKEL.LME"],
+  "LITH-CAR": ["LITH-CAR", "LITHIUM", "LITHIUM_CARBONATE", "LITHIUM_CARBONATE_TON", "LITHIUM-CARBONATE"],
+};
+
+async function fetchUsdToAud(){
+  try{
+    let r = await fetchWithTimeout("https://open.er-api.com/v6/latest/USD", {}, 7000);
+    const txt = await r.text().catch(()=>"");
+    const j = txt ? JSON.parse(txt) : null;
+    if (r.ok && j && j.rates && typeof j.rates.AUD === "number") return Number(j.rates.AUD);
+  }catch(e){}
+  try{
+    let r = await fetchWithTimeout("https://api.exchangerate.host/latest?base=USD&symbols=AUD", {}, 7000);
+    const txt = await r.text().catch(()=>"");
+    const j = txt ? JSON.parse(txt) : null;
+    if (r.ok && j && j.rates && typeof j.rates.AUD === "number") return Number(j.rates.AUD);
+  }catch(e){}
+  return null;
+}
+
+async function fetchTimeseries(candidate, canonical, start, end, unitParam){
+  const unitQ = unitParam ? `&unit=${encodeURIComponent(unitParam)}` : "";
+  const url = `https://metals-api.com/api/timeseries?access_key=${encodeURIComponent(METALS_API_KEY)}&base=USD&symbols=${encodeURIComponent(candidate)}&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}${unitQ}`;
+  const res = await fetchWithTimeout(url, {}, 15000);
+  const txt = await res.text().catch(()=>"");
+  let json = null;
+  try{ json = txt ? JSON.parse(txt) : null; }catch(e){ json=null; }
+  return { ok: res.ok, status: res.status, bodyText: txt, json };
+}
+
+async function redisSet(key, obj){
+  const val = encodeURIComponent(JSON.stringify(obj));
+  const url = `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${val}`;
+  const res = await fetchWithTimeout(url, { method: "POST", headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } }, 10000);
+  const txt = await res.text().catch(()=>"");
+  return { ok: res.ok, status: res.status, bodyPreview: txt.slice(0,1000) };
+}
+
+(async()=>{
+  const symListEnv = (process.env.SYM_LIST || "").trim();
+  const targets = symListEnv ? symListEnv.split(",").map(s=>s.trim().toUpperCase()) : ["NI","LITH-CAR"];
+  const today = new Date();
+  // Metals-API timeseries tends to be valid up to yesterday; use yesterday
+  const end = addDaysISO(toDateISO(today), -1);
+  const start = monthsAgoISO(HISTORY_MONTHS, today);
+  if (start > end) {
+    console.error("Computed start > end; adjust HISTORY_MONTHS or dates.");
+    process.exit(2);
+  }
+
+  const usdToAud = await fetchUsdToAud();
+  console.log("USD->AUD:", usdToAud === null ? "(not available, storing USD)" : usdToAud);
+
+  for (const canonical of targets){
+    console.log(`\n--- ${canonical} -> trying candidates: ${CANDIDATES[canonical] ? CANDIDATES[canonical].join(",") : canonical}`);
+    let success = null;
+    const unitParam = METAL_UNITS[canonical] || null;
+
+    const candidates = CANDIDATES[canonical] ? CANDIDATES[canonical] : [canonical];
+    for (const cand of candidates){
+      try{
+        const r = await fetchTimeseries(cand, canonical, start, end, unitParam);
+        console.log(`candidate ${cand}: HTTP ${r.status} (ok=${r.ok})`);
+        if (!r.ok){
+          console.log("  preview:", (r.bodyText || "").slice(0,300));
+          continue;
+        }
+        if (!r.json || r.json.success === false){
+          console.log("  api error:", r.json && r.json.error ? r.json.error : "(no json)");
+          continue;
+        }
+        const ratesByDate = r.json.rates || {};
+        const dates = Object.keys(ratesByDate).sort();
+        const usdKey = `USD${canonical}`;
+        const points = [];
+        for (const d of dates){
+          const dayRates = ratesByDate[d] || {};
+          let priceUSD = null;
+          if (typeof dayRates[usdKey] === "number" && dayRates[usdKey] > 0){
+            priceUSD = dayRates[usdKey];
+          } else if (typeof dayRates[cand] === "number" && dayRates[cand] > 0){
+            priceUSD = 1 / dayRates[cand];
+          }
+          if (typeof priceUSD === "number" && Number.isFinite(priceUSD)){
+            const value = usdToAud != null ? Number((priceUSD * usdToAud).toFixed(2)) : Number(priceUSD.toFixed(6));
+            points.push([d, value]);
+          }
+        }
+
+        console.log(`  candidate ${cand} returned ${points.length} points (sample: ${points.slice(0,3).map(p=>p.join(":")).join(", ")})`);
+        if (points.length > 3){
+          success = { candidate: cand, points };
+          break;
+        } else {
+          console.log("  too few points, trying next candidate");
+        }
+      }catch(err){
+        console.log(`  candidate ${cand} fetch error:`, err && err.message ? err.message : String(err));
+      }
+    }
+
+    if (!success){
+      console.error(`❌ No successful candidate for ${canonical}. Check API preview above or extend CANDIDATES list.`);
+      continue;
+    }
+
+    // persist under canonical key
+    const trimmed = success.points.filter(p => p && p[0]);
+    const history = {
+      symbol: canonical,
+      startDate: trimmed.length ? trimmed[0][0] : start,
+      endDate: trimmed.length ? trimmed[trimmed.length-1][0] : end,
+      lastUpdated: new Date().toISOString(),
+      points: trimmed,
+      meta: { candidateUsed: success.candidate, storedIn: usdToAud ? "AUD" : "USD", usdToAud: usdToAud || null }
+    };
+
+    const key = `history:metal:daily:${canonical}`;
+    try{
+      const res = await redisSet(key, history);
+      console.log(`Wrote ${key}: ok=${res.ok} status=${res.status} preview=${res.bodyPreview && res.bodyPreview.slice(0,200)}`);
+    }catch(e){
+      console.error("Upstash set failed:", e && e.message ? e.message : e);
+    }
+  }
+
+  console.log("\nDone.");
+})();
