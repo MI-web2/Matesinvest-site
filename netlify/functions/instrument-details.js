@@ -892,8 +892,8 @@ exports.handler = async function (event) {
     };
   }
 
-  // -------------------------------
-  // Metal handler (6-month USD history, latest AUD from snapshot)
+    // -------------------------------
+  // Metal handler (Upstash-only; no direct Metals-API calls)
   // -------------------------------
   async function handleMetal(codeRaw) {
     if (!codeRaw) {
@@ -910,143 +910,132 @@ exports.handler = async function (event) {
       };
     }
 
-    if (!METALS_API_KEY) {
+    const debug = { steps: [] };
+    const symbol = String(codeRaw).toUpperCase().trim();
+
+    // Supported metals in our snapshot
+    const SUPPORTED_METALS = ["XAU", "XAG", "IRON", "LITH-CAR", "NI", "URANIUM"];
+    if (!SUPPORTED_METALS.includes(symbol)) {
       return {
-        statusCode: 500,
-        body: JSON.stringify({ error: "Missing METALS_API_KEY env" }),
+        statusCode: 400,
+        body: JSON.stringify({
+          error: `Unsupported metal "${symbol}". Use one of: ${SUPPORTED_METALS.join(
+            ", "
+          )}`,
+        }),
       };
     }
 
-    const debug = { steps: [] };
-    const symbol = String(codeRaw || "").toUpperCase().trim();
+    // Friendly names for UI
+    const METAL_NAMES = {
+      XAU: "Gold",
+      XAG: "Silver",
+      IRON: "Iron Ore 62% Fe",
+      "LITH-CAR": "Lithium Carbonate (Battery Grade)",
+      NI: "Nickel",
+      URANIUM: "Uranium (U3O8)",
+    };
 
-    // 1) Get latest snapshot from metals:latest (for AUD price + unit)
-    let latestSnapshot = null;
-    let latestMeta = null;
-    let latestDateStr = null;
-    let unit = METAL_UNITS[symbol] || null;
-
-    try {
-      latestSnapshot = await redisGetJson("metals:latest");
-      if (latestSnapshot) {
-        const coll = latestSnapshot.metals || latestSnapshot.symbols || {};
-        latestMeta = coll[symbol] || null;
-
-        if (latestMeta) {
-          if (latestMeta.priceTimestamp) {
-            latestDateStr = latestMeta.priceTimestamp.slice(0, 10);
-          } else if (latestSnapshot.snappedAt) {
-            latestDateStr = latestSnapshot.snappedAt.slice(0, 10);
-          }
-
-          if (latestMeta.unit) {
-            unit = latestMeta.unit;
-          }
-        }
-      }
-
-      debug.steps.push({
-        step: "latest-metal",
-        symbol,
-        ok: !!latestMeta,
-      });
-    } catch (e) {
-      debug.steps.push({
-        step: "latest-metal-error",
-        symbol,
-        error: e && e.message,
-      });
+    // 1) Latest snapshot from Upstash
+    const latestSnapshot = await redisGetJson("metals:latest");
+    if (!latestSnapshot) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          error: "No metals:latest snapshot found in Upstash",
+        }),
+      };
     }
 
-    if (!latestDateStr) {
-      // Fall back to "today" if snapshot missing
-      latestDateStr = toDateString(new Date());
+    const coll = latestSnapshot.metals || latestSnapshot.symbols || {};
+    const m = coll[symbol];
+    if (!m) {
+      return {
+        statusCode: 404,
+        body: JSON.stringify({
+          error: `No latest metal data found for ${symbol} in metals:latest`,
+        }),
+      };
     }
 
-    // 2) Build / fetch 6-month USD history
-    const fromDateStr = monthsAgoFromDateString(
-      latestDateStr,
-      HISTORY_MONTHS || DEFAULT_HISTORY_MONTHS
-    );
+    debug.steps.push({ step: "latest-metal", symbol, ok: true });
 
+    // 2) History from Upstash (built by snapshot-metals)
+    const histKey = `history:metal:daily:${symbol}`;
+    const hist = await redisGetJson(histKey);
     let history = null;
-    try {
-      history = await getOrBuildMetalHistory(symbol, fromDateStr, latestDateStr);
+    let yesterdayDate = null;
+    let yesterdayPrice = null;
+    let pctChange = null;
+
+    if (hist && Array.isArray(hist.points) && hist.points.length > 0) {
+      history = hist;
       debug.steps.push({
         step: "metal-history",
         symbol,
-        points:
-          history && Array.isArray(history.points) ? history.points.length : 0,
+        points: hist.points.length,
       });
-    } catch (e) {
-      debug.steps.push({
-        step: "metal-history-error",
-        symbol,
-        error: e && e.message,
-      });
-    }
 
-    // 3) Derive latest + yesterday from USD history
-    let latest = {
-      date: null,
-      priceAUD: null, // from snapshot
-      priceUSD: null, // from history
-      yesterdayDate: null,
-      yesterdayPrice: null, // USD
-      pctChange: null, // based on USD
-      unit,
-    };
-
-    if (history && Array.isArray(history.points) && history.points.length > 0) {
-      const pts = history.points;
+      const pts = hist.points;
       const n = pts.length;
-      const [lastDate, lastPriceUsd] = pts[n - 1];
-      latest.date = lastDate;
-      latest.priceUSD = lastPriceUsd;
+      const [lastDate, lastVal] = pts[n - 1];
 
       if (n >= 2) {
-        const [prevDate, prevPriceUsd] = pts[n - 2];
-        latest.yesterdayDate = prevDate;
-        latest.yesterdayPrice = prevPriceUsd;
+        const [prevDate, prevVal] = pts[n - 2];
+        yesterdayDate = prevDate;
+        yesterdayPrice =
+          typeof prevVal === "number" && Number.isFinite(prevVal)
+            ? Number(prevVal)
+            : null;
+
         if (
-          typeof prevPriceUsd === "number" &&
-          prevPriceUsd !== 0 &&
-          typeof lastPriceUsd === "number"
+          typeof lastVal === "number" &&
+          Number.isFinite(lastVal) &&
+          typeof prevVal === "number" &&
+          Number.isFinite(prevVal) &&
+          prevVal !== 0
         ) {
-          const pct = ((lastPriceUsd - prevPriceUsd) / prevPriceUsd) * 100;
-          latest.pctChange = fmt(pct, 4);
+          const rawPct = ((lastVal - prevVal) / prevVal) * 100;
+          pctChange = Number(rawPct.toFixed(4));
         }
       }
+    } else {
+      debug.steps.push({ step: "metal-history-missing", symbol });
     }
 
-    // 4) Fill in AUD latest from snapshot if available (for header display)
-    if (latestMeta) {
-      if (
-        typeof latestMeta.priceAUD === "number" &&
-        Number.isFinite(latestMeta.priceAUD)
-      ) {
-        latest.priceAUD = latestMeta.priceAUD;
-      } else if (
-        typeof latestMeta.priceUSD === "number" &&
-        Number.isFinite(latestMeta.priceUSD)
-      ) {
-        // fallback: if snapshot only had USD, keep it around
-        latest.priceUSD = latest.priceUSD || latestMeta.priceUSD;
-      }
-      if (!latest.date && latestMeta.priceTimestamp) {
-        latest.date = latestMeta.priceTimestamp.slice(0, 10);
-      }
-    }
+    // 3) Build latest block
+    const latestDate =
+      (history && history.endDate) ||
+      (m.priceTimestamp && m.priceTimestamp.slice(0, 10)) ||
+      (latestSnapshot.snappedAt &&
+        latestSnapshot.snappedAt.slice(0, 10)) ||
+      null;
+
+    const latest = {
+      date: latestDate,
+      priceAUD:
+        typeof m.priceAUD === "number" && Number.isFinite(m.priceAUD)
+          ? m.priceAUD
+          : null,
+      priceUSD:
+        typeof m.priceUSD === "number" && Number.isFinite(m.priceUSD)
+          ? m.priceUSD
+          : null,
+      yesterdayDate,
+      yesterdayPrice,
+      pctChange,
+      unit: m.unit || null,
+    };
 
     const payload = {
       type: "metal",
       code: symbol,
       name: METAL_NAMES[symbol] || symbol,
-      unit: unit || null,
+      unit: latest.unit,
       latest,
-      history: history || null, // history.points are [date, priceUSD]
-      fundamentals: null,
-      news: [],
+      history, // may be null or a { symbol, startDate, endDate, points } object
+      fundamentals: null, // no fundamentals for metals for now
+      news: [], // can be wired later if we add commodity news
       debug,
       generatedAt: nowIso,
     };
@@ -1056,6 +1045,7 @@ exports.handler = async function (event) {
       body: JSON.stringify(payload),
     };
   }
+
 
   // -------------------------------
   // Main handler
