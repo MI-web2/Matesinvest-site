@@ -1,6 +1,7 @@
 [functions]
   directory = "netlify/functions"
   included_files = ["netlify/functions/asx200.txt"]
+  node_bundler = "esbuild"
 
 [functions."snapshot-metals"]
   schedule = "0 19 * * *"
@@ -12,10 +13,7 @@
   # Runs at 20:02 UTC, ~7:02am Australia/Sydney
   # but we label the note as "generatedAt" 6:00am AEST/AEDT
   schedule = "2 20 * * *"
-[functions]
-  node_bundler = "esbuild"
 
-# Run email-daily-brief every day at 20:05 UTC (6:05am AEST)
-[[scheduled]]
-  name = "email-daily-brief"
-  cron = "5 20 * * *"
+[functions."email-daily-brief"]
+  # Run email-daily-brief every day at 20:05 UTC (6:05am AEST)
+  schedule = "5 20 * * *"
