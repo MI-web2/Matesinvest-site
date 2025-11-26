@@ -276,7 +276,7 @@ async function fetchMarketauxArticles(url) {
   }
 }
 
-// EODHD ASX news: only used for AU region
+// EODHD ASX / Australia-focused news
 async function fetchEodhdArticles(EODHD_TOKEN, qs, region) {
   try {
     if (!EODHD_TOKEN) {
@@ -284,27 +284,59 @@ async function fetchEodhdArticles(EODHD_TOKEN, qs, region) {
       return [];
     }
 
-    // We only care about ASX news right now
+    // Only use EODHD when we’re in the AU region for now
     if (region !== "au") return [];
 
     const base = "https://eodhd.com/api/news";
     const url = new URL(base);
 
     url.searchParams.set("api_token", EODHD_TOKEN);
-    url.searchParams.set("exchange", "ASX");
+    url.searchParams.set("fmt", "json");
 
-    // Use per_page as a rough limit if provided, otherwise 20
+    // --- HOW WE FOCUS IT ON AUSTRALIA ---
+
+    // 1) If the frontend ever sends `symbols=BHP,CSL` etc, we can map them to EOD tickers like BHP.AU
+    //    For now this is optional – the main AU bias comes from the topic tag below.
+    let mappedTickers = null;
+    if (qs.symbols) {
+      const symbols = String(qs.symbols)
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+
+      if (symbols.length) {
+        mappedTickers = symbols
+          .map((sym) => {
+            // If the user already passed a full EODHD ticker (e.g. BHP.AU), keep it
+            if (sym.includes(".")) return sym;
+            // Otherwise assume ASX and append .AU
+            return `${sym}.AU`;
+          })
+          .join(",");
+      }
+    }
+
+    if (mappedTickers) {
+      // If we have explicit symbols, use those
+      url.searchParams.set("s", mappedTickers);
+    } else {
+      // Otherwise: broad AU filter via topic tag
+      // EODHD tags include country names like "KENYA" in their example,
+      // so "australia" is a good generic AU filter.
+      url.searchParams.set("t", "australia");
+    }
+
+    // --- limit & basic filters ---
     let limit = 20;
     if (qs.per_page) {
-      const n = parseInt(qs.per_page, 10);
+      let n = parseInt(qs.per_page, 10);
       if (!isNaN(n) && n > 0 && n <= 100) limit = n;
     }
     url.searchParams.set("limit", String(limit));
 
-    // Optional: if you want to narrow by a search string:
-    if (qs.search && typeof qs.search === "string" && qs.search.trim()) {
-      url.searchParams.set("search", qs.search.trim());
-    }
+    // Optional: date filters (if you ever add them to the UI)
+    if (qs.from) url.searchParams.set("from", String(qs.from));
+    if (qs.to) url.searchParams.set("to", String(qs.to));
 
     const res = await fetch(url.toString());
     if (!res.ok) {
@@ -319,11 +351,11 @@ async function fetchEodhdArticles(EODHD_TOKEN, qs, region) {
       return [];
     }
 
-    const mapped = data.map((it, idx) => {
+    const mapped = data.map((it) => {
       const title = it.title || "";
-      const description = it.content || it.summary || "";
+      const description = it.content || "";
       const urlLink = it.link || it.url || "https://matesinvest.com";
-      const source = it.source || "EODHD News";
+      const source = it.source || "EODHD (AU news)";
       const publishedAt = it.date || it.published || new Date().toISOString();
 
       return {
