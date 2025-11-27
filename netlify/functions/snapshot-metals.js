@@ -525,12 +525,26 @@ exports.handler = async function (event) {
         if (s === "XAU" || s === "XAG") {
           // AUD per oz
           value = numOrNull(m.priceAUD);
-        } else if (s === "URANIUM") {
-          // USD per lb
-          value =
-            numOrNull(m.apiPriceUSD) ??
-            numOrNull(m.priceUSD) ??
-            numOrNull(m.apiPriceRaw);
+} else if (s === "URANIUM") {
+  // For URANIUM history:
+  // Convert USD/lb → AUD/lb
+  const usd =
+    numOrNull(m.apiPriceRaw) ??
+    numOrNull(m.apiPriceUSD) ??
+    numOrNull(m.priceUSD);
+  const fx = numOrNull(m.usdToAud);
+
+  if (usd != null && fx != null) {
+    value = Number((usd * fx).toFixed(2));   // AUD per lb
+  } else {
+    // fallback (rare)
+    value =
+      numOrNull(m.priceAUD) ??
+      numOrNull(m.priceUSD) ??
+      numOrNull(m.apiPriceUSD);
+  }
+}
+
         } else if (s === "IRON") {
           // apiPriceRaw (USD per tonne) -> AUD per tonne for history
           const rawUsd = numOrNull(m.apiPriceRaw);
