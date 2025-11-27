@@ -37,6 +37,7 @@ const hasAnyData =
   (aggregates.metalsWeekly &&
     Object.keys(aggregates.metalsWeekly).length > 0);
 
+
   if (!hasAnyData) {
     console.warn("matesWeeklyNote called with empty aggregates");
     return {
