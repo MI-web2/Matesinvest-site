@@ -540,21 +540,21 @@ exports.handler = async function (event) {
           } else {
             value = numOrNull(m.priceAUD);
           }
-        } else if (s === "NI" || s === "LITH-CAR") {
-          // For history, match the timeseries-style number you backfilled:
-          // use apiPriceRaw (raw MetalsAPI rate), with fallbacks if missing.
-          value =
-            numOrNull(m.apiPriceRaw) ??
-            numOrNull(m.priceUSD) ??
-            numOrNull(m.priceAUD);
-
-        } else {
-          // Fallback: old generic behaviour
-          value =
-            numOrNull(m.apiPriceRaw) ??
-            numOrNull(m.apiPriceUSD) ??
-            numOrNull(m.priceAUD);
-        }
+} else if (s === "NI" || s === "LITH-CAR") {
+  // For NI & LITH-CAR history:
+  // Use apiPriceRaw (USD/unit) converted to AUD (USD->AUD fx)
+  const rawUsd = numOrNull(m.apiPriceRaw);
+  const fx = numOrNull(m.usdToAud);
+  if (rawUsd != null && fx != null) {
+    value = Number((rawUsd * fx).toFixed(2));   // AUD per tonne (or unit)
+  } else {
+    // fallback (very rare)
+    value =
+      numOrNull(m.priceAUD) ??
+      numOrNull(m.priceUSD) ??
+      numOrNull(m.apiPriceUSD);
+  }
+}
 
         if (value == null) continue;
 
