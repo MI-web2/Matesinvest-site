@@ -461,11 +461,16 @@ exports.handler = async function (event) {
     const todayDateAest = getTodayAestDateString();
 
     // -------------------------------
-    // 5) Update rolling history with today's snapshot point (append raw USD)
+    // -------------------------------
+    // 5) Update rolling history with today's snapshot point (append raw USD/AUD per symbol rules)
     // -------------------------------
     async function updateMetalHistoryWithToday(symbols, snapshot, todayDateAest) {
       const coll = snapshot.metals || snapshot.symbols || {};
       const fromStr = monthsAgoDateStringAest(HISTORY_MONTHS);
+
+      function numOrNull(v) {
+        return typeof v === "number" && Number.isFinite(v) ? v : null;
+      }
 
       for (const s of symbols) {
         const m = coll[s];
@@ -484,16 +489,40 @@ exports.handler = async function (event) {
           ? existing.points.filter((p) => p && p[0] !== todayDateAest)
           : [];
 
-        // Prefer the raw no-unit API price for history append, fall back to
-        // apiPriceUSD, then to priceAUD.
-        const value =
-          typeof m.apiPriceRaw === "number" && Number.isFinite(m.apiPriceRaw)
-            ? m.apiPriceRaw
-            : typeof m.apiPriceUSD === "number" && Number.isFinite(m.apiPriceUSD)
-            ? m.apiPriceUSD
-            : typeof m.priceAUD === "number" && Number.isFinite(m.priceAUD)
-            ? m.priceAUD
-            : null;
+        let value = null;
+
+        // -------- per-metal rules --------
+        if (s === "XAU" || s === "XAG") {
+          // AUD per oz
+          value = numOrNull(m.priceAUD);
+        } else if (s === "URANIUM") {
+          // USD per lb
+          value =
+            numOrNull(m.apiPriceUSD) ??
+            numOrNull(m.priceUSD) ??
+            numOrNull(m.apiPriceRaw);
+        } else if (s === "IRON") {
+          // apiPriceRaw (USD per tonne) -> AUD per tonne for history
+          const rawUsd = numOrNull(m.apiPriceRaw);
+          const fx = numOrNull(m.usdToAud);
+          if (rawUsd != null && fx != null) {
+            value = Number((rawUsd * fx).toFixed(2)); // apiPriceRaw AUD
+          } else {
+            value = numOrNull(m.priceAUD);
+          }
+        } else if (s === "NI" || s === "LITH-CAR") {
+          // Use AUD per tonne to line up with daily cards
+          value =
+            numOrNull(m.priceAUD) ??
+            numOrNull(m.apiPriceUSD) ??
+            numOrNull(m.apiPriceRaw);
+        } else {
+          // Fallback: old generic behaviour
+          value =
+            numOrNull(m.apiPriceRaw) ??
+            numOrNull(m.apiPriceUSD) ??
+            numOrNull(m.priceAUD);
+        }
 
         if (value == null) continue;
 
