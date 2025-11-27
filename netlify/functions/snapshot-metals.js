@@ -543,7 +543,6 @@ exports.handler = async function (event) {
       numOrNull(m.priceUSD) ??
       numOrNull(m.apiPriceUSD);
   }
-}
 
         } else if (s === "IRON") {
           // apiPriceRaw (USD per tonne) -> AUD per tonne for history
