@@ -29,11 +29,13 @@ exports.handler = async function (event) {
   }
 
   // Basic sanity check
-  const hasAnyData =
-    (aggregates.weeklyTop && aggregates.weeklyTop.length) ||
-    (aggregates.weeklyBottom && aggregates.weeklyBottom.length) ||
-    (aggregates.metalsWeekly &&
-      Object.keys(aggregates.metalsWeekly).length > 0);
+const hasAnyData =
+  (aggregates.weeklyTopSectors &&
+    aggregates.weeklyTopSectors.length) ||
+  (aggregates.weeklyBottomSectors &&
+    aggregates.weeklyBottomSectors.length) ||
+  (aggregates.metalsWeekly &&
+    Object.keys(aggregates.metalsWeekly).length > 0);
 
   if (!hasAnyData) {
     console.warn("matesWeeklyNote called with empty aggregates");
@@ -47,45 +49,47 @@ exports.handler = async function (event) {
   }
 
   // Build prompt
-  const systemMessage = {
-    role: "system",
-    content: [
-      "You are an investment writer for MatesInvest, speaking to everyday Australian retail investors.",
-      "Write in short, clear, plain-English. Assume the reader has basic ASX knowledge but is not a professional.",
-      "Summarise what happened on the ASX over the last 5 trading days, using the JSON data provided.",
-      "Highlight key winners and losers by code, and what sectors or themes they represent.",
-      "Explain what happened in major commodities like gold, iron ore, lithium, nickel and uranium.",
-      "You MUST NOT give personal financial advice or tell the reader what to buy or sell.",
-      "Avoid predictions, price targets and specific trade recommendations.",
-      "Tone: friendly, confident, calm, and slightly conversational.",
-    ].join(" "),
-  };
+const systemMessage = {
+  role: "system",
+  content: [
+    "You are an investment writer for MatesInvest, speaking to everyday Australian retail investors.",
+    "Write in short, clear, plain-English. Assume the reader has basic ASX knowledge but is not a professional.",
+    "Your focus is on SECTORS, not individual stock tips.",
+    "Use the JSON data to explain which sectors had the strongest and weakest average moves over the week, and how that links to key commodities.",
+    "You can mention a couple of example tickers in passing, but the main story should be sector-level themes (e.g. gold miners, tech, energy, materials).",
+    "Explain what happened in major commodities like gold, iron ore, lithium, nickel and uranium.",
+    "You MUST NOT give personal financial advice or tell the reader what to buy or sell.",
+    "Avoid predictions, price targets and specific trade recommendations.",
+    "Tone: friendly, confident, calm, slightly conversational, with Australian spelling.",
+  ].join(" "),
+};
 
-  const userMessage = {
-    role: "user",
-    content:
-      [
-        "Here is the weekly ASX and commodities data for the last five trading days as JSON.",
-        "",
-        "Field meanings:",
-        "- weeklyTop: array of top movers across the week (sumPct is total percentage move over the week).",
-        "- weeklyBottom: array of worst performers across the week.",
-        "- metalsWeekly: object keyed by symbol (XAU, XAG, IRON, LITH-CAR, NI, URANIUM, etc) with first/last price in AUD and weeklyPct move.",
-        "",
-        "Use this data to write a short weekly wrap called 'Weekly Wrap'.",
-        "Structure it like this (but DO NOT include bullet labels, just headings/paragraphs):",
-        "1) A one-sentence opener summarising the week for the ASX overall.",
-        "2) A short 'Equities' paragraph or two highlighting notable winners and losers (mention a few tickers like A2M, BHP, etc).",
-        "3) A short 'Commodities' paragraph noting which commodities moved the most and how that might relate to sectors (gold miners, iron ore names, lithium, uranium, etc).",
-        "4) A short 'What to watch next week' paragraph that is very general — focus on themes (volatility, commodity sensitivity), not specific predictions.",
-        "",
-        "Do not exceed about 250–300 words.",
-        "Keep it Australian in spelling and context.",
-        "",
-        "Here is the JSON data:\n",
-        JSON.stringify(aggregates, null, 2),
-      ].join("\n"),
-  };
+
+const userMessage = {
+  role: "user",
+  content: [
+    "Here is the weekly ASX and commodities data for the last five trading days as JSON.",
+    "",
+    "Field meanings:",
+    "- weeklyTopSectors: array of best-performing sectors across the week (avgPct is the average daily percentage move across the sector).",
+    "- weeklyBottomSectors: array of worst-performing sectors.",
+    "- metalsWeekly: object keyed by symbol (XAU, XAG, IRON, LITH-CAR, NI, URANIUM, etc) with first/last price in AUD and weeklyPct move.",
+    "",
+    "Use this data to write a short weekly wrap called 'Weekly Wrap'.",
+    "Structure it like this (but DO NOT include bullet labels, just headings/paragraphs):",
+    "1) A one-sentence opener summarising the week for the ASX overall.",
+    "2) A short 'Equities by sector' section explaining which sectors led and lagged, and why that might be (e.g. rate-sensitive names, defensives, resources, tech).",
+    "3) A short 'Commodities' section noting which commodities moved the most and which sectors that tends to impact (gold miners, iron ore producers, lithium names, uranium plays, etc).",
+    "4) A short 'What to watch next week' paragraph that is very general — focus on themes (e.g. whether resource-heavy sectors stay in focus), not specific predictions.",
+    "",
+    "Do not exceed about 250–300 words.",
+    "Keep it Australian in spelling and context.",
+    "",
+    "Here is the JSON data:\n",
+    JSON.stringify(aggregates, null, 2),
+  ].join("\n"),
+};
+
 
   try {
     const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
