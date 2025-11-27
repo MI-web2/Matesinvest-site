@@ -354,29 +354,35 @@
             <p style="font-size:13px;color:#6b7280;">
               No spam, no sales push. Just useful updates as we ship new features.
             </p>
-            <form
-              action="https://formspree.io/f/xqazdvgz"
-              method="POST"
-              class="form"
-            >
-              <label>
-                <span>First name</span>
-                <input type="text" name="first_name" required autocomplete="given-name" />
-              </label>
-              <label>
-                <span>Email</span>
-                <input type="email" name="email" required autocomplete="email" />
-              </label>
-              <label>
-                <span>How do you invest today?</span>
-                <input
-                  type="text"
-                  name="message"
-                  placeholder='e.g. "Mostly ASX ETFs through CommSec"'
-                />
-              </label>
-              <button type="submit" class="btn btn-primary">Join the waitlist</button>
-            </form>
+<form
+  name="waitlist"
+  method="POST"
+  data-netlify="true"
+  action="/thanks.html"
+  class="form"
+>
+  <!-- Netlify needs this hidden field to recognise the form -->
+  <input type="hidden" name="form-name" value="waitlist" />
+
+  <label>
+    <span>First name</span>
+    <input type="text" name="first_name" required autocomplete="given-name" />
+  </label>
+  <label>
+    <span>Email</span>
+    <input type="email" name="email" required autocomplete="email" />
+  </label>
+  <label>
+    <span>How do you invest today?</span>
+    <input
+      type="text"
+      name="message"
+      placeholder='e.g. "Mostly ASX ETFs through CommSec"'
+    />
+  </label>
+  <button type="submit" class="btn btn-primary">Join the waitlist</button>
+</form>
+
           </div>
         </div>
       </section>
