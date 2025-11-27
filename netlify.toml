@@ -9,11 +9,15 @@
 [functions."snapshot-mcaps"]
   schedule = "0 20 * * *"
 
+[functions."snapshot-asx200"]
+  # Run once a day at 20:00 UTC (~6am AEST / 7am AEDT)
+  schedule = "0 20 * * *"
+
 [functions."generate-morning-note"]
   # Runs at 20:02 UTC, ~7:02am Australia/Sydney
   # but we label the note as "generatedAt" 6:00am AEST/AEDT
   schedule = "2 20 * * *"
 
 [functions."email-daily-brief"]
-  # Run email-daily-brief every day at 20:05 UTC (6:05am AEST)
+  # Run email-daily-brief every day at 20:05 UTC (6:05am AEST-ish)
   schedule = "5 20 * * *"
