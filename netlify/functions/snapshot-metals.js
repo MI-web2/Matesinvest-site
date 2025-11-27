@@ -365,16 +365,46 @@ exports.handler = async function (event) {
           rawRates && typeof rawRates[s] === "number" && rawRates[s] > 0
             ? rawRates[s]
             : null;
+
         let apiRawPrice = null;
-        if (directUsd !== null && isInRange(s, directUsd)) {
-          apiRawPrice = directUsd;
+
+        if (s === "NI" || s === "LITH-CAR") {
+          // *** SPECIAL CASE ***
+          // For NI & LITH-CAR, keep apiPriceRaw equal to the raw MetalsAPI rate,
+          // so it lines up with your manual timeseries backfill.
+          apiRawPrice =
+            typeof rawRate === "number" && Number.isFinite(rawRate)
+              ? rawRate
+              : null;
+
+          // If for some reason rawRate is missing, fall back to the old behaviour.
+          if (apiRawPrice === null) {
+            if (directUsd !== null && isInRange(s, directUsd)) {
+              apiRawPrice = directUsd;
+            } else {
+              const derived = deriveFromRawRate(s, rawRate);
+              apiRawPrice = derived.priceUSD;
+            }
+          }
         } else {
-          const derived = deriveFromRawRate(s, rawRate);
-          apiRawPrice = derived.priceUSD;
+          // Existing behaviour for other metals
+          if (directUsd !== null && isInRange(s, directUsd)) {
+            apiRawPrice = directUsd;
+          } else {
+            const derived = deriveFromRawRate(s, rawRate);
+            apiRawPrice = derived.priceUSD;
+          }
         }
-        if (!allRates[s]) allRates[s] = { rates: {}, unitParam: METAL_UNIT_PARAMS[s] || "Troy Ounce" };
+
+        if (!allRates[s]) {
+          allRates[s] = {
+            rates: {},
+            unitParam: METAL_UNIT_PARAMS[s] || "Troy Ounce",
+          };
+        }
         allRates[s].apiRawPrice = apiRawPrice;
       }
+
     } catch (e) {
       console.warn("raw latest fetch failed", e && e.message);
     }
