@@ -61,21 +61,23 @@ function getAestDateString(date) {
   return aestTime.toISOString().slice(0, 10);
 }
 
-// Last N business days, returned as YYYY-MM-DD strings in AEST
+// Return last N business days as YYYY-MM-DD *UTC* strings for EODHD range
 function getLastBusinessDays(n, endDate = new Date()) {
   const days = [];
   let d = new Date(endDate);
   while (days.length < n) {
-    const dow = d.getDay();
+    const dow = d.getDay(); // 0=Sun, 6=Sat
     if (dow !== 0 && dow !== 6) days.push(new Date(d));
     d.setDate(d.getDate() - 1);
   }
-  return days.reverse().map((dt) => getAestDateString(dt));
+  return days.reverse().map((dt) => dt.toISOString().slice(0, 10));
 }
 
-// Today’s date in AEST
+// Today’s date in AEST (for Redis key only)
 function getTodayAestDateString(baseDate = new Date()) {
-  return getAestDateString(baseDate);
+  const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane UTC+10
+  const aestTime = new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
+  return aestTime.toISOString().slice(0, 10);
 }
 
 function normalizeCode(code) {
