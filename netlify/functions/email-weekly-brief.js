@@ -45,7 +45,8 @@ exports.handler = async function () {
   function getAestDate(baseDate = new Date()) {
     // Australia/Brisbane: UTC+10, no DST
     const AEST_OFFSET_MINUTES = 10 * 60;
-    return new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
+    const aest = new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
+    return aest;
   }
 
   function formatMoney(n) {
@@ -105,24 +106,23 @@ exports.handler = async function () {
     }
   }
 
-  // Last 5 *market* days in AEST (skip Sat/Sun).
+  // Last N *market* days in AEST (skip Sat/Sun).
   function getLastNMarketDaysAest(n = 5) {
     const todayAest = getAestDate();
     const dates = [];
     const d = new Date(todayAest);
 
-    // We expect this to run Saturday AEST, so step back from today
+    // Expected to run Saturday AEST: step back until we have 5 weekdays
     while (dates.length < n) {
       d.setDate(d.getDate() - 1);
       const day = d.getDay(); // 0=Sun, 6=Sat
       if (day === 0 || day === 6) continue;
 
-      const iso = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      const iso = d.toISOString().slice(0, 10); // YYYY-MM-DD (UTC date, but consistent with your keys)
       dates.push(iso);
     }
 
-    // dates currently newest -> oldest (Fri,Thu,...).
-    // We often want oldest -> newest for aggregates.
+    // Currently newest -> oldest; flip to oldest -> newest
     return dates.reverse();
   }
 
@@ -217,59 +217,54 @@ exports.handler = async function () {
   }
 
   // -------------------------------
-  // Aggregation: stocks + commodities
+  // Aggregation: sectors + commodities
   // -------------------------------
   function buildWeeklyAggregates(asxDaily, metalsDaily) {
-    // ----- Stocks -----
-    const perfByCode = new Map();
+    // ----- Sector performance -----
+    const sectorPerf = new Map();
 
     for (const snap of asxDaily) {
-      const { date, rows } = snap;
+      const { rows } = snap;
       for (const row of rows) {
-        const code = row.code;
-        if (!code) continue;
-
-        const name =
-          row.name || row.fullName || row.fullCode || row.code || "—";
         const pct =
           typeof row.pctChange === "number" ? row.pctChange : 0;
-        const lastPrice =
-          typeof row.lastPrice === "number" ? row.lastPrice : null;
+
+        const sectorRaw =
+          row.sector ||
+          row.gicsSector ||
+          row.industry ||
+          row.industryGroup ||
+          "Other";
+
+        const sector = String(sectorRaw).trim() || "Other";
 
         const prev =
-          perfByCode.get(code) || {
-            code,
-            name,
+          sectorPerf.get(sector) || {
+            sector,
             sumPct: 0,
             daysSeen: 0,
-            lastPrice: null,
-            lastDate: null,
           };
 
         prev.sumPct += pct;
         prev.daysSeen += 1;
 
-        if (!prev.lastDate || date > prev.lastDate) {
-          prev.lastDate = date;
-          prev.lastPrice = lastPrice;
-        }
-
-        perfByCode.set(code, prev);
+        sectorPerf.set(sector, prev);
       }
     }
 
-    const allStocks = Array.from(perfByCode.values()).filter(
-      (s) => s.daysSeen >= 2 // avoid one-day spikes if you want
-    );
+    const allSectors = Array.from(sectorPerf.values()).map((s) => {
+      const avgPct = s.daysSeen > 0 ? s.sumPct / s.daysSeen : 0;
+      return { ...s, avgPct };
+    });
 
-    const weeklyTop = allStocks
+    const weeklyTopSectors = allSectors
       .slice()
-      .sort((a, b) => b.sumPct - a.sumPct)
+      .sort((a, b) => b.avgPct - a.avgPct)
       .slice(0, 5);
 
-    const weeklyBottom = allStocks
+    const weeklyBottomSectors = allSectors
       .slice()
-      .sort((a, b) => a.sumPct - b.sumPct)
+      .sort((a, b) => a.avgPct - b.avgPct)
       .slice(0, 5);
 
     // ----- Commodities -----
@@ -314,7 +309,7 @@ exports.handler = async function () {
       };
     }
 
-    return { weeklyTop, weeklyBottom, metalsWeekly };
+    return { weeklyTopSectors, weeklyBottomSectors, metalsWeekly };
   }
 
   // -------------------------------
@@ -326,9 +321,7 @@ exports.handler = async function () {
     try {
       const resp = await matesWeeklyNoteFn.handler(
         {
-          body: JSON.stringify({
-            aggregates,
-          }),
+          body: JSON.stringify({ aggregates }),
         },
         {}
       );
@@ -349,7 +342,8 @@ exports.handler = async function () {
   // HTML builder
   // -------------------------------
   function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc) {
-    const { weeklyTop, weeklyBottom, metalsWeekly } = aggregates;
+    const { weeklyTopSectors, weeklyBottomSectors, metalsWeekly } =
+      aggregates;
 
     const aestNow = getAestDate();
     const niceDate = aestNow.toLocaleDateString("en-AU", {
@@ -370,18 +364,12 @@ exports.handler = async function () {
       URANIUM: "Uranium",
     };
 
-    const stockRows = (list) =>
+    const sectorRows = (list) =>
       list
         .map((s) => {
-          const last =
-            typeof s.lastPrice === "number"
-              ? "$" + formatMoney(s.lastPrice)
-              : "—";
-          const pct = s.sumPct;
+          const pct = s.avgPct;
           const pctStr =
-            typeof pct === "number"
-              ? pct.toFixed(2) + "%"
-              : "—";
+            typeof pct === "number" ? pct.toFixed(2) + "%" : "—";
           const isUp = typeof pct === "number" && pct > 0;
           const isDown = typeof pct === "number" && pct < 0;
           const color = isUp
@@ -391,20 +379,24 @@ exports.handler = async function () {
             : "#64748b";
           const arrow = isUp ? "▲" : isDown ? "▼" : "";
           return `
-          <tr>
-            <td style="padding:8px 6px;font-weight:600;font-size:13px;color:#0b1220;">${s.code}</td>
-            <td style="padding:8px 6px;font-size:13px;color:#64748b;">${s.name}</td>
-            <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${last}</td>
-            <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
-              ${pctStr !== "—" ? `${arrow} ${pctStr}` : pctStr}
-            </td>
-          </tr>
-        `;
+            <tr>
+              <td style="padding:8px 6px;font-weight:600;font-size:13px;color:#0b1220;">${s.sector}</td>
+              <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
+                ${pctStr !== "—" ? `${arrow} ${pctStr}` : pctStr}
+              </td>
+            </tr>
+          `;
         })
         .join("");
 
-    const topRowsHtml = weeklyTop.length ? stockRows(weeklyTop) : "";
-    const bottomRowsHtml = weeklyBottom.length ? stockRows(weeklyBottom) : "";
+    const topRowsHtml =
+      weeklyTopSectors && weeklyTopSectors.length
+        ? sectorRows(weeklyTopSectors)
+        : "";
+    const bottomRowsHtml =
+      weeklyBottomSectors && weeklyBottomSectors.length
+        ? sectorRows(weeklyBottomSectors)
+        : "";
 
     const metalsRows = Object.keys(metalsWeekly)
       .map((sym) => {
@@ -431,21 +423,20 @@ exports.handler = async function () {
         const arrow = isUp ? "▲" : isDown ? "▼" : "";
 
         return `
-        <tr>
-          <td style="padding:8px 6px;font-size:13px;color:#0b1220;">
-            ${label}
-            <span style="color:#94a3b8;">(${sym})</span>
-          </td>
-          <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${lastPrice}</td>
-          <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
-            ${weeklyPct !== "—" ? `${arrow} ${weeklyPct}` : weeklyPct}
-          </td>
-        </tr>
-      `;
+          <tr>
+            <td style="padding:8px 6px;font-size:13px;color:#0b1220;">
+              ${label}
+              <span style="color:#94a3b8;">(${sym})</span>
+            </td>
+            <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${lastPrice}</td>
+            <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
+              ${weeklyPct !== "—" ? `${arrow} ${weeklyPct}` : weeklyPct}
+            </td>
+          </tr>
+        `;
       })
       .join("");
 
-    // Brand colours as per daily email
     return `
 <!doctype html>
 <html>
@@ -520,20 +511,18 @@ exports.handler = async function () {
               : ""
           }
 
-          <!-- Top 5 gainers -->
+          <!-- Top sectors -->
           ${
-            weeklyTop && weeklyTop.length
+            topRowsHtml
               ? `
           <tr>
             <td style="padding:14px 20px 6px 20px;">
-              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Top 5 movers – up</h2>
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Top sectors – week up</h2>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
                 <thead>
                   <tr style="background:#edf2ff;">
-                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Code</th>
-                    <th align="left" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Name</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Last close</th>
-                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Week move</th>
+                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Sector</th>
+                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Avg week move</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -546,20 +535,18 @@ exports.handler = async function () {
               : ""
           }
 
-          <!-- Top 5 decliners -->
+          <!-- Weakest sectors -->
           ${
-            weeklyBottom && weeklyBottom.length
+            bottomRowsHtml
               ? `
           <tr>
             <td style="padding:10px 20px 6px 20px;">
-              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Top 5 movers – down</h2>
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Weakest sectors – week down</h2>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
                 <thead>
                   <tr style="background:#edf2ff;">
-                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Code</th>
-                    <th align="left" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Name</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Last close</th>
-                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Week move</th>
+                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Sector</th>
+                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Avg week move</th>
                   </tr>
                 </thead>
                 <tbody>
