@@ -54,6 +54,14 @@ async function fetchWithTimeout(url, opts = {}, timeout = 12000) {
   }
 }
 
+// Convert a JS Date to an AEST (Brisbane, UTC+10) YYYY-MM-DD string
+function getAestDateString(date) {
+  const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane is UTC+10 all year
+  const aestTime = new Date(date.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
+  return aestTime.toISOString().slice(0, 10);
+}
+
+// Last N business days, returned as YYYY-MM-DD strings in AEST
 function getLastBusinessDays(n, endDate = new Date()) {
   const days = [];
   let d = new Date(endDate);
@@ -62,14 +70,12 @@ function getLastBusinessDays(n, endDate = new Date()) {
     if (dow !== 0 && dow !== 6) days.push(new Date(d));
     d.setDate(d.getDate() - 1);
   }
-  // Return YYYY-MM-DD string using AEST (Australia/Brisbane, UTC+10, no DST)
-function getTodayAestDateString(baseDate = new Date()) {
-  const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane is UTC+10 all year
-  const aestTime = new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
-  return aestTime.toISOString().slice(0, 10);
+  return days.reverse().map((dt) => getAestDateString(dt));
 }
 
-  return days.reverse().map((dt) => dt.toISOString().slice(0, 10));
+// Today’s date in AEST
+function getTodayAestDateString(baseDate = new Date()) {
+  return getAestDateString(baseDate);
 }
 
 function normalizeCode(code) {
