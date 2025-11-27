@@ -35,81 +35,75 @@
   </head>
 
   <body>
-    <header class="site-header">
-      <div class="container header-inner">
-        <a href="/" class="logo">
-          <span class="logo-mark">MI</span>
-          <span class="logo-text">
-            <span class="logo-title">MatesInvest</span>
-            <span class="logo-tagline">Invest smarter together.</span>
-          </span>
-        </a>
+    <!-- TOP NAV -->
+    <header class="nav">
+      <div class="container nav-inner">
+        <div class="brand">
+          <!-- If you have a logo image, swap this span for <img src="/assets/logo.svg" class="logo" alt="MatesInvest" /> -->
+          <span class="logo" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--navy);color:#fff;font-size:14px;font-weight:700;">MI</span>
+          <span>MatesInvest</span>
+        </div>
 
-        <nav class="main-nav" aria-label="Main navigation">
-          <button class="nav-toggle" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="nav-toggle-bar"></span>
-            <span class="nav-toggle-bar"></span>
-          </button>
-
-          <ul class="nav-links">
-            <li><a href="#how">How it works</a></li>
-            <li><a href="#about">Why we exist</a></li>
-            <li><a href="#safety">Safety &amp; data</a></li>
-            <li><a href="#pricing">Pricing</a></li>
-            <li><a href="/mates-summaries">ASX daily brief</a></li>
-          </ul>
-
-          <div class="nav-cta">
-            <a href="#contact" class="btn btn-small">Join the waitlist</a>
-          </div>
+        <nav>
+          <a href="#how">How it works</a>
+          <a href="#about">Why we exist</a>
+          <a href="#safety">Safety &amp; data</a>
+          <a href="#pricing">Pricing</a>
+          <a href="/mates-summaries">ASX daily brief</a>
+          <a href="#contact" class="btn btn-outline">Join the waitlist</a>
         </nav>
+
+        <button class="menu-btn" aria-label="Toggle navigation">☰</button>
       </div>
     </header>
 
     <main>
       <!-- HERO -->
-      <section class="hero" aria-labelledby="hero-heading">
-        <div class="container hero-grid">
-          <div class="hero-copy">
-            <p class="eyebrow">Built by Aussie investors, for Aussie investors</p>
-            <h1 id="hero-heading">Invest smarter — and feel confident doing it.</h1>
-            <p class="hero-lede">
+      <section class="hero">
+        <div class="container grid">
+          <div>
+            <p class="hero-eyebrow">Built by Aussie investors, for Aussie investors</p>
+            <h1>Invest smarter — and feel confident doing it.</h1>
+            <p class="hero-lead">
               MatesInvest is a social investing companion for everyday Aussies.
               Link your existing broker, see your portfolio alongside your mates,
               and cut through the ASX noise with clear, human explanations instead
               of jargon and hype.
             </p>
 
-            <ul class="hero-bullets">
-              <li>Plain-English ASX brief in your inbox each morning</li>
-              <li>See how news, sectors and themes connect to your holdings</li>
-              <li>Designed to make talking about money feel normal, not taboo</li>
-            </ul>
+            <div class="badges">
+              <span class="badge">Plain-English ASX brief each morning</span>
+              <span class="badge">Built for retail investors</span>
+              <span class="badge">No hot tips, no hype</span>
+            </div>
 
-            <div class="hero-actions">
+            <div class="cta-row">
               <a href="#contact" class="btn btn-primary">Join the waitlist</a>
               <a href="#how" class="btn btn-ghost">See how it works</a>
             </div>
 
-            <p class="hero-footnote">
+            <p style="font-size:13px;color:#64748b;margin-top:6px;">
               In private beta now. No trading, no “hot tips” — just context, education,
               and tools to help you feel on top of your investing.
             </p>
           </div>
 
-          <div class="hero-card">
-            <h2>Today&apos;s ASX snapshot</h2>
-            <p class="hero-card-meta">Live inside the app &amp; daily email.</p>
-            <div id="hero-market-card" class="hero-market-card">
-              <!-- Populated by main.js using your live data -->
-              <div class="hero-market-placeholder">
-                <p>ASX 200, sectors &amp; commodities at a glance.</p>
-                <p class="muted">In production this shows your real live data.</p>
+          <div class="mockup">
+            <!-- Simple placeholder “card” for now; your JS can swap in live content if you like -->
+            <div style="background:#061a2e;border-radius:16px;padding:18px;color:#e2e8f0;box-shadow:0 10px 30px rgba(0,0,0,0.18);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div>
+                  <div style="font-size:13px;color:#94a3b8;">Today&apos;s view</div>
+                  <div style="font-weight:700;font-size:16px;">ASX snapshot</div>
+                </div>
+                <div style="font-size:12px;color:#94a3b8;">Live in app &amp; email</div>
               </div>
-            </div>
-            <div class="hero-card-foot">
-              <span class="pill">Backed by real market data</span>
-              <span class="pill pill-soft">Built for retail investors</span>
+              <hr style="border:none;border-top:1px solid rgba(148,163,184,0.45);margin:10px 0;" />
+              <div style="font-size:13px;line-height:1.6;">
+                <div>• ASX 200, sectors &amp; commodities at a glance</div>
+                <div>• See how moves connect back to your holdings</div>
+                <div>• Clear explanation of what actually changed</div>
+              </div>
             </div>
           </div>
         </div>
@@ -119,7 +113,6 @@
       <section id="about" class="section alt">
         <div class="container grid-2">
           <div>
-            <p class="eyebrow">Why MatesInvest exists</p>
             <h2>We want investing to feel normal, not taboo.</h2>
             <p>
               In Australia, money and investing can still feel a bit awkward.
@@ -148,48 +141,45 @@
       <!-- HOW IT WORKS -->
       <section id="how" class="section">
         <div class="container">
-          <header class="section-header">
-            <p class="eyebrow">How MatesInvest fits into your day</p>
-            <h2>One place for your portfolio, news and mates.</h2>
-            <p>
-              We don&apos;t replace your broker. We sit alongside it — helping you and your mates
-              understand what&apos;s going on, why it matters, and how it connects to the holdings
-              you already have.
-            </p>
-          </header>
+          <h2>One place for your portfolio, news and mates.</h2>
+          <p>
+            We don&apos;t replace your broker. We sit alongside it — helping you and your mates
+            understand what&apos;s going on, why it matters, and how it connects to the holdings
+            you already have.
+          </p>
 
-          <div class="grid-3 cards">
-            <article class="card">
+          <div class="cards" style="margin-top:24px;">
+            <div class="card">
               <h3>1. Connect your existing broker</h3>
               <p>
                 Link your ASX account through trusted data partners so you can see your real
                 holdings in one simple view. No new brokerage account, no messy CSV uploads.
               </p>
-            </article>
+            </div>
 
-            <article class="card">
+            <div class="card">
               <h3>2. Get a clear, no-nonsense brief</h3>
               <p>
                 Each morning we pull together market moves, sectors, commodities and key stories
                 into a short email and in-app view — all in plain English, with zero jargon.
               </p>
-            </article>
+            </div>
 
-            <article class="card">
+            <div class="card">
               <h3>3. See how it hits your portfolio</h3>
               <p>
                 We connect the dots for you: which holdings are tied to that move in iron ore,
                 how a rate decision might flow through your banks, and where volatility could show up.
               </p>
-            </article>
+            </div>
 
-            <article class="card">
+            <div class="card">
               <h3>4. Learn and decide with your mates</h3>
               <p>
                 Share ideas, compare watchlists and talk through decisions in a space designed
                 for honest conversation — not anonymous forums or FOMO-driven hype.
               </p>
-            </article>
+            </div>
           </div>
         </div>
       </section>
@@ -198,7 +188,6 @@
       <section id="safety" class="section alt">
         <div class="container grid-2">
           <div>
-            <p class="eyebrow">Safety &amp; data</p>
             <h2>Your data, your control.</h2>
             <p>
               MatesInvest is being built with privacy and security baked in from day one.
@@ -215,6 +204,7 @@
               <li>Clear, human-readable explanations of how your data is used.</li>
             </ul>
           </div>
+
           <div class="card">
             <h3>Built for trust, not trading volume.</h3>
             <p>
@@ -229,39 +219,35 @@
       <!-- PRICING -->
       <section id="pricing" class="section">
         <div class="container">
-          <header class="section-header">
-            <p class="eyebrow">Pricing</p>
-            <h2>Fair, transparent and built for retail investors.</h2>
-            <p>
-              During our early beta, MatesInvest is free while we learn with our first users
-              and shape the product together.
-            </p>
-          </header>
+          <h2>Fair, transparent and built for retail investors.</h2>
+          <p>
+            During our early beta, MatesInvest is free while we learn with our first users
+            and shape the product together.
+          </p>
 
-          <div class="grid-2 pricing-grid">
-            <article class="card">
+          <div class="pricing" style="margin-top:24px;">
+            <div class="price-card">
               <h3>Early access</h3>
-              <p class="price-tag">$0 / month</p>
+              <p class="price">$0 <span>/ month</span></p>
               <ul class="tick">
                 <li>Daily ASX email brief</li>
                 <li>Access to portfolio &amp; market overview</li>
                 <li>Early access to new features</li>
                 <li>Direct line to the founding team</li>
               </ul>
-              <p class="muted">
+              <p class="note">
                 In return, we may occasionally ask for your feedback or to jump on a quick call
                 to understand how you use the product.
               </p>
-            </article>
+            </div>
+          </div>
 
-            <article class="card">
-              <h3>Future plans</h3>
-              <p>
-                Longer term, we expect a simple subscription model — no ads, no payment for order
-                flow, and no selling your data. We&apos;ll share pricing openly with our early users
-                before anything changes.
-              </p>
-            </article>
+          <div style="margin-top:18px;max-width:520px;">
+            <p>
+              Longer term, we expect a simple subscription model — no ads, no payment for order
+              flow, and no selling your data. We&apos;ll share pricing openly with our early users
+              before anything changes.
+            </p>
           </div>
         </div>
       </section>
@@ -269,54 +255,51 @@
       <!-- FAQ -->
       <section id="faq" class="section alt">
         <div class="container">
-          <header class="section-header">
-            <p class="eyebrow">FAQ</p>
-            <h2>Questions investors are asking us.</h2>
-          </header>
+          <h2>Questions investors are asking us.</h2>
 
-          <div class="faq-grid">
-            <article class="faq-item">
-              <h3>Is MatesInvest a broker?</h3>
+          <div class="faq">
+            <details>
+              <summary>Is MatesInvest a broker?</summary>
               <p>
                 No. We don&apos;t hold your money and we don&apos;t execute trades. We sit
                 alongside your existing broker to give you context, education and better
                 visibility over what you already own.
               </p>
-            </article>
+            </details>
 
-            <article class="faq-item">
-              <h3>Will you tell me what to buy?</h3>
+            <details>
+              <summary>Will you tell me what to buy?</summary>
               <p>
                 No hot tips here. We highlight trends, sectors and news, and help you see how
                 they might relate to your holdings, but investment decisions are always yours.
               </p>
-            </article>
+            </details>
 
-            <article class="faq-item">
-              <h3>Who is MatesInvest for?</h3>
+            <details>
+              <summary>Who is MatesInvest for?</summary>
               <p>
                 Everyday retail investors — from first-timers to experienced DIY investors
                 who want a clearer view and a better way to talk about money with people
                 they trust.
               </p>
-            </article>
+            </details>
 
-            <article class="faq-item">
-              <h3>When will the app launch?</h3>
+            <details>
+              <summary>When will the app launch?</summary>
               <p>
                 We&apos;re rolling out features in stages, starting with the daily ASX brief
                 and portfolio overview. Joining the waitlist is the best way to get access
                 early and influence what we build next.
               </p>
-            </article>
+            </details>
           </div>
         </div>
       </section>
 
       <!-- CONTACT / WAITLIST -->
-      <section id="contact" class="section section-accent">
-        <div class="container contact-grid">
-          <div class="contact-copy">
+      <section id="contact" class="section">
+        <div class="container grid-2">
+          <div>
             <h2>Join the MatesInvest waitlist</h2>
             <p>
               We&apos;re starting with a small group of everyday investors who want to feel
@@ -324,4 +307,77 @@
             </p>
             <p>
               Join the waitlist to receive the daily ASX brief, test new features as they roll out,
-              and help us shap
+              and help us shape a platform built for retail investors, not institutions.
+            </p>
+            <ul class="tick">
+              <li>Daily ASX email &amp; in-app brief</li>
+              <li>Early access to new portfolio tools</li>
+              <li>Direct feedback loop with the founding team</li>
+            </ul>
+          </div>
+
+          <div class="contact-card">
+            <h3>Get early access</h3>
+            <p style="font-size:13px;color:#6b7280;">
+              No spam, no sales push. Just useful updates as we ship new features.
+            </p>
+            <form
+              action="https://formspree.io/f/xqazdvgz"
+              method="POST"
+              class="form"
+            >
+              <label>
+                <span>First name</span>
+                <input type="text" name="first_name" required autocomplete="given-name" />
+              </label>
+              <label>
+                <span>Email</span>
+                <input type="email" name="email" required autocomplete="email" />
+              </label>
+              <label>
+                <span>How do you invest today?</span>
+                <input
+                  type="text"
+                  name="message"
+                  placeholder='e.g. "Mostly ASX ETFs through CommSec"'
+                />
+              </label>
+              <button type="submit" class="btn btn-primary">Join the waitlist</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <div class="container footer-inner">
+        <div>&copy; <span id="year"></span> MatesInvest</div>
+        <div>
+          <span style="font-size:12px;">
+            MatesInvest does not provide financial advice. Information is general in nature
+            and does not take into account your objectives, financial situation or needs.
+          </span>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // Mobile nav toggle (matches your existing CSS: body.open .nav nav { ... })
+      (function () {
+        const btn = document.querySelector('.menu-btn');
+        const body = document.body;
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          body.classList.toggle('open');
+        });
+      })();
+
+      // Footer year
+      (function () {
+        var y = document.getElementById('year');
+        if (y) y.textContent = new Date().getFullYear();
+      })();
+    </script>
+  </body>
+</html>
