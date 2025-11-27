@@ -61,23 +61,27 @@ function getAestDateString(date) {
   return aestTime.toISOString().slice(0, 10);
 }
 
-// Return last N business days as YYYY-MM-DD *UTC* strings for EODHD range
-function getLastBusinessDays(n, endDate = new Date()) {
+// Last N *completed* business days BEFORE today, as UTC YYYY-MM-DD strings
+function getLastCompletedBusinessDays(n, now = new Date()) {
   const days = [];
-  let d = new Date(endDate);
+  let d = new Date(now);
+  // start from "yesterday"
+  d.setDate(d.getDate() - 1);
+
   while (days.length < n) {
-    const dow = d.getDay(); // 0=Sun, 6=Sat
-    if (dow !== 0 && dow !== 6) days.push(new Date(d));
+    const dow = d.getDay(); // 0 = Sun, 6 = Sat
+    if (dow !== 0 && dow !== 6) {
+      days.push(new Date(d));
+    }
     d.setDate(d.getDate() - 1);
   }
+
   return days.reverse().map((dt) => dt.toISOString().slice(0, 10));
 }
 
 // Today’s date in AEST (for Redis key only)
 function getTodayAestDateString(baseDate = new Date()) {
-  const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane UTC+10
-  const aestTime = new Date(baseDate.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
-  return aestTime.toISOString().slice(0, 10);
+  return getAestDateString(baseDate);
 }
 
 function normalizeCode(code) {
@@ -240,8 +244,8 @@ exports.handler = async function (event) {
     }
   }
 
-  // last N business days window (default 2)
-  const days = getLastBusinessDays(EOD_LOOKBACK_DAYS);
+// last N *completed* business days window (default 2)
+const days = getLastCompletedBusinessDays(EOD_LOOKBACK_DAYS);
   if (days.length < 2) {
     return { statusCode: 500, body: JSON.stringify({ error: "Not enough business days in lookback window", days }) };
   }
