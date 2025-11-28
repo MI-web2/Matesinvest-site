@@ -135,8 +135,8 @@ exports.handler = async function () {
   }
 
   // Build HTML email from morning-brief payload + morning note
-  function buildEmailHtml(payload, morningNote) {
-    const aestNow = getAestDate();
+   function buildEmailHtml(payload, morningNote) {
+    const aestNow = getAestDate(new Date());
     const niceDate = aestNow.toLocaleDateString("en-AU", {
       weekday: "long",
       day: "numeric",
@@ -149,13 +149,26 @@ exports.handler = async function () {
       : [];
 
     const metalsObj = payload.metals || payload.symbols || {};
-    const friendly = {
+    const friendlyMetals = {
       XAU: "Gold",
       XAG: "Silver",
       IRON: "Iron Ore 62% Fe",
       "LITH-CAR": "Lithium Carbonate",
       NI: "Nickel",
       URANIUM: "Uranium",
+    };
+
+    // ---- NEW: Crypto snapshot (BTC / ETH / SOL / ADA) ----
+    const cryptoObj =
+      payload.crypto && typeof payload.crypto === "object"
+        ? payload.crypto
+        : {};
+    const cryptoOrder = ["BTC", "ETH", "SOL", "ADA"];
+    const friendlyCrypto = {
+      BTC: "Bitcoin",
+      ETH: "Ethereum",
+      SOL: "Solana",
+      ADA: "Cardano",
     };
 
     const topRows = top
@@ -198,7 +211,7 @@ exports.handler = async function () {
     const metalsRows = Object.keys(metalsObj)
       .map((sym) => {
         const m = metalsObj[sym] || {};
-        const label = friendly[sym] || sym;
+        const label = friendlyMetals[sym] || sym;
         const unit = m.unit || (sym === "IRON" ? "tonne" : "unit");
         const price =
           typeof m.priceAUD === "number"
@@ -218,6 +231,51 @@ exports.handler = async function () {
           ? "#dc2626"
           : "#64748b";
         const arrow = isUp ? "▲" : isDown ? "▼" : "";
+        return `
+        <tr>
+          <td style="padding:8px 6px;font-size:13px;color:#0b1220;">
+            ${label}
+            <span style="color:#94a3b8;">(${sym})</span>
+          </td>
+          <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${price}</td>
+          <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
+            ${pct !== "—" ? `${arrow} ${pct}` : pct}
+          </td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    // NEW: crypto rows
+    const cryptoRows = cryptoOrder
+      .filter((sym) => cryptoObj[sym])
+      .map((sym) => {
+        const c = cryptoObj[sym] || {};
+        const label = friendlyCrypto[sym] || sym;
+        const unit = (c.unit || "coin").toString().trim() || "coin";
+
+        const price =
+          typeof c.priceAUD === "number"
+            ? "$" + formatMoney(c.priceAUD) + ` / ${unit}`
+            : "Unavailable";
+
+        const pctVal =
+          typeof c.pctChange === "number" && Number.isFinite(c.pctChange)
+            ? c.pctChange
+            : null;
+        const pct =
+          pctVal !== null ? pctVal.toFixed(2) + "%" : "—";
+
+        const isUp = pctVal !== null && pctVal > 0;
+        const isDown = pctVal !== null && pctVal < 0;
+
+        const color = isUp
+          ? "#16a34a"
+          : isDown
+          ? "#dc2626"
+          : "#64748b";
+        const arrow = isUp ? "▲" : isDown ? "▼" : "";
+
         return `
         <tr>
           <td style="padding:8px 6px;font-size:13px;color:#0b1220;">
@@ -340,7 +398,7 @@ exports.handler = async function () {
             metalsRows
               ? `
           <tr>
-            <td style="padding:10px 20px 14px 20px;">
+            <td style="padding:10px 20px 8px 20px;">
               <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Key Commodities</h2>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
                 <thead>
@@ -357,6 +415,30 @@ exports.handler = async function () {
               <div style="margin-top:6px;font-size:11px;color:#94a3b8;">
                 ${sourceNote}. Not financial advice.
               </div>
+            </td>
+          </tr>
+          `
+              : ""
+          }
+
+          ${
+            cryptoRows
+              ? `
+          <tr>
+            <td style="padding:4px 20px 14px 20px;">
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Crypto snapshot</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
+                <thead>
+                  <tr style="background:#edf2ff;">
+                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Asset</th>
+                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Price (AUD)</th>
+                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">1D</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${cryptoRows}
+                </tbody>
+              </table>
             </td>
           </tr>
           `
