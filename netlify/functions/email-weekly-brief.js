@@ -61,6 +61,10 @@ exports.handler = async function () {
     }
   }
 
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   async function getSubscribers() {
     const key = "email:subscribers";
     const url = `${UPSTASH_URL}/smembers/` + encodeURIComponent(key);
@@ -84,7 +88,7 @@ exports.handler = async function () {
     return j.result.filter((e) => typeof e === "string" && e.includes("@"));
   }
 
-  // Send a single email (one or small list of recipients)
+  // 🔧 send a single email (to one or a small list of recipients)
   async function sendEmail(to, subject, html) {
     const toList = Array.isArray(to) ? to : [to];
 
@@ -107,10 +111,6 @@ exports.handler = async function () {
       console.error("Resend send failed", res.status, txt);
       throw new Error("Failed to send weekly email");
     }
-  }
-
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   // Last N *market* days in AEST (skip Sat/Sun).
@@ -223,41 +223,44 @@ exports.handler = async function () {
     return snapshots;
   }
 
-  // Latest crypto snapshot (BTC / ETH / SOL / ADA) – matches morning-brief
-  async function getCryptoLatest() {
-    const key = "crypto:latest";
-    const url = `${UPSTASH_URL}/get/${encodeURIComponent(key)}`;
+  async function getCryptoDailySnapshots(datesAsc) {
+    const snapshots = [];
 
-    const res = await fetchWithTimeout(
-      url,
-      {
-        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
-      },
-      8000
-    );
+    for (const date of datesAsc) {
+      const key = `crypto:${date}`;
+      const url = `${UPSTASH_URL}/get/${encodeURIComponent(key)}`;
 
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      console.warn("crypto latest fetch failed", res.status, txt);
-      return null;
+      const res = await fetchWithTimeout(
+        url,
+        {
+          headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+        },
+        8000
+      );
+
+      if (!res.ok) {
+        console.warn("crypto daily fetch failed", date, res.status);
+        continue;
+      }
+
+      const j = await res.json().catch(() => null);
+      if (!j || !j.result) continue;
+
+      try {
+        const payload = JSON.parse(j.result);
+        snapshots.push({ date, payload });
+      } catch (e) {
+        console.warn("Failed to parse crypto daily", date, e.message);
+      }
     }
 
-    const j = await res.json().catch(() => null);
-    if (!j || !j.result) return null;
-
-    try {
-      const payload = JSON.parse(j.result);
-      return payload.crypto || {};
-    } catch (e) {
-      console.warn("Failed to parse crypto latest", e.message);
-      return null;
-    }
+    return snapshots;
   }
 
   // -------------------------------
-  // Aggregation: sectors + commodities
+  // Aggregation: sectors + commodities + crypto
   // -------------------------------
-  function buildWeeklyAggregates(asxDaily, metalsDaily) {
+  function buildWeeklyAggregates(asxDaily, metalsDaily, cryptoDaily) {
     // ----- Sector performance (prefer GICS sector) -----
     const sectorPerf = new Map();
 
@@ -269,8 +272,8 @@ exports.handler = async function () {
 
         // Prefer GICS-style buckets, then fall back
         const rawSector =
-          row.gicSector || // from Fundamentals.General.GicSector
-          row.sector || // from Fundamentals.General.Sector
+          row.gicSector || // Fundamentals.General.GicSector
+          row.sector || // Fundamentals.General.Sector
           row.gicGroup ||
           row.industry ||
           row.gicIndustry ||
@@ -310,8 +313,8 @@ exports.handler = async function () {
       .sort((a, b) => a.avgPct - b.avgPct)
       .slice(0, 5);
 
-    // ----- Commodities -----
-    const historyBySymbol = {};
+    // ----- Commodities (metals) -----
+    const metalsHistoryBySymbol = {};
 
     for (const snap of metalsDaily) {
       const { date, payload } = snap;
@@ -320,8 +323,8 @@ exports.handler = async function () {
         const m = symbols[sym];
         if (!m) continue;
 
-        historyBySymbol[sym] ||= [];
-        historyBySymbol[sym].push({
+        metalsHistoryBySymbol[sym] ||= [];
+        metalsHistoryBySymbol[sym].push({
           date,
           priceAUD:
             typeof m.priceAUD === "number" ? m.priceAUD : null,
@@ -330,7 +333,7 @@ exports.handler = async function () {
     }
 
     const metalsWeekly = {};
-    for (const [sym, points] of Object.entries(historyBySymbol)) {
+    for (const [sym, points] of Object.entries(metalsHistoryBySymbol)) {
       const valid = points
         .filter((p) => typeof p.priceAUD === "number")
         .sort((a, b) => a.date.localeCompare(b.date));
@@ -352,7 +355,114 @@ exports.handler = async function () {
       };
     }
 
-    return { weeklyTopSectors, weeklyBottomSectors, metalsWeekly };
+    // ----- Crypto (BTC/ETH/SOL/ADA etc) -----
+    const cryptoHistoryBySymbol = {};
+
+    for (const snap of cryptoDaily) {
+      const { date, payload } = snap;
+      const symbols = (payload && payload.symbols) || {};
+      for (const sym of Object.keys(symbols)) {
+        const c = symbols[sym];
+        if (!c) continue;
+
+        // snapshot-crypto stores todayCloseUSD, maybe todayCloseAUD later
+        const priceUSD =
+          typeof c.todayCloseUSD === "number"
+            ? c.todayCloseUSD
+            : typeof c.priceUSD === "number"
+            ? c.priceUSD
+            : null;
+        const priceAUD =
+          typeof c.todayCloseAUD === "number"
+            ? c.todayCloseAUD
+            : typeof c.priceAUD === "number"
+            ? c.priceAUD
+            : null;
+
+        cryptoHistoryBySymbol[sym] ||= [];
+        cryptoHistoryBySymbol[sym].push({
+          date,
+          priceUSD,
+          priceAUD,
+        });
+      }
+    }
+
+    // Approx FX for AUD conversion (use latest metals snapshot if available)
+    let latestUsdToAud = null;
+    if (metalsDaily && metalsDaily.length) {
+      const lastMetalsPayload = metalsDaily[metalsDaily.length - 1].payload;
+      if (
+        lastMetalsPayload &&
+        typeof lastMetalsPayload.usdToAud === "number"
+      ) {
+        latestUsdToAud = lastMetalsPayload.usdToAud;
+      }
+    }
+
+    const cryptoWeekly = {};
+    for (const [sym, points] of Object.entries(cryptoHistoryBySymbol)) {
+      const valid = points
+        .filter(
+          (p) =>
+            typeof p.priceUSD === "number" ||
+            typeof p.priceAUD === "number"
+        )
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (!valid.length) continue;
+
+      const first = valid[0];
+      const last = valid[valid.length - 1];
+
+      const firstVal =
+        typeof first.priceAUD === "number"
+          ? first.priceAUD
+          : typeof first.priceUSD === "number"
+          ? first.priceUSD
+          : null;
+
+      const lastVal =
+        typeof last.priceAUD === "number"
+          ? last.priceAUD
+          : typeof last.priceUSD === "number"
+          ? last.priceUSD
+          : null;
+
+      let weeklyPct = null;
+      if (
+        typeof firstVal === "number" &&
+        typeof lastVal === "number" &&
+        firstVal !== 0
+      ) {
+        weeklyPct = ((lastVal - firstVal) / firstVal) * 100;
+      }
+
+      // Last price in AUD for display:
+      let lastPriceAUD = null;
+      if (typeof last.priceAUD === "number") {
+        lastPriceAUD = last.priceAUD;
+      } else if (
+        typeof last.priceUSD === "number" &&
+        typeof latestUsdToAud === "number"
+      ) {
+        lastPriceAUD = last.priceUSD * latestUsdToAud;
+      }
+
+      cryptoWeekly[sym] = {
+        firstDate: first.date,
+        lastDate: last.date,
+        lastPriceAUD,
+        weeklyPct,
+        series: valid,
+      };
+    }
+
+    return {
+      weeklyTopSectors,
+      weeklyBottomSectors,
+      metalsWeekly,
+      cryptoWeekly,
+    };
   }
 
   // -------------------------------
@@ -382,11 +492,15 @@ exports.handler = async function () {
   }
 
   // -------------------------------
-  // HTML builder (weekly + crypto)
+  // HTML builder
   // -------------------------------
-  function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc, cryptoObj) {
-    const { weeklyTopSectors, weeklyBottomSectors, metalsWeekly } =
-      aggregates;
+  function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc) {
+    const {
+      weeklyTopSectors,
+      weeklyBottomSectors,
+      metalsWeekly,
+      cryptoWeekly,
+    } = aggregates;
 
     const aestNow = getAestDate();
     const niceDate = aestNow.toLocaleDateString("en-AU", {
@@ -407,7 +521,6 @@ exports.handler = async function () {
       URANIUM: "Uranium",
     };
 
-    const cryptoOrder = ["BTC", "ETH", "SOL", "ADA"];
     const friendlyCrypto = {
       BTC: "Bitcoin",
       ETH: "Ethereum",
@@ -449,7 +562,7 @@ exports.handler = async function () {
         ? sectorRows(weeklyBottomSectors)
         : "";
 
-    const metalsRows = Object.keys(metalsWeekly)
+    const metalsRows = Object.keys(metalsWeekly || {})
       .map((sym) => {
         const m = metalsWeekly[sym];
         const label = friendlyCommodity[sym] || sym;
@@ -488,26 +601,23 @@ exports.handler = async function () {
       })
       .join("");
 
-    const cryptoRows = cryptoOrder
-      .filter((sym) => cryptoObj && cryptoObj[sym])
+    const cryptoRows = Object.keys(cryptoWeekly || {})
       .map((sym) => {
-        const c = cryptoObj[sym] || {};
+        const c = cryptoWeekly[sym];
         const label = friendlyCrypto[sym] || sym;
-        const unit = (c.unit || "coin").toString().trim() || "coin";
 
-        const price =
-          typeof c.priceAUD === "number"
-            ? "$" + formatMoney(c.priceAUD) + ` / ${unit}`
-            : "Unavailable";
-
-        const pctVal =
-          typeof c.pctChange === "number" && Number.isFinite(c.pctChange)
-            ? c.pctChange
-            : null;
-        const pct = pctVal !== null ? pctVal.toFixed(2) + "%" : "—";
-
-        const isUp = pctVal !== null && pctVal > 0;
-        const isDown = pctVal !== null && pctVal < 0;
+        const lastPrice =
+          typeof c.lastPriceAUD === "number"
+            ? "$" + formatMoney(c.lastPriceAUD)
+            : "—";
+        const weeklyPct =
+          typeof c.weeklyPct === "number"
+            ? c.weeklyPct.toFixed(2) + "%"
+            : "—";
+        const isUp =
+          typeof c.weeklyPct === "number" && c.weeklyPct > 0;
+        const isDown =
+          typeof c.weeklyPct === "number" && c.weeklyPct < 0;
         const color = isUp
           ? "#16a34a"
           : isDown
@@ -521,9 +631,9 @@ exports.handler = async function () {
               ${label}
               <span style="color:#94a3b8;">(${sym})</span>
             </td>
-            <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${price}</td>
+            <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${lastPrice}</td>
             <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
-              ${pct !== "—" ? `${arrow} ${pct}` : pct}
+              ${weeklyPct !== "—" ? `${arrow} ${weeklyPct}` : weeklyPct}
             </td>
           </tr>
         `;
@@ -657,7 +767,7 @@ exports.handler = async function () {
             metalsRows
               ? `
           <tr>
-            <td style="padding:10px 20px 14px 20px;">
+            <td style="padding:10px 20px 6px 20px;">
               <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Key Commodities – week move</h2>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
                 <thead>
@@ -680,19 +790,19 @@ exports.handler = async function () {
               : ""
           }
 
-          <!-- Crypto snapshot -->
+          <!-- Crypto -->
           ${
             cryptoRows
               ? `
           <tr>
             <td style="padding:10px 20px 14px 20px;">
-              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Crypto snapshot</h2>
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Crypto – week move</h2>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
                 <thead>
                   <tr style="background:#edf2ff;">
                     <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Asset</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Price (AUD)</th>
-                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">1D</th>
+                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Last price (approx AUD)</th>
+                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Week</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -700,7 +810,7 @@ exports.handler = async function () {
                 </tbody>
               </table>
               <div style="margin-top:6px;font-size:11px;color:#94a3b8;">
-                Snapshot from the latest crypto feed · Not financial advice.
+                Weekly crypto moves based on daily closing snapshots · FX uses latest AUD/USD where needed · Not financial advice.
               </div>
             </td>
           </tr>
@@ -768,35 +878,35 @@ exports.handler = async function () {
   try {
     const datesAsc = getLastNMarketDaysAest(5);
 
-    const [subscribers, asxDaily, metalsDaily, cryptoLatest] = await Promise.all([
-      getSubscribers(),
-      getAsxDailySnapshots(datesAsc),
-      getMetalsDailySnapshots(datesAsc),
-      getCryptoLatest(),
-    ]);
+    const [subscribers, asxDaily, metalsDaily, cryptoDaily] =
+      await Promise.all([
+        getSubscribers(),
+        getAsxDailySnapshots(datesAsc),
+        getMetalsDailySnapshots(datesAsc),
+        getCryptoDailySnapshots(datesAsc),
+      ]);
 
     if (!subscribers.length) {
       console.log("No subscribers – skipping weekly send");
       return { statusCode: 200, body: "No subscribers" };
     }
 
-    if (!asxDaily.length && !metalsDaily.length) {
+    if (!asxDaily.length && !metalsDaily.length && !cryptoDaily.length) {
       console.log("No weekly data – skipping");
       return { statusCode: 200, body: "No weekly data" };
     }
 
-    const aggregates = buildWeeklyAggregates(asxDaily, metalsDaily);
+    const aggregates = buildWeeklyAggregates(
+      asxDaily,
+      metalsDaily,
+      cryptoDaily
+    );
     const weeklyNote = await getWeeklyNote(aggregates);
 
     const rangeStr = formatWeekRangeForSubject(datesAsc);
     const subject = `MatesMorning – The Week That Was (${rangeStr})`;
 
-    const html = buildWeeklyEmailHtml(
-      aggregates,
-      weeklyNote,
-      datesAsc,
-      cryptoLatest || {}
-    );
+    const html = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc);
 
     // Send individually to each subscriber, throttled for Resend (2 req/sec)
     let sentCount = 0;
