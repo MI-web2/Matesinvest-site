@@ -1,20 +1,19 @@
 // netlify/functions/equity-screener.js
 //
-// Returns a cleaned list of equities + fundamentals for use in the MatesInvest screener.
+// Returns a cleaned list of equities + fundamentals for the MatesInvest screener.
 //
-// For now, this:
-//   - reads a static universe file (e.g. asx200.txt) next to this file
-//   - for each ticker, calls EODHD Fundamentals API
-//   - extracts a handful of fields (code, name, sector, price, marketCap, pe, dividendYield)
-//   - returns JSON: { items: [...] }
-//
-// NOTE: For production you'll want to:
-//   - cache results in Upstash (e.g. once a day)
-//   - and have this function just read from cache.
-//   But this version is fine to prove out the UI.
+// Features:
+//  - Reads tickers from asx200.txt (CSV or newline-separated)
+//  - Tries multiple exchange suffixes (AU, AX, ASX – via TRY_SUFFIXES env or default)
+//  - Optional debug: ?code=BHP to fetch a single ticker
+//  - Returns some debug info (tickersCount, failures) to help diagnose issues
 //
 // Env:
-//   EODHD_API_TOKEN
+//   EODHD_API_TOKEN          (required)
+//   TRY_SUFFIXES             (optional, e.g. "AU,AX,ASX")
+//
+// Files:
+//   netlify/functions/asx200.txt   (tickers CSV or newline-separated)
 
 const fs = require("fs");
 const path = require("path");
@@ -22,16 +21,17 @@ const path = require("path");
 const fetch = (...args) => global.fetch(...args);
 
 const EODHD_API_TOKEN = process.env.EODHD_API_TOKEN;
-if (!EODHD_API_TOKEN) {
-  console.warn("Warning: EODHD_API_TOKEN missing");
-}
-
 const UNIVERSE_FILE = path.join(__dirname, "asx200.txt");
-const EXCHANGE_SUFFIX = "ASX"; // adjust if you use AX/ASX/etc.
+
+// Matches your other code's pattern (instrument-details TRY_SUFFIXES)
+const TRY_SUFFIXES = (process.env.TRY_SUFFIXES || "AU,AX,ASX")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 exports.handler = async function (event) {
   try {
-    // Simple CORS for your frontend
+    // CORS preflight
     if (event.httpMethod === "OPTIONS") {
       return {
         statusCode: 200,
@@ -44,86 +44,144 @@ exports.handler = async function (event) {
       };
     }
 
-    const tickersRaw = fs.readFileSync(UNIVERSE_FILE, "utf8");
-    const tickers = tickersRaw
-      .split(/\r?\n/)
-      .map((t) => t.trim())
-      .filter(Boolean);
+    if (!EODHD_API_TOKEN) {
+      return json(
+        500,
+        {
+          error: "EODHD_API_TOKEN is not set in Netlify environment",
+        }
+      );
+    }
+
+    const qs = event.queryStringParameters || {};
+    const singleCode = qs.code ? String(qs.code).trim().toUpperCase() : null;
+
+    let tickers = [];
+
+    if (singleCode) {
+      // Debug mode: single ticker, ignore universe file
+      tickers = [singleCode];
+    } else {
+      // Normal mode: load ASX universe from file
+      const raw = fs.readFileSync(UNIVERSE_FILE, "utf8");
+
+      // Support both CSV and newline formats:
+      // "BHP,CSL,FMG" or "BHP\nCSL\nFMG"
+      tickers = raw
+        .split(/[\s,]+/) // split on comma OR whitespace
+        .map((t) => t.trim().toUpperCase())
+        .filter(Boolean);
+
+      // Deduplicate, just in case
+      tickers = Array.from(new Set(tickers));
+    }
 
     const items = [];
+    const failures = [];
 
-    // Helper to safely get nested properties without blowing up
-    const get = (obj, path, fallback = null) => {
-      return path.split(".").reduce((acc, key) => {
+    // Safe nested getter
+    const get = (obj, path, fallback = null) =>
+      path.split(".").reduce((acc, key) => {
         if (acc && Object.prototype.hasOwnProperty.call(acc, key)) {
           return acc[key];
         }
         return fallback;
       }, obj);
-    };
 
-    // Fetch fundamentals for each ticker (sequential for simplicity)
-    for (const code of tickers) {
-      try {
-        const symbol = `${code}.${EXCHANGE_SUFFIX}`;
+    // Try multiple suffixes for each code until one works
+    async function fetchFundamentals(code) {
+      let lastStatus = null;
+      let lastErrorBody = null;
+
+      for (const suffix of TRY_SUFFIXES) {
+        const symbol = `${code}.${suffix}`;
         const url = `https://eodhd.com/api/fundamentals/${symbol}?api_token=${EODHD_API_TOKEN}&fmt=json`;
 
-        const res = await fetch(url, { timeout: 10000 });
-        if (!res.ok) {
-          console.warn("EODHD fundamentals error", code, res.status);
-          continue;
+        try {
+          const res = await fetch(url);
+
+          lastStatus = res.status;
+
+          if (res.ok) {
+            const data = await res.json();
+            return { data, suffixUsed: suffix };
+          }
+
+          // If it's a 404 for this suffix, try the next suffix.
+          // For other errors (401/403/500), record and break – no point retrying.
+          if (res.status !== 404) {
+            lastErrorBody = await res.text().catch(() => null);
+            break;
+          }
+        } catch (err) {
+          lastErrorBody = String(err);
+          break;
         }
-
-        const data = await res.json();
-
-        // Map EODHD structure → our simplified shape
-        // These paths are based on EODHD docs structure:
-        //   General, Highlights, Valuation, SplitsDividends, etc.
-        const item = {
-          code,
-          name: get(data, "General.Name") || code,
-          sector: get(data, "General.Sector") || "Unknown",
-          industry: get(data, "General.Industry") || "Unknown",
-          // Some fundamentals
-          price: Number(get(data, "Highlights.LatestClose") ?? NaN),
-          marketCap: Number(
-            get(data, "Highlights.MarketCapitalization") ?? NaN
-          ),
-          pe: Number(get(data, "ValuationRatios.PERatio") ?? NaN),
-          dividendYield: Number(
-            get(data, "SplitsDividends.ForwardAnnualDividendYield") ?? NaN
-          ),
-        };
-
-        items.push(item);
-      } catch (err) {
-        console.error("Error fetching fundamentals for", code, err);
       }
+
+      // No suffix worked
+      failures.push({
+        code,
+        status: lastStatus,
+        detail: lastErrorBody,
+      });
+      return null;
     }
 
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
+    // Sequential for now – we’ll move to a cron + cache later
+    for (const code of tickers) {
+      const result = await fetchFundamentals(code);
+      if (!result) continue;
+
+      const { data } = result;
+
+      const item = {
+        code,
+        name: get(data, "General.Name") || code,
+        sector: get(data, "General.Sector") || "Unknown",
+        industry: get(data, "General.Industry") || "Unknown",
+        price: Number(get(data, "Highlights.LatestClose") ?? NaN),
+        marketCap: Number(get(data, "Highlights.MarketCapitalization") ?? NaN),
+        pe: Number(get(data, "ValuationRatios.PERatio") ?? NaN),
+        dividendYield: Number(
+          get(
+            data,
+            "SplitsDividends.ForwardAnnualDividendYield",
+            get(data, "Highlights.DividendYield") ?? NaN
+          )
+        ),
+      };
+
+      items.push(item);
+    }
+
+    return json(200, {
+      generatedAt: new Date().toISOString(),
+      count: items.length,
+      tickersCount: tickers.length,
+      items,
+      // slice failures so the response body doesn't explode
+      debug: {
+        suffixesTried: TRY_SUFFIXES,
+        failures: failures.slice(0, 10),
       },
-      body: JSON.stringify({
-        generatedAt: new Date().toISOString(),
-        count: items.length,
-        items,
-      }),
-    };
+    });
   } catch (err) {
     console.error("equity-screener error", err);
-    return {
-      statusCode: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-      body: JSON.stringify({
-        error: "Failed to build equity screener dataset",
-      }),
-    };
+    return json(500, {
+      error: "Failed to build equity screener dataset",
+      detail: String(err),
+    });
   }
 };
+
+function json(statusCode, bodyObj) {
+  return {
+    statusCode,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+    body: JSON.stringify(bodyObj),
+  };
+}
