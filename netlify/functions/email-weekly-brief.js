@@ -84,7 +84,7 @@ exports.handler = async function () {
     return j.result.filter((e) => typeof e === "string" && e.includes("@"));
   }
 
-  // 🔧 UPDATED: send a single email (to one or a small list of recipients)
+  // Send a single email (one or small list of recipients)
   async function sendEmail(to, subject, html) {
     const toList = Array.isArray(to) ? to : [to];
 
@@ -107,6 +107,10 @@ exports.handler = async function () {
       console.error("Resend send failed", res.status, txt);
       throw new Error("Failed to send weekly email");
     }
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   // Last N *market* days in AEST (skip Sat/Sun).
@@ -217,6 +221,37 @@ exports.handler = async function () {
     }
 
     return snapshots;
+  }
+
+  // Latest crypto snapshot (BTC / ETH / SOL / ADA) – matches morning-brief
+  async function getCryptoLatest() {
+    const key = "crypto:latest";
+    const url = `${UPSTASH_URL}/get/${encodeURIComponent(key)}`;
+
+    const res = await fetchWithTimeout(
+      url,
+      {
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+      },
+      8000
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("crypto latest fetch failed", res.status, txt);
+      return null;
+    }
+
+    const j = await res.json().catch(() => null);
+    if (!j || !j.result) return null;
+
+    try {
+      const payload = JSON.parse(j.result);
+      return payload.crypto || {};
+    } catch (e) {
+      console.warn("Failed to parse crypto latest", e.message);
+      return null;
+    }
   }
 
   // -------------------------------
@@ -347,9 +382,9 @@ exports.handler = async function () {
   }
 
   // -------------------------------
-  // HTML builder
+  // HTML builder (weekly + crypto)
   // -------------------------------
-  function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc) {
+  function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc, cryptoObj) {
     const { weeklyTopSectors, weeklyBottomSectors, metalsWeekly } =
       aggregates;
 
@@ -370,6 +405,14 @@ exports.handler = async function () {
       "LITH-CAR": "Lithium Carbonate",
       NI: "Nickel",
       URANIUM: "Uranium",
+    };
+
+    const cryptoOrder = ["BTC", "ETH", "SOL", "ADA"];
+    const friendlyCrypto = {
+      BTC: "Bitcoin",
+      ETH: "Ethereum",
+      SOL: "Solana",
+      ADA: "Cardano",
     };
 
     const sectorRows = (list) =>
@@ -439,6 +482,48 @@ exports.handler = async function () {
             <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${lastPrice}</td>
             <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
               ${weeklyPct !== "—" ? `${arrow} ${weeklyPct}` : weeklyPct}
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const cryptoRows = cryptoOrder
+      .filter((sym) => cryptoObj && cryptoObj[sym])
+      .map((sym) => {
+        const c = cryptoObj[sym] || {};
+        const label = friendlyCrypto[sym] || sym;
+        const unit = (c.unit || "coin").toString().trim() || "coin";
+
+        const price =
+          typeof c.priceAUD === "number"
+            ? "$" + formatMoney(c.priceAUD) + ` / ${unit}`
+            : "Unavailable";
+
+        const pctVal =
+          typeof c.pctChange === "number" && Number.isFinite(c.pctChange)
+            ? c.pctChange
+            : null;
+        const pct = pctVal !== null ? pctVal.toFixed(2) + "%" : "—";
+
+        const isUp = pctVal !== null && pctVal > 0;
+        const isDown = pctVal !== null && pctVal < 0;
+        const color = isUp
+          ? "#16a34a"
+          : isDown
+          ? "#dc2626"
+          : "#64748b";
+        const arrow = isUp ? "▲" : isDown ? "▼" : "";
+
+        return `
+          <tr>
+            <td style="padding:8px 6px;font-size:13px;color:#0b1220;">
+              ${label}
+              <span style="color:#94a3b8;">(${sym})</span>
+            </td>
+            <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${price}</td>
+            <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
+              ${pct !== "—" ? `${arrow} ${pct}` : pct}
             </td>
           </tr>
         `;
@@ -595,6 +680,34 @@ exports.handler = async function () {
               : ""
           }
 
+          <!-- Crypto snapshot -->
+          ${
+            cryptoRows
+              ? `
+          <tr>
+            <td style="padding:10px 20px 14px 20px;">
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Crypto snapshot</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
+                <thead>
+                  <tr style="background:#edf2ff;">
+                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Asset</th>
+                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Price (AUD)</th>
+                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">1D</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${cryptoRows}
+                </tbody>
+              </table>
+              <div style="margin-top:6px;font-size:11px;color:#94a3b8;">
+                Snapshot from the latest crypto feed · Not financial advice.
+              </div>
+            </td>
+          </tr>
+          `
+              : ""
+          }
+
           <!-- Invite a mate -->
           <tr>
             <td style="padding:18px 20px 8px 20px;">
@@ -655,10 +768,11 @@ exports.handler = async function () {
   try {
     const datesAsc = getLastNMarketDaysAest(5);
 
-    const [subscribers, asxDaily, metalsDaily] = await Promise.all([
+    const [subscribers, asxDaily, metalsDaily, cryptoLatest] = await Promise.all([
       getSubscribers(),
       getAsxDailySnapshots(datesAsc),
       getMetalsDailySnapshots(datesAsc),
+      getCryptoLatest(),
     ]);
 
     if (!subscribers.length) {
@@ -677,9 +791,14 @@ exports.handler = async function () {
     const rangeStr = formatWeekRangeForSubject(datesAsc);
     const subject = `MatesMorning – The Week That Was (${rangeStr})`;
 
-    const html = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc);
+    const html = buildWeeklyEmailHtml(
+      aggregates,
+      weeklyNote,
+      datesAsc,
+      cryptoLatest || {}
+    );
 
-    // 🔧 5) Send individually to each subscriber, throttled for Resend (2 req/sec)
+    // Send individually to each subscriber, throttled for Resend (2 req/sec)
     let sentCount = 0;
     for (const email of subscribers) {
       try {
@@ -692,7 +811,6 @@ exports.handler = async function () {
         console.error("Failed sending to", email, err && err.message);
       }
     }
-
 
     console.log("Sent weekly brief to subscribers", sentCount);
     return {
