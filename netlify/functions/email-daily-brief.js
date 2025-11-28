@@ -21,6 +21,9 @@ exports.handler = async function () {
     console.error("RESEND_API_KEY missing");
     return { statusCode: 500, body: "Resend not configured" };
   }
+    function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   // --- Helpers ---
   async function fetchWithTimeout(url, opts = {}, timeout = 9000) {
@@ -455,16 +458,20 @@ exports.handler = async function () {
     const subject = `MatesMorning – ASX Briefing for ${subjectDate}`;
     const html = buildEmailHtml(payload, morningNote);
 
-    // 🔧 5) Send individually to each subscriber
+    // 🔧 5) Send individually to each subscriber, throttled for Resend (2 req/sec)
     let sentCount = 0;
     for (const email of subscribers) {
       try {
         await sendEmail(email, subject, html); // one recipient at a time
         sentCount++;
+
+        // Respect Resend rate limit: max 2 req/sec
+        await sleep(600); // ~1.6 requests per second
       } catch (err) {
         console.error("Failed sending to", email, err && err.message);
       }
     }
+
 
     console.log("Sent daily brief to subscribers", sentCount);
 
