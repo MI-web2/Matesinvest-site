@@ -24,4 +24,8 @@
   
 [functions."email-weekly-brief"]
   schedule = "5 20 * * 5"     # 20:05 UTC Friday = 6:05am Saturday AEST
-
+  
+[functions."snapshot-crypto"]
+  # Crypto snapshot daily at 20:00 UTC (~6am AEST / 7am AEDT)
+  # Used by morning-brief + daily email for BTC/ETH/SOL/ADA
+  schedule = "0 20 * * *"
