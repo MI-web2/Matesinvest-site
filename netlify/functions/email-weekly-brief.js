@@ -84,7 +84,10 @@ exports.handler = async function () {
     return j.result.filter((e) => typeof e === "string" && e.includes("@"));
   }
 
-  async function sendEmail(toList, subject, html) {
+  // 🔧 UPDATED: send a single email (to one or a small list of recipients)
+  async function sendEmail(to, subject, html) {
+    const toList = Array.isArray(to) ? to : [to];
+
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -118,7 +121,7 @@ exports.handler = async function () {
       const day = d.getDay(); // 0=Sun, 6=Sat
       if (day === 0 || day === 6) continue;
 
-      const iso = d.toISOString().slice(0, 10); // YYYY-MM-DD (UTC date, but consistent with your keys)
+      const iso = d.toISOString().slice(0, 10); // YYYY-MM-DD
       dates.push(iso);
     }
 
@@ -220,102 +223,102 @@ exports.handler = async function () {
   // Aggregation: sectors + commodities
   // -------------------------------
   function buildWeeklyAggregates(asxDaily, metalsDaily) {
-  // ----- Sector performance (prefer GICS sector) -----
-  const sectorPerf = new Map();
+    // ----- Sector performance (prefer GICS sector) -----
+    const sectorPerf = new Map();
 
-  for (const snap of asxDaily) {
-    const { rows } = snap;
-    for (const row of rows) {
-      const pct =
-        typeof row.pctChange === "number" ? row.pctChange : 0;
+    for (const snap of asxDaily) {
+      const { rows } = snap;
+      for (const row of rows) {
+        const pct =
+          typeof row.pctChange === "number" ? row.pctChange : 0;
 
-      // Prefer GICS-style buckets, then fall back
-      const rawSector =
-        row.gicSector || // from Fundamentals.General.GicSector
-        row.sector ||    // from Fundamentals.General.Sector
-        row.gicGroup ||
-        row.industry ||
-        row.gicIndustry ||
-        "Other";
+        // Prefer GICS-style buckets, then fall back
+        const rawSector =
+          row.gicSector || // from Fundamentals.General.GicSector
+          row.sector || // from Fundamentals.General.Sector
+          row.gicGroup ||
+          row.industry ||
+          row.gicIndustry ||
+          "Other";
 
-      let sector = String(rawSector || "").trim();
-      if (!sector || sector.toUpperCase() === "N/A") {
-        sector = "Other";
+        let sector = String(rawSector || "").trim();
+        if (!sector || sector.toUpperCase() === "N/A") {
+          sector = "Other";
+        }
+
+        const prev =
+          sectorPerf.get(sector) || {
+            sector,
+            sumPct: 0,
+            daysSeen: 0,
+          };
+
+        prev.sumPct += pct;
+        prev.daysSeen += 1;
+
+        sectorPerf.set(sector, prev);
       }
-
-      const prev =
-        sectorPerf.get(sector) || {
-          sector,
-          sumPct: 0,
-          daysSeen: 0,
-        };
-
-      prev.sumPct += pct;
-      prev.daysSeen += 1;
-
-      sectorPerf.set(sector, prev);
     }
-  }
 
-  const allSectors = Array.from(sectorPerf.values()).map((s) => {
-    const avgPct = s.daysSeen > 0 ? s.sumPct / s.daysSeen : 0;
-    return { ...s, avgPct };
-  });
+    const allSectors = Array.from(sectorPerf.values()).map((s) => {
+      const avgPct = s.daysSeen > 0 ? s.sumPct / s.daysSeen : 0;
+      return { ...s, avgPct };
+    });
 
-  const weeklyTopSectors = allSectors
-    .slice()
-    .sort((a, b) => b.avgPct - a.avgPct)
-    .slice(0, 5);
+    const weeklyTopSectors = allSectors
+      .slice()
+      .sort((a, b) => b.avgPct - a.avgPct)
+      .slice(0, 5);
 
-  const weeklyBottomSectors = allSectors
-    .slice()
-    .sort((a, b) => a.avgPct - b.avgPct)
-    .slice(0, 5);
+    const weeklyBottomSectors = allSectors
+      .slice()
+      .sort((a, b) => a.avgPct - b.avgPct)
+      .slice(0, 5);
 
-  // ----- Commodities (unchanged) -----
-  const historyBySymbol = {};
+    // ----- Commodities -----
+    const historyBySymbol = {};
 
-  for (const snap of metalsDaily) {
-    const { date, payload } = snap;
-    const symbols = (payload && payload.symbols) || {};
-    for (const sym of Object.keys(symbols)) {
-      const m = symbols[sym];
-      if (!m) continue;
+    for (const snap of metalsDaily) {
+      const { date, payload } = snap;
+      const symbols = (payload && payload.symbols) || {};
+      for (const sym of Object.keys(symbols)) {
+        const m = symbols[sym];
+        if (!m) continue;
 
-      historyBySymbol[sym] ||= [];
-      historyBySymbol[sym].push({
-        date,
-        priceAUD:
-          typeof m.priceAUD === "number" ? m.priceAUD : null,
-      });
+        historyBySymbol[sym] ||= [];
+        historyBySymbol[sym].push({
+          date,
+          priceAUD:
+            typeof m.priceAUD === "number" ? m.priceAUD : null,
+        });
+      }
     }
+
+    const metalsWeekly = {};
+    for (const [sym, points] of Object.entries(historyBySymbol)) {
+      const valid = points
+        .filter((p) => typeof p.priceAUD === "number")
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (!valid.length) continue;
+
+      const first = valid[0];
+      const last = valid[valid.length - 1];
+      const weeklyPct = first.priceAUD
+        ? ((last.priceAUD - first.priceAUD) / first.priceAUD) * 100
+        : 0;
+
+      metalsWeekly[sym] = {
+        firstDate: first.date,
+        lastDate: last.date,
+        firstPriceAUD: first.priceAUD,
+        lastPriceAUD: last.priceAUD,
+        weeklyPct,
+        series: valid,
+      };
+    }
+
+    return { weeklyTopSectors, weeklyBottomSectors, metalsWeekly };
   }
-
-  const metalsWeekly = {};
-  for (const [sym, points] of Object.entries(historyBySymbol)) {
-    const valid = points
-      .filter((p) => typeof p.priceAUD === "number")
-      .sort((a, b) => a.date.localeCompare(b.date));
-    if (!valid.length) continue;
-
-    const first = valid[0];
-    const last = valid[valid.length - 1];
-    const weeklyPct = first.priceAUD
-      ? ((last.priceAUD - first.priceAUD) / first.priceAUD) * 100
-      : 0;
-
-    metalsWeekly[sym] = {
-      firstDate: first.date,
-      lastDate: last.date,
-      firstPriceAUD: first.priceAUD,
-      lastPriceAUD: last.priceAUD,
-      weeklyPct,
-      series: valid,
-    };
-  }
-
-  return { weeklyTopSectors, weeklyBottomSectors, metalsWeekly };
-}
 
   // -------------------------------
   // AI weekly note (optional)
@@ -676,12 +679,25 @@ exports.handler = async function () {
 
     const html = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc);
 
-    await sendEmail(subscribers, subject, html);
+    // 🔧 5) Send individually to each subscriber, throttled for Resend (2 req/sec)
+    let sentCount = 0;
+    for (const email of subscribers) {
+      try {
+        await sendEmail(email, subject, html); // one recipient at a time
+        sentCount++;
 
-    console.log("Sent weekly brief to subscribers", subscribers.length);
+        // Respect Resend rate limit: max 2 req/sec
+        await sleep(600); // ~1.6 requests per second
+      } catch (err) {
+        console.error("Failed sending to", email, err && err.message);
+      }
+    }
+
+
+    console.log("Sent weekly brief to subscribers", sentCount);
     return {
       statusCode: 200,
-      body: `Sent weekly brief to ${subscribers.length} subscribers`,
+      body: `Sent weekly brief to ${sentCount} subscribers`,
     };
   } catch (err) {
     console.error(
