@@ -17,23 +17,27 @@
 
   <body>
     <!-- Simple nav consistent with main site -->
-    <header class="nav">
-      <div class="container nav-inner">
-        <div class="brand">
-          <img
-            src="/assets/favicon-32x32.png"
-            alt="MatesInvest logo"
-            class="logo"
-          />
-          <span>MatesInvest</span>
-        </div>
+  <header class="nav">
+  <div class="container nav-inner">
+    <div class="brand">
+      <img
+        src="/assets/favicon-32x32.png"
+        alt="MatesInvest logo"
+        class="logo"
+      />
+      <span>MatesInvest</span>
+    </div>
 
-        <nav>
-          <a href="/">Home</a>
-          <a href="/mates-summaries">ASX daily brief</a>
-        </nav>
-      </div>
-    </header>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/mates-summaries">ASX daily brief</a>
+    </nav>
+
+    <!-- Mobile menu button (same as index.html) -->
+    <button class="menu-btn" aria-label="Toggle navigation">☰</button>
+  </div>
+</header>
+
 
     <main>
       <section class="section">
@@ -153,6 +157,16 @@
           }
         });
       })();
-    </script>
+  // Mobile nav toggle (same behaviour as index.html)
+  (function () {
+    const btn = document.querySelector('.menu-btn');
+    const body = document.body;
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      body.classList.toggle('open');
+    });
+  })();
+</script>
+
   </body>
 </html>
