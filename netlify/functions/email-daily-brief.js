@@ -78,7 +78,10 @@ exports.handler = async function () {
     return j.result.filter((e) => typeof e === "string" && e.includes("@"));
   }
 
-  async function sendEmail(toList, subject, html) {
+  // 🔧 UPDATED: send a single email (to one or a small list of recipients)
+  async function sendEmail(to, subject, html) {
+    const toList = Array.isArray(to) ? to : [to];
+
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -129,54 +132,54 @@ exports.handler = async function () {
   }
 
   // Build HTML email from morning-brief payload + morning note
-function buildEmailHtml(payload, morningNote) {
-  const aestNow = getAestDate();
-  const niceDate = aestNow.toLocaleDateString("en-AU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  function buildEmailHtml(payload, morningNote) {
+    const aestNow = getAestDate();
+    const niceDate = aestNow.toLocaleDateString("en-AU", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
 
-  const top = Array.isArray(payload.topPerformers)
-    ? payload.topPerformers
-    : [];
+    const top = Array.isArray(payload.topPerformers)
+      ? payload.topPerformers
+      : [];
 
-  const metalsObj = payload.metals || payload.symbols || {};
-  const friendly = {
-    XAU: "Gold",
-    XAG: "Silver",
-    IRON: "Iron Ore 62% Fe",
-    "LITH-CAR": "Lithium Carbonate",
-    NI: "Nickel",
-    URANIUM: "Uranium",
-  };
+    const metalsObj = payload.metals || payload.symbols || {};
+    const friendly = {
+      XAU: "Gold",
+      XAG: "Silver",
+      IRON: "Iron Ore 62% Fe",
+      "LITH-CAR": "Lithium Carbonate",
+      NI: "Nickel",
+      URANIUM: "Uranium",
+    };
 
-  const topRows = top
-    .map((tp) => {
-      const sym = tp.symbol || tp.code || "";
-      const name = tp.name || "";
-      const last =
-        typeof tp.lastClose === "number"
-          ? "$" + formatMoney(tp.lastClose)
-          : "—";
-      const pct =
-        typeof tp.pctGain === "number"
-          ? tp.pctGain.toFixed(2) + "%"
-          : tp.pctGain
-          ? String(tp.pctGain)
-          : "—";
-      const isUp =
-        typeof tp.pctGain === "number" && tp.pctGain > 0;
-      const isDown =
-        typeof tp.pctGain === "number" && tp.pctGain < 0;
-      const color = isUp
-        ? "#16a34a"
-        : isDown
-        ? "#dc2626"
-        : "#64748b";
-      const arrow = isUp ? "▲" : isDown ? "▼" : "";
-      return `
+    const topRows = top
+      .map((tp) => {
+        const sym = tp.symbol || tp.code || "";
+        const name = tp.name || "";
+        const last =
+          typeof tp.lastClose === "number"
+            ? "$" + formatMoney(tp.lastClose)
+            : "—";
+        const pct =
+          typeof tp.pctGain === "number"
+            ? tp.pctGain.toFixed(2) + "%"
+            : tp.pctGain
+            ? String(tp.pctGain)
+            : "—";
+        const isUp =
+          typeof tp.pctGain === "number" && tp.pctGain > 0;
+        const isDown =
+          typeof tp.pctGain === "number" && tp.pctGain < 0;
+        const color = isUp
+          ? "#16a34a"
+          : isDown
+          ? "#dc2626"
+          : "#64748b";
+        const arrow = isUp ? "▲" : isDown ? "▼" : "";
+        return `
         <tr>
           <td style="padding:8px 6px;font-weight:600;font-size:13px;color:#0b1220;">${sym}</td>
           <td style="padding:8px 6px;font-size:13px;color:#64748b;">${name}</td>
@@ -186,33 +189,33 @@ function buildEmailHtml(payload, morningNote) {
           </td>
         </tr>
       `;
-    })
-    .join("");
+      })
+      .join("");
 
-  const metalsRows = Object.keys(metalsObj)
-    .map((sym) => {
-      const m = metalsObj[sym] || {};
-      const label = friendly[sym] || sym;
-      const unit = m.unit || (sym === "IRON" ? "tonne" : "unit");
-      const price =
-        typeof m.priceAUD === "number"
-          ? "$" + formatMoney(m.priceAUD) + ` / ${unit}`
-          : "Unavailable";
-      const pct =
-        typeof m.pctChange === "number"
-          ? m.pctChange.toFixed(2) + "%"
-          : "—";
-      const isUp =
-        typeof m.pctChange === "number" && m.pctChange > 0;
-      const isDown =
-        typeof m.pctChange === "number" && m.pctChange < 0;
-      const color = isUp
-        ? "#16a34a"
-        : isDown
-        ? "#dc2626"
-        : "#64748b";
-      const arrow = isUp ? "▲" : isDown ? "▼" : "";
-      return `
+    const metalsRows = Object.keys(metalsObj)
+      .map((sym) => {
+        const m = metalsObj[sym] || {};
+        const label = friendly[sym] || sym;
+        const unit = m.unit || (sym === "IRON" ? "tonne" : "unit");
+        const price =
+          typeof m.priceAUD === "number"
+            ? "$" + formatMoney(m.priceAUD) + ` / ${unit}`
+            : "Unavailable";
+        const pct =
+          typeof m.pctChange === "number"
+            ? m.pctChange.toFixed(2) + "%"
+            : "—";
+        const isUp =
+          typeof m.pctChange === "number" && m.pctChange > 0;
+        const isDown =
+          typeof m.pctChange === "number" && m.pctChange < 0;
+        const color = isUp
+          ? "#16a34a"
+          : isDown
+          ? "#dc2626"
+          : "#64748b";
+        const arrow = isUp ? "▲" : isDown ? "▼" : "";
+        return `
         <tr>
           <td style="padding:8px 6px;font-size:13px;color:#0b1220;">
             ${label}
@@ -224,18 +227,15 @@ function buildEmailHtml(payload, morningNote) {
           </td>
         </tr>
       `;
-    })
-    .join("");
+      })
+      .join("");
 
-  const sourceNote =
-    payload._debug && payload._debug.metalsDataSource
-      ? `Metals source: ${payload._debug.metalsDataSource}`
-      : "Metals snapshot – not live prices";
+    const sourceNote =
+      payload._debug && payload._debug.metalsDataSource
+        ? `Metals source: ${payload._debug.metalsDataSource}`
+        : "Metals snapshot – not live prices";
 
-  // Brand colours from mates-summaries.html:
-  // navy: #002040, cyan: #00BFFF, bg: #f5f7fb, card: #ffffff,
-  // border: #e2e8f0, muted: #64748b, muted-2: #94a3b8
-  return `
+    return `
 <!doctype html>
 <html>
 <head>
@@ -248,7 +248,7 @@ function buildEmailHtml(payload, morningNote) {
       <td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background-color:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 30px rgba(15,23,42,0.10);">
 
-          <!-- Header (matches MatesSummaries nav style) -->
+          <!-- Header -->
           <tr>
             <td style="padding:18px 20px 10px 20px;border-bottom:1px solid #e2e8f0;background:radial-gradient(circle at top left,#e2ebff 0,#f5f7fb 60%);">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
@@ -282,7 +282,6 @@ function buildEmailHtml(payload, morningNote) {
             </td>
           </tr>
 
-          <!-- Mates Morning Note -->
           ${
             morningNote
               ? `
@@ -309,7 +308,6 @@ function buildEmailHtml(payload, morningNote) {
               : ""
           }
 
-          <!-- Top performers -->
           ${
             top.length
               ? `
@@ -335,7 +333,6 @@ function buildEmailHtml(payload, morningNote) {
               : ""
           }
 
-          <!-- Commodities -->
           ${
             metalsRows
               ? `
@@ -362,34 +359,33 @@ function buildEmailHtml(payload, morningNote) {
           `
               : ""
           }
-<!-- Subscribe Section -->
-<tr>
-  <td style="padding:18px 20px 8px 20px;">
-    <div style="background:#f9fbff;border:1px solid #dbeafe;padding:14px;border-radius:12px;">
-      <h3 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Invite a mate</h3>
-      <p style="margin:0 0 10px 0;font-size:12px;color:#64748b;line-height:1.4;">
-        Know someone who would enjoy the MatesMorning Daily Briefing?
-        Send them this link to subscribe:
-      </p>
 
-      <a href="https://matesinvest.com/mates-summaries#subscribe"
-         style="
-           display:inline-block;
-           padding:8px 14px;
-           background:#00BFFF;
-           color:#ffffff;
-           text-decoration:none;
-           border-radius:999px;
-           font-size:13px;
-           font-weight:600;
-         ">
-        Subscribe to MatesMorning
-      </a>
-    </div>
-  </td>
-</tr>
+          <tr>
+            <td style="padding:18px 20px 8px 20px;">
+              <div style="background:#f9fbff;border:1px solid #dbeafe;padding:14px;border-radius:12px;">
+                <h3 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Invite a mate</h3>
+                <p style="margin:0 0 10px 0;font-size:12px;color:#64748b;line-height:1.4;">
+                  Know someone who would enjoy the MatesMorning Daily Briefing?
+                  Send them this link to subscribe:
+                </p>
 
-          <!-- Footer -->
+                <a href="https://matesinvest.com/mates-summaries#subscribe"
+                   style="
+                     display:inline-block;
+                     padding:8px 14px;
+                     background:#00BFFF;
+                     color:#ffffff;
+                     text-decoration:none;
+                     border-radius:999px;
+                     font-size:13px;
+                     font-weight:600;
+                   ">
+                  Subscribe to MatesMorning
+                </a>
+              </div>
+            </td>
+          </tr>
+
           <tr>
             <td style="padding:12px 20px 18px 20px;border-top:1px solid #e2e8f0;background-color:#ffffff;">
               <p style="margin:0 0 6px 0;font-size:12px;color:#64748b;">
@@ -413,9 +409,8 @@ function buildEmailHtml(payload, morningNote) {
   </table>
 </body>
 </html>
-  `;
-}
-
+    `;
+  }
 
   try {
     // 1) Get the morning brief payload by calling the existing handler
@@ -460,14 +455,22 @@ function buildEmailHtml(payload, morningNote) {
     const subject = `MatesMorning – ASX Briefing for ${subjectDate}`;
     const html = buildEmailHtml(payload, morningNote);
 
-    // 5) Send via Resend
-    await sendEmail(subscribers, subject, html);
+    // 🔧 5) Send individually to each subscriber
+    let sentCount = 0;
+    for (const email of subscribers) {
+      try {
+        await sendEmail(email, subject, html); // one recipient at a time
+        sentCount++;
+      } catch (err) {
+        console.error("Failed sending to", email, err && err.message);
+      }
+    }
 
-    console.log("Sent daily brief to subscribers", subscribers.length);
+    console.log("Sent daily brief to subscribers", sentCount);
 
     return {
       statusCode: 200,
-      body: `Sent to ${subscribers.length} subscribers`,
+      body: `Sent to ${sentCount} subscribers`,
     };
   } catch (err) {
     console.error(
