@@ -63,23 +63,30 @@ function getAestDateString(date) {
   return aestTime.toISOString().slice(0, 10);
 }
 
-// Last N *completed* business days BEFORE today, as UTC YYYY-MM-DD strings
+// Last N *completed* ASX business days BEFORE "today in AEST",
+// returned as YYYY-MM-DD strings
 function getLastCompletedBusinessDays(n, now = new Date()) {
+  const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane UTC+10, no DST
+  const aestNow = new Date(now.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
+
   const days = [];
-  let d = new Date(now);
-  // start from "yesterday"
+  let d = new Date(aestNow);
+
+  // start from "yesterday" *in AEST*
   d.setDate(d.getDate() - 1);
 
   while (days.length < n) {
-    const dow = d.getDay(); // 0 = Sun, 6 = Sat
+    const dow = d.getUTCDay(); // using the offset date, this lines up with AEST weekdays
     if (dow !== 0 && dow !== 6) {
       days.push(new Date(d));
     }
     d.setDate(d.getDate() - 1);
   }
 
+  // Return as YYYY-MM-DD strings for EODHD from/to
   return days.reverse().map((dt) => dt.toISOString().slice(0, 10));
 }
+
 
 // Today’s date in AEST (for Redis key only)
 function getTodayAestDateString(baseDate = new Date()) {
