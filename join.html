@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Join MatesInvest</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Join the MatesInvest crew for the daily ASX email, weekly wrap, and first access to the app."
+    />
+
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <link rel="icon" type="image/png" href="/assets/favicon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+
+  <body>
+    <!-- Simple nav consistent with main site -->
+    <header class="nav">
+      <div class="container nav-inner">
+        <div class="brand">
+          <img
+            src="/assets/favicon-32x32.png"
+            alt="MatesInvest logo"
+            class="logo"
+          />
+          <span>MatesInvest</span>
+        </div>
+
+        <nav>
+          <a href="/">Home</a>
+          <a href="/mates-summaries">ASX daily brief</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="container" style="max-width:640px;">
+          <p class="hero-eyebrow">Join the crew</p>
+          <h1>Join the MatesInvest crew</h1>
+          <p class="hero-lead">
+            Daily ASX email, weekly wrap, and first access to the app.
+          </p>
+
+          <ul class="tick" style="margin-top:1rem;">
+            <li>✅ <strong>MatesMorning</strong>: plain-English ASX brief before the market opens</li>
+            <li>✅ <strong>Week That Was</strong>: top movers &amp; what actually mattered</li>
+            <li>✅ <strong>App early access</strong> &amp; member-only updates</li>
+          </ul>
+
+          <div class="contact-card" style="margin-top:1.75rem;">
+            <h3>Sign up once, get all three</h3>
+            <p style="font-size:13px;color:#6b7280;margin-bottom:1rem;">
+              No options to juggle, no spam. Just enter your name and email.
+            </p>
+
+            <form id="joinForm" class="form" novalidate>
+              <label>
+                <span>First name</span>
+                <input
+                  type="text"
+                  name="first_name"
+                  id="joinName"
+                  autocomplete="given-name"
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Email</span>
+                <input
+                  type="email"
+                  name="email"
+                  id="joinEmail"
+                  autocomplete="email"
+                  required
+                />
+              </label>
+
+              <button type="submit" class="btn btn-primary">
+                Join MatesInvest
+              </button>
+
+              <div
+                id="joinStatus"
+                style="margin-top:0.6rem;font-size:0.85rem;color:#6b7280;"
+              ></div>
+            </form>
+          </div>
+
+          <p style="margin-top:1.5rem;font-size:12px;color:#94a3b8;">
+            We don’t provide financial advice. Information is general in nature
+            and doesn’t take into account your objectives, financial situation or needs.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      // Simple JS -> Netlify function -> Upstash
+      (function () {
+        const form = document.getElementById("joinForm");
+        const nameInput = document.getElementById("joinName");
+        const emailInput = document.getElementById("joinEmail");
+        const statusEl = document.getElementById("joinStatus");
+
+        if (!form) return;
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          const name = nameInput.value.trim();
+          const email = emailInput.value.trim();
+
+          if (!name || !email) {
+            statusEl.textContent = "Please enter your name and email.";
+            statusEl.style.color = "#dc2626";
+            return;
+          }
+
+          statusEl.textContent = "Signing you up…";
+          statusEl.style.color = "#6b7280";
+
+          try {
+            const res = await fetch("/.netlify/functions/subscribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name,
+                email,
+                source: "join-page"
+              }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok || data.ok === false) {
+              const msg = data.error || "Something went wrong. Try again.";
+              statusEl.textContent = msg;
+              statusEl.style.color = "#dc2626";
+              return;
+            }
+
+            statusEl.textContent =
+              "You’re in! You’ll start getting the emails as they go out.";
+            statusEl.style.color = "#15803d";
+            form.reset();
+          } catch (err) {
+            statusEl.textContent = "Network error, try again shortly.";
+            statusEl.style.color = "#dc2626";
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
