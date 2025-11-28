@@ -687,7 +687,7 @@ exports.handler = async function () {
         sentCount++;
 
         // Respect Resend rate limit: max 2 req/sec
-        await sleep(600); // ~1.6 requests per second
+        await sleep(1200); // ~1.6 requests per second
       } catch (err) {
         console.error("Failed sending to", email, err && err.message);
       }
