@@ -1,6 +1,7 @@
 // netlify/functions/morning-brief.js
-// Morning brief for multiple metals + top performers across ASX (AU).
+// Morning brief for multiple metals + top performers across ASX (AU) + crypto.
 // - Metals prices: snapshot-only from Upstash (no live metals/FX fetches)
+// - Crypto: snapshot-only from Upstash (snapshot-crypto.js)
 // - Top performers: read from Upstash key `asx200:latest` and pick the TOP_N
 //   largest percent gain from the most recent business day snapshot.
 
@@ -182,7 +183,7 @@ exports.handler = async function (event) {
     }
 
     // ------------------------------
-    // 1b) Yesterday snapshot for pct change
+    // 1b) Yesterday snapshot for pct change (metals)
     // ------------------------------
     let yesterdayData = null;
     try {
@@ -313,6 +314,117 @@ exports.handler = async function (event) {
           m.unit || (s === "IRON" ? "tonne" : "unit")
         }${upDown}.`;
       }
+    }
+
+    // --------------------------------------------------
+    // 1c) CRYPTO: snapshot-only from Upstash (snapshot-crypto.js)
+    // --------------------------------------------------
+    const cryptoSymbols = ["BTC", "ETH", "SOL", "ADA"];
+    const crypto = {};
+    let cryptoDataSource = "snapshot-missing";
+
+    try {
+      const rawCrypto = await redisGet("crypto:latest");
+      let cryptoSnapshot = null;
+
+      if (rawCrypto) {
+        if (typeof rawCrypto === "string") {
+          try {
+            cryptoSnapshot = JSON.parse(rawCrypto);
+          } catch (e) {
+            cryptoSnapshot = null;
+            debug.steps.push({
+              source: "parse-crypto-latest-failed",
+              error: e && e.message,
+            });
+          }
+        } else if (typeof rawCrypto === "object") {
+          cryptoSnapshot = rawCrypto;
+        }
+      }
+
+      if (!cryptoSnapshot || !cryptoSnapshot.symbols) {
+        debug.steps.push({
+          source: "crypto-latest-missing-or-invalid",
+          found: !!cryptoSnapshot,
+        });
+      } else {
+        cryptoDataSource = "crypto:latest";
+
+        const fx = typeof usdToAud === "number" && Number.isFinite(usdToAud)
+          ? usdToAud
+          : null;
+
+        for (const c of cryptoSymbols) {
+          const entry = cryptoSnapshot.symbols[c] || null;
+
+          let todayUSD = null;
+          let yesterdayUSD = null;
+          let pctChange = null;
+          let todayDate = null;
+          let yesterdayDate = null;
+
+          if (entry && typeof entry === "object") {
+            todayDate = entry.todayDate || null;
+            yesterdayDate = entry.yesterdayDate || null;
+
+            if (
+              typeof entry.todayCloseUSD === "number" ||
+              entry.todayCloseUSD
+            ) {
+              todayUSD = Number(entry.todayCloseUSD);
+              if (!Number.isFinite(todayUSD)) todayUSD = null;
+            }
+            if (
+              typeof entry.yesterdayCloseUSD === "number" ||
+              entry.yesterdayCloseUSD
+            ) {
+              yesterdayUSD = Number(entry.yesterdayCloseUSD);
+              if (!Number.isFinite(yesterdayUSD)) yesterdayUSD = null;
+            }
+
+            if (typeof entry.pctChange === "number") {
+              pctChange = entry.pctChange;
+            } else if (
+              todayUSD !== null &&
+              yesterdayUSD !== null &&
+              yesterdayUSD !== 0
+            ) {
+              const raw = ((todayUSD - yesterdayUSD) / yesterdayUSD) * 100;
+              if (Number.isFinite(raw) && Math.abs(raw) < 1000) {
+                pctChange = Number(raw.toFixed(2));
+              }
+            }
+          }
+
+          const todayAUD =
+            fx !== null && todayUSD !== null ? todayUSD * fx : null;
+          const yesterdayAUD =
+            fx !== null && yesterdayUSD !== null ? yesterdayUSD * fx : null;
+
+          crypto[c] = {
+            priceUSD: fmt(todayUSD),
+            priceAUD: fmt(todayAUD),
+            yesterdayPriceUSD: fmt(yesterdayUSD),
+            yesterdayPriceAUD: fmt(yesterdayAUD),
+            pctChange: pctChange !== null ? fmt(pctChange) : null,
+            todayDate,
+            yesterdayDate,
+            priceTimestamp: cryptoSnapshot.snappedAt || null,
+            unit: "coin",
+          };
+        }
+
+        debug.steps.push({
+          source: "crypto-loaded",
+          symbols: cryptoSymbols,
+        });
+      }
+    } catch (e) {
+      debug.steps.push({
+        source: "crypto-error",
+        error: e && e.message,
+      });
     }
 
     // --------------------------------------------------
@@ -474,10 +586,12 @@ exports.handler = async function (event) {
       usdToAud: fmt(usdToAud),
       metals,
       narratives,
+      crypto, // <--- new block for BTC / ETH / SOL / ADA
       topPerformers,
       _debug: {
         ...debug,
         metalsDataSource,
+        cryptoDataSource,
         topSource: "asx200:latest",
       },
     };
@@ -486,6 +600,7 @@ exports.handler = async function (event) {
     try {
       console.log("[morning-brief] payload sample:", {
         topPerformers: payload.topPerformers && payload.topPerformers.slice(0, 6),
+        crypto: payload.crypto,
         debug: payload._debug,
       });
     } catch (e) {}
