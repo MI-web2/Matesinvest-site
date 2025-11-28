@@ -27,7 +27,7 @@ if (!EODHD_API_TOKEN) {
 }
 
 const UNIVERSE_FILE = path.join(__dirname, "asx200.txt");
-const EXCHANGE_SUFFIX = "AU"; // adjust if you use AX/ASX/etc.
+const EXCHANGE_SUFFIX = "ASX"; // adjust if you use AX/ASX/etc.
 
 exports.handler = async function (event) {
   try {
