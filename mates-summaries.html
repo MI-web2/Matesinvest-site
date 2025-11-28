@@ -1830,9 +1830,10 @@ function renderMorningBrief(payload) {
     return;
   }
 
-  const sourceNote = (payload._debug && payload._debug.fxSource)
-    ? `Source: Metals-API · FX: ${payload._debug.fxSource}`
-    : "Source: Metals-API";
+  const sourceNote =
+    payload._debug && payload._debug.fxSource
+      ? `Source: Metals-API · FX: ${payload._debug.fxSource}`
+      : "Source: Metals-API";
 
   const cachedHint =
     payload._debug && payload._debug.cached
@@ -1845,6 +1846,12 @@ function renderMorningBrief(payload) {
       ? payload.metals
       : payload.symbols && typeof payload.symbols === "object"
       ? payload.symbols
+      : null;
+
+  // Crypto snapshot from morning-brief payload
+  const cryptoObj =
+    payload.crypto && typeof payload.crypto === "object"
+      ? payload.crypto
       : null;
 
   // Build top performers HTML if present
@@ -1978,10 +1985,10 @@ function renderMorningBrief(payload) {
     </div>
   `;
 
-  // ---------- METALS SECTION (now clickable buttons feeding the modal) ----------
+  // ---------- METALS SECTION (clickable; feeds instrument modal) ----------
   if (metalsObj) {
-    const symbols = Object.keys(metalsObj);
-    const friendly = {
+    const metalSymbols = Object.keys(metalsObj);
+    const friendlyMetals = {
       XAU: "Gold",
       XAG: "Silver",
       IRON: "Iron Ore 62% Fe",
@@ -1990,7 +1997,7 @@ function renderMorningBrief(payload) {
       URANIUM: "Uranium",
     };
 
-    const cards = symbols
+    const metalCards = metalSymbols
       .map((sym) => {
         const m = metalsObj[sym] || {};
 
@@ -2045,13 +2052,13 @@ function renderMorningBrief(payload) {
             data-type="metal"
             data-code="${escapeHtml(sym)}"
             aria-label="View recent price chart for ${escapeHtml(
-              friendly[sym] || sym
+              friendlyMetals[sym] || sym
             )}"
           >
             <div class="metal-head">
               <div>
                 <div class="metal-name">
-                  <strong>${escapeHtml(friendly[sym] || sym)}</strong>
+                  <strong>${escapeHtml(friendlyMetals[sym] || sym)}</strong>
                   <small style="color:var(--muted)"> (${escapeHtml(
                     sym
                   )})</small>
@@ -2072,7 +2079,90 @@ function renderMorningBrief(payload) {
       })
       .join("");
 
-    // Final HTML: top meta, top performers, top cards, then metals grid
+    // ---------- CRYPTO SECTION (non-modal, “like the commodity cards”) ----------
+    let cryptoSectionHtml = "";
+    if (cryptoObj && Object.keys(cryptoObj).length) {
+      const cryptoOrder = ["BTC", "ETH", "SOL", "ADA"];
+      const friendlyCrypto = {
+        BTC: "Bitcoin",
+        ETH: "Ethereum",
+        SOL: "Solana",
+        ADA: "Cardano",
+      };
+
+      const cryptoCards = cryptoOrder
+        .filter((sym) => cryptoObj[sym])
+        .map((sym) => {
+          const c = cryptoObj[sym] || {};
+
+          const priceAUDraw =
+            typeof c.priceAUD === "number" ? c.priceAUD : null;
+          const pct =
+            typeof c.pctChange === "number" && Number.isFinite(c.pctChange)
+              ? c.pctChange
+              : null;
+
+          const unit = (c.unit || "coin").toString().trim() || "coin";
+
+          const priceDisplay =
+            priceAUDraw !== null
+              ? `$${formatMoney(priceAUDraw)}`
+              : '<span style="color:#ffd166">Unavailable</span>';
+
+          let pctHtml =
+            '<span class="brief-badge no-data" aria-hidden="true">—</span>';
+          if (pct !== null) {
+            if (pct > 0) {
+              pctHtml = `<span class="brief-badge up" aria-label="${pct.toFixed(
+                2
+              )}% up">▲ ${pct.toFixed(2)}%</span>`;
+            } else if (pct < 0) {
+              pctHtml = `<span class="brief-badge down" aria-label="${pct.toFixed(
+                2
+              )}% down">▼ ${Math.abs(pct).toFixed(2)}%</span>`;
+            } else {
+              pctHtml =
+                '<span class="brief-badge neutral" aria-label="unchanged">— 0%</span>';
+            }
+          }
+
+          return `
+            <div class="card-metal">
+              <div class="metal-head">
+                <div>
+                  <div class="metal-name">
+                    <strong>${escapeHtml(friendlyCrypto[sym] || sym)}</strong>
+                    <small style="color:var(--muted)"> (${escapeHtml(
+                      sym
+                    )})</small>
+                  </div>
+                  <div class="metal-price">
+                    ${priceDisplay}
+                    <small class="metal-sub" style="color:var(--muted);font-weight:600">
+                      ${escapeHtml("/" + unit)}
+                    </small>
+                  </div>
+                </div>
+                <div style="text-align:right">
+                  ${pctHtml}
+                </div>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+
+      cryptoSectionHtml = `
+        <div class="metals-header-row" style="margin-top:0.75rem">
+          <div class="metals-title">Crypto snapshot</div>
+        </div>
+        <div class="metals-grid">
+          ${cryptoCards}
+        </div>
+      `;
+    }
+
+    // Final HTML: top meta, top performers, note + SOTD, then metals & crypto grids
     briefContent.innerHTML = `
       ${topMetaHtml}
       ${topPerfHtml}
@@ -2085,8 +2175,9 @@ function renderMorningBrief(payload) {
           <div class="metals-title">Key Commodities</div>
         </div>
         <div class="metals-grid">
-          ${cards}
+          ${metalCards}
         </div>
+        ${cryptoSectionHtml}
       </div>
     `;
 
