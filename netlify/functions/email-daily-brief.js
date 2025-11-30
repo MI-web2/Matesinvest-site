@@ -80,6 +80,53 @@ exports.handler = async function () {
     if (!j || !Array.isArray(j.result)) return [];
     return j.result.filter((e) => typeof e === "string" && e.includes("@"));
   }
+  async function redisGet(key) {
+    const url = `${UPSTASH_URL}/get/` + encodeURIComponent(key);
+    const res = await fetchWithTimeout(
+      url,
+      {
+        headers: {
+          Authorization: `Bearer ${UPSTASH_TOKEN}`,
+        },
+      },
+      5000
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("redisGet failed", key, res.status, txt);
+      return null;
+    }
+
+    const j = await res.json().catch(() => null);
+    return j ? j.result : null;
+  }
+
+  async function redisSet(key, value, ttlSeconds) {
+    let url = `${UPSTASH_URL}/set/` +
+      encodeURIComponent(key) +
+      "/" +
+      encodeURIComponent(value);
+    if (ttlSeconds && Number.isFinite(ttlSeconds)) {
+      url += `?EX=${ttlSeconds}`;
+    }
+
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${UPSTASH_TOKEN}`,
+        },
+      },
+      5000
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("redisSet failed", key, res.status, txt);
+    }
+  }
 
   // 🔧 UPDATED: send a single email (to one or a small list of recipients)
   async function sendEmail(to, subject, html) {
@@ -497,8 +544,33 @@ exports.handler = async function () {
     `;
   }
 
-  try {
+try {
+    // -----------------------------------------
+    // IDEMPOTENCY CHECK (skip if already sent)
+    // -----------------------------------------
+
+    const aestNowForKey = getAestDate(new Date());
+    const yyyy = aestNowForKey.getFullYear();
+    const mm = String(aestNowForKey.getMonth() + 1).padStart(2, "0");
+    const dd = String(aestNowForKey.getDate()).padStart(2, "0");
+
+    const sendKey = `email:daily:${yyyy}-${mm}-${dd}`;
+
+    const alreadySent = await redisGet(sendKey);
+    if (alreadySent) {
+        console.log("Daily brief already sent for", sendKey, "- skipping");
+        return {
+            statusCode: 200,
+            body: `Already sent daily brief for ${yyyy}-${mm}-${dd}`,
+        };
+    }
+
+    // -----------------------------------------
+    // Proceed with generating the email
+    // -----------------------------------------
+
     // 1) Get the morning brief payload by calling the existing handler
+
     const mbResponse = await morningBriefFn.handler(
       {
         queryStringParameters: { region: "au" },
@@ -539,6 +611,9 @@ exports.handler = async function () {
     const subjectDate = formatAestForSubject(new Date());
     const subject = `MatesMorning – ASX Briefing for ${subjectDate}`;
     const html = buildEmailHtml(payload, morningNote);
+
+  // Mark as sent before sending (prevents retries sending again)
+await redisSet(sendKey, "sent", 60 * 60 * 36); // 36-hour TTL
 
     // 🔧 5) Send individually to each subscriber, throttled for Resend (2 req/sec)
     let sentCount = 0;
