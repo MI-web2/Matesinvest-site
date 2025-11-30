@@ -7,7 +7,7 @@ const fetch = (...args) => global.fetch(...args);
 const morningBriefFn = require("./morning-brief");
 const matesMorningNoteFn = require("./matesMorningNote");
 
-exports.handler = async function () {
+exports.handler = async function (event, context) {
   const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
   const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
