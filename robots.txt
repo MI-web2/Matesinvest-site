@@ -1,0 +1,4 @@
+User-agent: *
+Disallow:
+
+Sitemap: https://matesinvest.com/sitemap.xml
