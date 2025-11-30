@@ -12,6 +12,9 @@ exports.handler = async function () {
   const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   const EMAIL_FROM = process.env.EMAIL_FROM || "hello@matesinvest.com";
+    // NEW: test-mode env vars
+  const FUNCTION_SECRET = process.env.FUNCTION_SECRET;
+  const TEST_RECIPIENTS = process.env.TEST_RECIPIENTS || "";
 
   if (!UPSTASH_URL || !UPSTASH_TOKEN) {
     console.error("Upstash not configured");
@@ -20,6 +23,17 @@ exports.handler = async function () {
   if (!RESEND_API_KEY) {
     console.error("RESEND_API_KEY missing");
     return { statusCode: 500, body: "Resend not configured" };
+  }
+    // NEW: check query params for test mode
+  const qs = (event && event.queryStringParameters) || {};
+  const isTestRun =
+    qs.mode === "test" &&
+    qs.secret &&
+    FUNCTION_SECRET &&
+    qs.secret === FUNCTION_SECRET;
+
+  if (isTestRun) {
+    console.log("Running email-daily-brief in TEST MODE");
   }
     function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -595,14 +609,38 @@ try {
     }
 
     // 2) Get subscriber list
-    const subscribers = await getSubscribers();
+    let subscribers = await getSubscribers();
+
+    if (isTestRun) {
+      const testList = (process.env.TEST_RECIPIENTS || "")
+        .split(",")
+        .map((e) => e.trim())
+        .filter(Boolean);
+
+      if (testList.length) {
+        console.log(
+          "TEST MODE: overriding subscribers list with",
+          testList.length,
+          "test recipient(s)"
+        );
+        subscribers = testList;
+      } else {
+        console.warn("TEST MODE: no TEST_RECIPIENTS configured, aborting");
+        return {
+          statusCode: 200,
+          body: "Test mode: no TEST_RECIPIENTS configured",
+        };
+      }
+    }
+
     if (!subscribers.length) {
-      console.log("No subscribers – skipping send");
+      console.log("No subscribers - skipping send");
       return {
         statusCode: 200,
         body: "No subscribers",
       };
     }
+
 
     // 3) Get the Mates Morning Note
     const morningNote = await getMorningNote();
