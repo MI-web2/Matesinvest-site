@@ -222,8 +222,8 @@ function buildPrompt(region, articles, usMarkets) {
 
   const usLine =
     usMarkets && usMarkets.summaryLine
-      ? `Overnight US market performance (already calculated): ${usMarkets.summaryLine}.`
-      : "Overnight US market moves were modest or mixed.";
+      ? `Latest US trading session performance (already calculated): ${usMarkets.summaryLine}.`
+      : "Recent US market moves were modest or mixed.";
 
   return `
 You are writing a short pre-market note for everyday investors in ${regionLabel}.
@@ -238,12 +238,15 @@ ${topBits || "• No major headlines available."}
 Write a concise "Mates Morning Note" that:
 - starts directly with the market context (no greeting, no heading)
 - clearly reflects the direction and tone implied by the US market moves (weak session vs strong rally)
+- treats the US moves as the latest completed US trading session (this might be Friday if today is Monday in Australia)
+- does NOT use phrases like "overnight" or "last night" for US markets — instead say "in the latest US trading session" or similar
 - links those moves back to what may influence Australian investors and the ASX today
 - uses no markdown (no **bold**, no # headings)
 - does NOT repeat the phrase "Mates Morning Note" in the text
 - does NOT include a sign-off
 - maintains a calm, factual tone typical of morning market commentary.
 `;
+
 }
 
 // -------------------------------
