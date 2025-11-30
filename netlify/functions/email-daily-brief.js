@@ -12,7 +12,6 @@ exports.handler = async function (event, context) {
   const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   const EMAIL_FROM = process.env.EMAIL_FROM || "hello@matesinvest.com";
-    // NEW: test-mode env vars
   const FUNCTION_SECRET = process.env.FUNCTION_SECRET;
   const TEST_RECIPIENTS = process.env.TEST_RECIPIENTS || "";
 
@@ -24,7 +23,8 @@ exports.handler = async function (event, context) {
     console.error("RESEND_API_KEY missing");
     return { statusCode: 500, body: "Resend not configured" };
   }
-    // NEW: check query params for test mode
+
+  // Optional test mode for manual runs (does not affect scheduled cron)
   const qs = (event && event.queryStringParameters) || {};
   const isTestRun =
     qs.mode === "test" &&
@@ -35,7 +35,8 @@ exports.handler = async function (event, context) {
   if (isTestRun) {
     console.log("Running email-daily-brief in TEST MODE");
   }
-    function sleep(ms) {
+
+  function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
@@ -94,6 +95,7 @@ exports.handler = async function (event, context) {
     if (!j || !Array.isArray(j.result)) return [];
     return j.result.filter((e) => typeof e === "string" && e.includes("@"));
   }
+
   async function redisGet(key) {
     const url = `${UPSTASH_URL}/get/` + encodeURIComponent(key);
     const res = await fetchWithTimeout(
@@ -117,7 +119,8 @@ exports.handler = async function (event, context) {
   }
 
   async function redisSet(key, value, ttlSeconds) {
-    let url = `${UPSTASH_URL}/set/` +
+    let url =
+      `${UPSTASH_URL}/set/` +
       encodeURIComponent(key) +
       "/" +
       encodeURIComponent(value);
@@ -179,6 +182,23 @@ exports.handler = async function (event, context) {
     }
   }
 
+  function changeToBadge(change) {
+    if (change == null) return "";
+    const value = Number(change);
+    if (!Number.isFinite(value)) return String(change);
+    const prefix = value > 0 ? "+" : "";
+    return `${prefix}${value.toFixed(2)}%`;
+  }
+
+  function getChangeBadgeColor(change) {
+    if (change == null) return "#64748b"; // neutral
+    const value = Number(change);
+    if (!Number.isFinite(value)) return "#64748b";
+    if (value > 0) return "#16a34a"; // green
+    if (value < 0) return "#dc2626"; // red
+    return "#64748b";
+  }
+
   // Fetch the Mates Morning Note via the existing function
   async function getMorningNote() {
     try {
@@ -196,7 +216,7 @@ exports.handler = async function (event, context) {
   }
 
   // Build HTML email from morning-brief payload + morning note
-   function buildEmailHtml(payload, morningNote) {
+  function buildEmailHtml(payload, morningNote) {
     const aestNow = getAestDate(new Date());
     const niceDate = aestNow.toLocaleDateString("en-AU", {
       weekday: "long",
@@ -208,27 +228,21 @@ exports.handler = async function (event, context) {
     const top = Array.isArray(payload.topPerformers)
       ? payload.topPerformers
       : [];
+    const bottom = Array.isArray(payload.bottomPerformers)
+      ? payload.bottomPerformers
+      : [];
+    const sectors = Array.isArray(payload.sectorMoves)
+      ? payload.sectorMoves
+      : [];
+    const indexMoves = payload.indexMoves || {};
+    const metals = payload.metals || {};
+    const crypto = payload.crypto || {};
 
-    const metalsObj = payload.metals || payload.symbols || {};
-    const friendlyMetals = {
-      XAU: "Gold",
-      XAG: "Silver",
-      IRON: "Iron Ore 62% Fe",
-      "LITH-CAR": "Lithium Carbonate",
-      NI: "Nickel",
-      URANIUM: "Uranium",
-    };
-
-    // ---- NEW: Crypto snapshot (BTC / ETH / SOL / ADA) ----
-    const cryptoObj =
-      payload.crypto && typeof payload.crypto === "object"
-        ? payload.crypto
-        : {};
-    const cryptoOrder = ["BTC", "ETH", "SOL", "ADA"];
     const friendlyCrypto = {
       BTC: "Bitcoin",
       ETH: "Ethereum",
       SOL: "Solana",
+      DOGE: "Dogecoin",
       ADA: "Cardano",
     };
 
@@ -246,68 +260,170 @@ exports.handler = async function (event, context) {
             : tp.pctGain
             ? String(tp.pctGain)
             : "—";
-        const isUp =
-          typeof tp.pctGain === "number" && tp.pctGain > 0;
-        const isDown =
-          typeof tp.pctGain === "number" && tp.pctGain < 0;
-        const color = isUp
-          ? "#16a34a"
-          : isDown
-          ? "#dc2626"
-          : "#64748b";
-        const arrow = isUp ? "▲" : isDown ? "▼" : "";
+        const badgeColor = getChangeBadgeColor(tp.pctGain);
+
         return `
         <tr>
-          <td style="padding:8px 6px;font-weight:600;font-size:13px;color:#0b1220;">${sym}</td>
-          <td style="padding:8px 6px;font-size:13px;color:#64748b;">${name}</td>
-          <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${last}</td>
-          <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
-            ${pct !== "—" ? `${arrow} ${pct}` : pct}
+          <td style="padding:4px 8px;font-size:12px;color:#0b1220;">
+            <strong>${sym}</strong>
+            <span style="color:#64748b;"> · ${name}</span>
+          </td>
+          <td align="right" style="padding:4px 8px;font-size:12px;color:#0b1220;">
+            ${last}
+          </td>
+          <td align="right" style="padding:4px 8px;font-size:12px;">
+            <span style="
+              display:inline-block;
+              padding:2px 6px;
+              border-radius:999px;
+              background:${badgeColor}1A;
+              color:${badgeColor};
+              font-size:11px;
+            ">
+              ${pct}
+            </span>
           </td>
         </tr>
       `;
       })
       .join("");
 
-    const metalsRows = Object.keys(metalsObj)
+    const bottomRows = bottom
+      .map((bp) => {
+        const sym = bp.symbol || bp.code || "";
+        const name = bp.name || "";
+        const last =
+          typeof bp.lastClose === "number"
+            ? "$" + formatMoney(bp.lastClose)
+            : "—";
+        const pct =
+          typeof bp.pctLoss === "number"
+            ? bp.pctLoss.toFixed(2) + "%"
+            : bp.pctLoss
+            ? String(bp.pctLoss)
+            : "—";
+        const badgeColor = getChangeBadgeColor(bp.pctLoss);
+
+        return `
+        <tr>
+          <td style="padding:4px 8px;font-size:12px;color:#0b1220;">
+            <strong>${sym}</strong>
+            <span style="color:#64748b;"> · ${name}</span>
+          </td>
+          <td align="right" style="padding:4px 8px;font-size:12px;color:#0b1220;">
+            ${last}
+          </td>
+          <td align="right" style="padding:4px 8px;font-size:12px;">
+            <span style="
+              display:inline-block;
+              padding:2px 6px;
+              border-radius:999px;
+              background:${badgeColor}1A;
+              color:${badgeColor};
+              font-size:11px;
+            ">
+              ${pct}
+            </span>
+          </td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    const sectorRows = sectors
+      .map((s) => {
+        const name = s.name || s.sector || "";
+        const pct =
+          typeof s.change === "number"
+            ? s.change.toFixed(2) + "%"
+            : s.change
+            ? String(s.change)
+            : "—";
+        const badgeColor = getChangeBadgeColor(s.change);
+
+        return `
+        <tr>
+          <td style="padding:4px 8px;font-size:12px;color:#0b1220;">
+            ${name}
+          </td>
+          <td align="right" style="padding:4px 8px;font-size:12px;">
+            <span style="
+              display:inline-block;
+              padding:2px 6px;
+              border-radius:999px;
+              background:${badgeColor}1A;
+              color:${badgeColor};
+              font-size:11px;
+            ">
+              ${pct}
+            </span>
+          </td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    const metalsOrder = ["XAU", "XAG", "IRON", "CU", "AL", "NI"];
+    const friendlyMetals = {
+      XAU: "Gold",
+      XAG: "Silver",
+      IRON: "Iron ore",
+      CU: "Copper",
+      AL: "Aluminium",
+      NI: "Nickel",
+    };
+
+    const metalsRows = metalsOrder
+      .filter((sym) => metals[sym])
       .map((sym) => {
-        const m = metalsObj[sym] || {};
+        const m = metals[sym] || {};
         const label = friendlyMetals[sym] || sym;
-        const unit = m.unit || (sym === "IRON" ? "tonne" : "unit");
         const price =
           typeof m.priceAUD === "number"
-            ? "$" + formatMoney(m.priceAUD) + ` / ${unit}`
+            ? "$" + formatMoney(m.priceAUD)
             : "Unavailable";
+        const pctVal =
+          typeof m.pctChange === "number" && Number.isFinite(m.pctChange)
+            ? m.pctChange
+            : null;
         const pct =
-          typeof m.pctChange === "number"
-            ? m.pctChange.toFixed(2) + "%"
-            : "—";
-        const isUp =
-          typeof m.pctChange === "number" && m.pctChange > 0;
-        const isDown =
-          typeof m.pctChange === "number" && m.pctChange < 0;
+          pctVal !== null ? pctVal.toFixed(2) + "%" : "—";
+        const isUp = pctVal !== null && pctVal > 0;
+        const isDown = pctVal !== null && pctVal < 0;
         const color = isUp
           ? "#16a34a"
           : isDown
           ? "#dc2626"
           : "#64748b";
-        const arrow = isUp ? "▲" : isDown ? "▼" : "";
+
         return `
         <tr>
-          <td style="padding:8px 6px;font-size:13px;color:#0b1220;">
+          <td style="padding:4px 8px;font-size:12px;color:#0b1220;">
             ${label}
-            <span style="color:#94a3b8;">(${sym})</span>
           </td>
-          <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${price}</td>
-          <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
-            ${pct !== "—" ? `${arrow} ${pct}` : pct}
+          <td align="right" style="padding:4px 8px;font-size:12px;color:#0b1220;">
+            ${price}
+          </td>
+          <td align="right" style="padding:4px 8px;font-size:12px;">
+            <span style="
+              display:inline-block;
+              padding:2px 6px;
+              border-radius:999px;
+              background:${color}1A;
+              color:${color};
+              font-size:11px;
+            ">
+              ${pct}
+            </span>
           </td>
         </tr>
       `;
       })
       .join("");
 
-    // NEW: crypto rows
+    const cryptoOrder = ["BTC", "ETH", "SOL", "DOGE", "ADA"];
+    const cryptoObj = crypto || {};
+
     const cryptoRows = cryptoOrder
       .filter((sym) => cryptoObj[sym])
       .map((sym) => {
@@ -335,71 +451,96 @@ exports.handler = async function (event, context) {
           : isDown
           ? "#dc2626"
           : "#64748b";
-        const arrow = isUp ? "▲" : isDown ? "▼" : "";
 
         return `
         <tr>
-          <td style="padding:8px 6px;font-size:13px;color:#0b1220;">
+          <td style="padding:4px 8px;font-size:12px;color:#0b1220;">
             ${label}
-            <span style="color:#94a3b8;">(${sym})</span>
           </td>
-          <td style="padding:8px 6px;font-size:13px;text-align:right;color:#0b1220;">${price}</td>
-          <td style="padding:8px 6px;font-size:13px;text-align:right;color:${color};white-space:nowrap;">
-            ${pct !== "—" ? `${arrow} ${pct}` : pct}
+          <td align="right" style="padding:4px 8px;font-size:12px;color:#0b1220;">
+            ${price}
+          </td>
+          <td align="right" style="padding:4px 8px;font-size:12px;">
+            <span style="
+              display:inline-block;
+              padding:2px 6px;
+              border-radius:999px;
+              background:${color}1A;
+              color:${color};
+              font-size:11px;
+            ">
+              ${pct}
+            </span>
           </td>
         </tr>
       `;
       })
       .join("");
 
-    const sourceNote =
-      payload._debug && payload._debug.metalsDataSource
-        ? `Metals source: ${payload._debug.metalsDataSource}`
-        : "Metals snapshot – not live prices";
+    const indexSummaryParts = [];
+    if (indexMoves["^AXJO"]) {
+      const axjo = indexMoves["^AXJO"];
+      indexSummaryParts.push(
+        `ASX 200 ${
+          typeof axjo.change === "number" && axjo.change >= 0 ? "up" : "down"
+        } ${changeToBadge(axjo.change)}`
+      );
+    }
+    if (indexMoves["^AXKO"]) {
+      const small = indexMoves["^AXKO"];
+      indexSummaryParts.push(
+        `Small Ords ${
+          typeof small.change === "number" && small.change >= 0
+            ? "up"
+            : "down"
+        } ${changeToBadge(small.change)}`
+      );
+    }
+    if (indexMoves["^NDX"]) {
+      const ndx = indexMoves["^NDX"];
+      indexSummaryParts.push(
+        `Nasdaq ${
+          typeof ndx.change === "number" && ndx.change >= 0 ? "up" : "down"
+        } ${changeToBadge(ndx.change)}`
+      );
+    }
+    const indexSummary =
+      indexSummaryParts.length > 0
+        ? indexSummaryParts.join(" · ")
+        : "Key indices summary unavailable";
 
     return `
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>MatesMorning – ASX Briefing</title>
+  <meta charset="UTF-8" />
+  <title>MatesMorning – ASX Morning Briefing</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f5f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f7fb;padding:24px 0;">
+<body style="margin:0;padding:0;background:#0f172a;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
     <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background-color:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 30px rgba(15,23,42,0.10);">
-
-          <!-- Header -->
+      <td align="center" style="padding:20px 12px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:640px;background:#0f172a;border-radius:18px;overflow:hidden;border:1px solid #1e293b;">
           <tr>
-            <td style="padding:18px 20px 10px 20px;border-bottom:1px solid #e2e8f0;background:radial-gradient(circle at top left,#e2ebff 0,#f5f7fb 60%);">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-                <div>
-                  <div style="font-size:12px;color:#64748b;margin-bottom:4px;">
-                    <span style="
-                      display:inline-block;
-                      padding:2px 9px;
-                      border-radius:999px;
-                      background:#e7f7ff;
-                      border:1px solid #c5e5ff;
-                      color:#083a59;
-                      font-size:11px;
-                      font-weight:600;
-                    ">
-                      MatesInvest · MatesMorning
-                    </span>
-                  </div>
-                  <h1 style="margin:2px 0 2px 0;font-size:19px;color:#002040;">
-                    ASX Morning Briefing
-                  </h1>
-                  <div style="font-size:13px;color:#64748b;">
-                    ${niceDate}
-                  </div>
-                </div>
-                <div style="text-align:right;font-size:11px;color:#94a3b8;line-height:1.4;max-width:160px;">
-                  Built for Australian retail investors.<br/>
-                  Short, plain-English, not financial advice.
-                </div>
+            <td style="padding:18px 20px 12px 20px;border-bottom:1px solid #1f2937;background:radial-gradient(circle at top,#1d4ed8,#020617);">
+              <div style="font-size:20px;font-weight:700;color:#eff6ff;letter-spacing:0.02em;">
+                MatesMorning
+              </div>
+              <div style="margin-top:4px;font-size:12px;color:#cbd5f5;">
+                ${niceDate} · ASX snapshot in plain English
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:14px 20px 10px 20px;background:#020617;">
+              <div style="font-size:13px;color:#e5e7eb;line-height:1.5;">
+                <p style="margin:0 0 6px 0;">
+                  Good morning mate – here’s what moved the market and what’s on the radar before the open.
+                </p>
+                <p style="margin:0;font-size:12px;color:#9ca3af;">
+                  ${indexSummary}
+                </p>
               </div>
             </td>
           </tr>
@@ -409,19 +550,19 @@ exports.handler = async function (event, context) {
               ? `
           <tr>
             <td style="padding:14px 20px 4px 20px;">
-              <h2 style="margin:0 0 4px 0;font-size:14px;color:#002040;">Mates Morning Note</h2>
+              <h2 style="margin:0 0 4px 0;font-size:14px;color:#e5e7eb;">Mates Morning Note</h2>
               <div style="
-                background:#f9fbff;
-                border:1px solid #dbeafe;
+                background:#020617;
+                border:1px solid #1f2937;
                 padding:10px 14px;
                 border-radius:12px;
                 font-size:13px;
                 line-height:1.45;
-                color:#0b1220;
+                color:#e5e7eb;
               ">
-                ${morningNote.replace(/\n/g, "<br/>")}
+              ${morningNote.replace(/\n/g, "<br/>")}
               </div>
-              <div style="margin-top:6px;font-size:11px;color:#94a3b8;">
+              <div style="margin-top:6px;font-size:11px;color:#6b7280;">
                 Updated 6:00am AEST · Not financial advice
               </div>
             </td>
@@ -435,14 +576,13 @@ exports.handler = async function (event, context) {
               ? `
           <tr>
             <td style="padding:14px 20px 6px 20px;">
-              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Yesterday's Top Performers</h2>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#e5e7eb;">Top movers</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-radius:12px;overflow:hidden;border:1px solid #1f2937;background:#020617;">
                 <thead>
-                  <tr style="background:#edf2ff;">
-                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Code</th>
-                    <th align="left" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Name</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Close</th>
-                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Move</th>
+                  <tr style="background:#030712;">
+                    <th align="left" style="padding:6px 8px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Company</th>
+                    <th align="right" style="padding:6px 8px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Last</th>
+                    <th align="right" style="padding:6px 10px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Move</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -456,26 +596,70 @@ exports.handler = async function (event, context) {
           }
 
           ${
+            bottom.length
+              ? `
+          <tr>
+            <td style="padding:4px 20px 12px 20px;">
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#e5e7eb;">Biggest falls</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-radius:12px;overflow:hidden;border:1px solid #1f2937;background:#020617;">
+                <thead>
+                  <tr style="background:#030712;">
+                    <th align="left" style="padding:6px 8px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Company</th>
+                    <th align="right" style="padding:6px 8px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Last</th>
+                    <th align="right" style="padding:6px 10px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Move</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${bottomRows}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          `
+              : ""
+          }
+
+          ${
+            sectorRows
+              ? `
+          <tr>
+            <td style="padding:4px 20px 12px 20px;">
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#e5e7eb;">Sector moves</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-radius:12px;overflow:hidden;border:1px solid #1f2937;background:#020617;">
+                <thead>
+                  <tr style="background:#030712;">
+                    <th align="left" style="padding:6px 8px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Sector</th>
+                    <th align="right" style="padding:6px 10px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Move</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sectorRows}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          `
+              : ""
+          }
+
+          ${
             metalsRows
               ? `
           <tr>
-            <td style="padding:10px 20px 8px 20px;">
-              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Key Commodities</h2>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
+            <td style="padding:4px 20px 12px 20px;">
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#e5e7eb;">Key commodities</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-radius:12px;overflow:hidden;border:1px solid #1f2937;background:#020617;">
                 <thead>
-                  <tr style="background:#edf2ff;">
-                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Commodity</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Price (AUD)</th>
-                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">1D</th>
+                  <tr style="background:#030712;">
+                    <th align="left" style="padding:6px 8px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Asset</th>
+                    <th align="right" style="padding:6px 8px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Price (AUD)</th>
+                    <th align="right" style="padding:6px 10px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">1D</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${metalsRows}
                 </tbody>
               </table>
-              <div style="margin-top:6px;font-size:11px;color:#94a3b8;">
-                ${sourceNote}. Not financial advice.
-              </div>
             </td>
           </tr>
           `
@@ -487,13 +671,13 @@ exports.handler = async function (event, context) {
               ? `
           <tr>
             <td style="padding:4px 20px 14px 20px;">
-              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Crypto snapshot</h2>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#e5e7eb;">Crypto snapshot</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-radius:12px;overflow:hidden;border:1px solid #1f2937;background:#020617;">
                 <thead>
-                  <tr style="background:#edf2ff;">
-                    <th align="left" style="padding:6px 6px 4px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Asset</th>
-                    <th align="right" style="padding:6px 6px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Price (AUD)</th>
-                    <th align="right" style="padding:6px 10px 4px 6px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">1D</th>
+                  <tr style="background:#030712;">
+                    <th align="left" style="padding:6px 8px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Asset</th>
+                    <th align="right" style="padding:6px 8px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Price (AUD)</th>
+                    <th align="right" style="padding:6px 10px 4px 8px;font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">1D</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -508,46 +692,34 @@ exports.handler = async function (event, context) {
 
           <tr>
             <td style="padding:18px 20px 8px 20px;">
-              <div style="background:#f9fbff;border:1px solid #dbeafe;padding:14px;border-radius:12px;">
-                <h3 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Invite a mate</h3>
-                <p style="margin:0 0 10px 0;font-size:12px;color:#64748b;line-height:1.4;">
+              <div style="background:#020617;border:1px solid #1f2937;padding:14px;border-radius:12px;">
+                <h3 style="margin:0 0 6px 0;font-size:14px;color:#e5e7eb;">Invite a mate</h3>
+                <p style="margin:0 0 10px 0;font-size:12px;color:#9ca3af;line-height:1.4;">
                   Know someone who would enjoy the MatesMorning Daily Briefing?
                   Send them this link to subscribe:
                 </p>
 
                 <a href="https://matesinvest.com/mates-summaries#subscribe"
-                   style="
-                     display:inline-block;
-                     padding:8px 14px;
-                     background:#00BFFF;
-                     color:#ffffff;
-                     text-decoration:none;
-                     border-radius:999px;
-                     font-size:13px;
-                     font-weight:600;
-                   ">
-                  Subscribe to MatesMorning
+                   style="display:inline-block;padding:8px 12px;border-radius:999px;background:#2563eb;color:#eff6ff;font-size:12px;font-weight:600;text-decoration:none;">
+                  Share the signup link
                 </a>
               </div>
             </td>
           </tr>
 
           <tr>
-            <td style="padding:12px 20px 18px 20px;border-top:1px solid #e2e8f0;background-color:#ffffff;">
-              <p style="margin:0 0 6px 0;font-size:12px;color:#64748b;">
-                View the live version and full AI summaries on
-                <a href="https://matesinvest.com/mates-summaries" style="color:#00BFFF;text-decoration:none;font-weight:600;">
-                  MatesFeed
-                </a>.
+            <td style="padding:0 20px 18px 20px;font-size:11px;color:#6b7280;">
+              <p style="margin:0 0 4px 0;">
+                This email is general in nature and not financial advice. Consider your own circumstances or talk to a licensed adviser.
               </p>
-              <p style="margin:0;font-size:11px;color:#94a3b8;">
-                This email is general information only and is not financial advice.
+              <p style="margin:0;">
+                Want to unsubscribe? Reply to this email or contact <a href="mailto:hello@matesinvest.com" style="color:#93c5fd;text-decoration:none;">hello@matesinvest.com</a>.
               </p>
             </td>
           </tr>
         </table>
 
-        <div style="max-width:640px;margin-top:8px;font-size:10px;color:#94a3b8;">
+        <div style="max-width:640px;margin-top:8px;font-size:10px;color:#6b7280;">
           You’re receiving this because you subscribed to the MatesInvest daily briefing.
         </div>
       </td>
@@ -558,33 +730,25 @@ exports.handler = async function (event, context) {
     `;
   }
 
-try {
-    // -----------------------------------------
-    // IDEMPOTENCY CHECK (skip if already sent)
-    // -----------------------------------------
-
+  try {
+    // Idempotency key so retries don't send duplicates
     const aestNowForKey = getAestDate(new Date());
     const yyyy = aestNowForKey.getFullYear();
     const mm = String(aestNowForKey.getMonth() + 1).padStart(2, "0");
     const dd = String(aestNowForKey.getDate()).padStart(2, "0");
-
-    const sendKey = `email:daily:${yyyy}-${mm}-${dd}`;
+    const keyPrefix = isTestRun ? "email:daily:test" : "email:daily";
+    const sendKey = `${keyPrefix}:${yyyy}-${mm}-${dd}`;
 
     const alreadySent = await redisGet(sendKey);
-    if (alreadySent) {
-        console.log("Daily brief already sent for", sendKey, "- skipping");
-        return {
-            statusCode: 200,
-            body: `Already sent daily brief for ${yyyy}-${mm}-${dd}`,
-        };
+    if (alreadySent && !isTestRun) {
+      console.log("Daily brief already sent for", sendKey, "- skipping");
+      return {
+        statusCode: 200,
+        body: `Already sent daily brief for ${yyyy}-${mm}-${dd}`,
+      };
     }
 
-    // -----------------------------------------
-    // Proceed with generating the email
-    // -----------------------------------------
-
     // 1) Get the morning brief payload by calling the existing handler
-
     const mbResponse = await morningBriefFn.handler(
       {
         queryStringParameters: { region: "au" },
@@ -611,15 +775,15 @@ try {
     // 2) Get subscriber list
     let subscribers = await getSubscribers();
 
+    // In TEST MODE, override subscriber list with TEST_RECIPIENTS env var
     if (isTestRun) {
-      const testList = (process.env.TEST_RECIPIENTS || "")
-        .split(",")
+      const testList = TEST_RECIPIENTS.split(",")
         .map((e) => e.trim())
         .filter(Boolean);
 
       if (testList.length) {
         console.log(
-          "TEST MODE: overriding subscribers list with",
+          "TEST MODE: overriding subscribers with",
           testList.length,
           "test recipient(s)"
         );
@@ -634,13 +798,12 @@ try {
     }
 
     if (!subscribers.length) {
-      console.log("No subscribers - skipping send");
+      console.log("No subscribers – skipping send");
       return {
         statusCode: 200,
         body: "No subscribers",
       };
     }
-
 
     // 3) Get the Mates Morning Note
     const morningNote = await getMorningNote();
@@ -650,8 +813,8 @@ try {
     const subject = `MatesMorning – ASX Briefing for ${subjectDate}`;
     const html = buildEmailHtml(payload, morningNote);
 
-  // Mark as sent before sending (prevents retries sending again)
-await redisSet(sendKey, "sent", 60 * 60 * 36); // 36-hour TTL
+    // Mark as sent so future retries today won't resend (production runs only)
+    await redisSet(sendKey, "sent", 60 * 60 * 36); // ~36 hours
 
     // 🔧 5) Send individually to each subscriber, throttled for Resend (2 req/sec)
     let sentCount = 0;
@@ -666,7 +829,6 @@ await redisSet(sendKey, "sent", 60 * 60 * 36); // 36-hour TTL
         console.error("Failed sending to", email, err && err.message);
       }
     }
-
 
     console.log("Sent daily brief to subscribers", sentCount);
 
