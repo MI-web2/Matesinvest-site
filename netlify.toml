@@ -19,11 +19,13 @@
   schedule = "2 20 * * *"
 
 [functions."email-daily-brief"]
-  # Run email-daily-brief Mon–Fri at 20:05 UTC (6:05am AEST-ish)
-  schedule = "5 20 * * 1-5"
+  # Run email-daily-brief Mon–Fri at 06:05 AEST
+  # (which is Sun–Thu 20:05 UTC)
+  schedule = "5 20 * * 0-4"
   
 [functions."email-weekly-brief"]
-  schedule = "5 20 * * 5"     # 20:05 UTC Friday = 6:05am Saturday AEST
+  # Weekly brief: Sat 06:05 AEST (Fri 20:05 UTC)
+  schedule = "5 20 * * 5"
   
 [functions."snapshot-crypto"]
   # Crypto snapshot daily at 20:00 UTC (~6am AEST / 7am AEDT)
