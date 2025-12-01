@@ -986,11 +986,11 @@
   transition: background .12s ease, border-color .12s ease;
 }
 .chip:hover { background: #f8fafc; }
-.chip-active {
+.chip.active {
   background: var(--accent-soft);
-  color: #001220;
-  border-color: var(--accent);
-  font-weight: 600;
+  border: 1.5px solid var(--cyan);
+  color: var(--navy);
+  font-weight: 500;
 }
 
 /* headline action buttons on the right ("Read original", "MatesInvest summary") */
@@ -3536,12 +3536,20 @@ document.querySelectorAll('.card-metal').forEach(card => {
     let currentCategory = "all";
     let currentQuery = "";
 
-    function openModal() {
-      modal.classList.add("mi-open");
-      modal.setAttribute("aria-hidden", "false");
-      setTimeout(() => searchInput && searchInput.focus(), 50);
-      renderList();
-    }
+function openModal() {
+  modal.classList.add("mi-open");
+  modal.setAttribute("aria-hidden", "false");
+
+  // Only auto-focus on desktop
+  if (window.innerWidth > 700) {
+    setTimeout(() => searchInput && searchInput.focus(), 150);
+  }
+
+  renderList();
+}
+
+
+
 
     function closeModal() {
       modal.classList.remove("mi-open");
