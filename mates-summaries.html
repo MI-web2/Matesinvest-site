@@ -986,12 +986,14 @@
   transition: background .12s ease, border-color .12s ease;
 }
 .chip:hover { background: #f8fafc; }
-.chip.active {
-  background: var(--accent-soft);
-  border: 1.5px solid var(--cyan);
-  color: var(--navy);
-  font-weight: 500;
+.chip-active{
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  color: #001220;
+  border-color: transparent;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.18);
 }
+
 
 /* headline action buttons on the right ("Read original", "MatesInvest summary") */
 .headline .meta-actions a,
