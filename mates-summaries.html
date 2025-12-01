@@ -986,13 +986,15 @@
   transition: background .12s ease, border-color .12s ease;
 }
 .chip:hover { background: #f8fafc; }
-.chip-active{
+.chip-active,
+.chip-row .chip-active {
   background: linear-gradient(180deg, var(--accent), var(--accent-strong));
   color: #001220;
   border-color: transparent;
   font-weight: 600;
   box-shadow: 0 4px 12px rgba(15,23,42,0.18);
 }
+
 
 
 /* headline action buttons on the right ("Read original", "MatesInvest summary") */
@@ -1433,7 +1435,7 @@
     aria-label="Explain market terms"
   >
     <span class="mi-explain-icon">📘</span>
-    <span class="mi-explain-label">Explain it</span>
+    <span class="mi-explain-label">Market Assistant</span>
   </button>
 
   <!-- Explain It Modal -->
@@ -1443,16 +1445,16 @@
         ×
       </button>
 
-      <h2 id="miExplainTitle">Explain it like I'm 10</h2>
+      <h2 id="miExplainTitle">Plain-English market explainer</h2>
       <p class="mi-explain-subtitle">
-        Type a term like <strong>ASX200</strong>, <strong>inflation</strong>, <strong>PE ratio</strong>…
+        Short, no-jargon explainers for common ASX & market terms.
       </p>
 
       <div class="mi-explain-search-row">
         <input
           id="miExplainSearch"
           type="text"
-          placeholder="Search a term..."
+          placeholder="Search a market term..."
           autocomplete="off"
         />
         <div id="miExplainSuggestions" class="mi-explain-suggestions"></div>
@@ -1471,7 +1473,7 @@
       <div id="miExplainList" class="mi-explain-list"></div>
 
       <button id="miExplainRandom" class="mi-explain-random">
-        Surprise me with a random term
+        Pick a term for me
       </button>
     </div>
   </div>
