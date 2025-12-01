@@ -1072,7 +1072,233 @@
 .btn-pill-primary:active {
   transform:translateY(1px);
 }
+/* Floating Explain button */
+.mi-explain-floating {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--cyan);
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.16);
+  z-index: 9998; /* below instrument overlay (9999), above content */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
 
+.mi-explain-floating:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+  background: var(--accent-strong, #0093cc);
+}
+
+.mi-explain-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.mi-explain-label {
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .mi-explain-floating {
+    bottom: 16px;
+    right: 16px;
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+}
+
+/* Modal backdrop */
+.mi-explain-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: none; /* toggled via JS */
+  align-items: center;
+  justify-content: center;
+  z-index: 9997;
+}
+
+/* Show modal */
+.mi-explain-modal.mi-open {
+  display: flex;
+}
+
+/* Modal dialog */
+.mi-explain-dialog {
+  background: var(--card, #ffffff);
+  color: var(--navy, #0f172a);
+  border-radius: 20px;
+  padding: 24px 24px 20px;
+  max-width: 640px;
+  width: 100%;
+  max-height: 80vh;
+  box-shadow: 0 24px 60px rgba(15,23,42,0.45);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 640px) {
+  .mi-explain-dialog {
+    border-radius: 18px;
+    margin: 0 12px;
+    padding: 20px 16px 16px;
+  }
+}
+
+/* Close button */
+.mi-explain-close {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--muted, #64748b);
+}
+
+.mi-explain-dialog h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.mi-explain-subtitle {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--muted, #64748b);
+}
+
+/* Search row */
+.mi-explain-search-row {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+#miExplainSearch {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  font-size: 14px;
+}
+
+/* Suggestions dropdown */
+.mi-explain-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+  display: none;
+  z-index: 5;
+}
+
+.mi-explain-suggestions.mi-visible {
+  display: block;
+}
+
+.mi-explain-suggestions button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mi-explain-suggestions button:hover {
+  background: var(--accent-soft, rgba(0,191,255,0.06));
+}
+
+/* Category chips */
+.mi-explain-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.mi-explain-chips button {
+  border-radius: 999px;
+  border: 1px solid var(--border, #e2e8f0);
+  padding: 6px 10px;
+  background: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--muted, #64748b);
+}
+
+.mi-explain-chips button.active {
+  background: var(--accent-soft, rgba(0,191,255,0.12));
+  border-color: var(--cyan, #00BFFF);
+  color: var(--navy, #0f172a);
+}
+
+/* List of explainers */
+.mi-explain-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+}
+
+.mi-explain-item {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.mi-explain-item:last-child {
+  border-bottom: none;
+}
+
+.mi-explain-term {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.mi-explain-category {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-2, #94a3b8);
+  margin-bottom: 4px;
+}
+
+.mi-explain-text {
+  font-size: 13px;
+  color: var(--muted, #475569);
+}
+
+/* Random button */
+.mi-explain-random {
+  align-self: flex-start;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent-soft, rgba(0,191,255,0.12));
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--navy, #0f172a);
+}
 
   </style>
 
@@ -1198,6 +1424,56 @@
   </div> <!-- end .page-shell -->
 
   <!-- All JS from your existing page, unchanged -->
+  <!-- Floating "Explain it" button -->
+  <button
+    id="miExplainBtn"
+    class="mi-explain-floating"
+    aria-label="Explain market terms"
+  >
+    <span class="mi-explain-icon">📘</span>
+    <span class="mi-explain-label">Explain it</span>
+  </button>
+
+  <!-- Explain It Modal -->
+  <div id="miExplainModal" class="mi-explain-modal" aria-hidden="true">
+    <div class="mi-explain-dialog" role="dialog" aria-modal="true" aria-labelledby="miExplainTitle">
+      <button class="mi-explain-close" id="miExplainClose" aria-label="Close">
+        ×
+      </button>
+
+      <h2 id="miExplainTitle">Explain it like I'm 10</h2>
+      <p class="mi-explain-subtitle">
+        Type a term like <strong>ASX200</strong>, <strong>inflation</strong>, <strong>PE ratio</strong>…
+      </p>
+
+      <div class="mi-explain-search-row">
+        <input
+          id="miExplainSearch"
+          type="text"
+          placeholder="Search a term..."
+          autocomplete="off"
+        />
+        <div id="miExplainSuggestions" class="mi-explain-suggestions"></div>
+      </div>
+
+      <div class="mi-explain-chips" id="miExplainChips">
+        <button type="button" class="active" data-category="all">All</button>
+        <button type="button" data-category="ASX basics">ASX basics</button>
+        <button type="button" data-category="Daily terms">Daily terms</button>
+        <button type="button" data-category="Company metrics">Company metrics</button>
+        <button type="button" data-category="Macro">Macro</button>
+        <button type="button" data-category="Trading">Trading</button>
+        <button type="button" data-category="Commodities & Crypto">Commodities & Crypto</button>
+      </div>
+
+      <div id="miExplainList" class="mi-explain-list"></div>
+
+      <button id="miExplainRandom" class="mi-explain-random">
+        Surprise me with a random term
+      </button>
+    </div>
+  </div>
+
   <script>
     /* ---------- Globals & helpers ---------- */
     const newsList = document.getElementById("newsList");
@@ -2890,8 +3166,513 @@ document.querySelectorAll('.card-metal').forEach(card => {
       statusEl.style.color = "#dc2626";
     }
   });
-})();
+  })();
+</script>
 
+<!-- Explain-it JS (floating 📘 button + modal behaviour) -->
+<script>
+  // ---------- 1. Data: explainers with categories ----------
+
+  const miExplainers = [
+    // ASX basics
+    {
+      id: "ASX",
+      title: "ASX",
+      category: "ASX basics",
+      text: "The ASX is Australia’s big marketplace for buying and selling company shares. Like a giant shopping centre, but instead of shoes or toys, people buy pieces of companies."
+    },
+    {
+      id: "ASX200",
+      title: "ASX200",
+      category: "ASX basics",
+      text: "A list of the 200 biggest and most important companies on the ASX. Like the top 200 players in a footy league."
+    },
+    {
+      id: "Stock",
+      title: "What is a stock?",
+      category: "ASX basics",
+      text: "A stock is a tiny piece of a company. If you own one, you own a slice of the business."
+    },
+    {
+      id: "Exchange",
+      title: "Stock exchange",
+      category: "ASX basics",
+      text: "A safe place where people trade shares with rules, scoreboards, and referees."
+    },
+    {
+      id: "PriceMovement",
+      title: "Why prices move",
+      category: "ASX basics",
+      text: "Prices move because buyers and sellers disagree. More buyers = price goes up. More sellers = price goes down."
+    },
+
+    // Daily terms
+    {
+      id: "Futures",
+      title: "Futures",
+      category: "Daily terms",
+      text: "Futures are like tomorrow’s predicted price. A guess — sometimes close, sometimes very wrong."
+    },
+    {
+      id: "ClosedHigher",
+      title: "Closed higher/lower",
+      category: "Daily terms",
+      text: "If the market 'closed higher', it ended the day above where it started. 'Closed lower' means it finished below."
+    },
+    {
+      id: "PointMove",
+      title: "Point move",
+      category: "Daily terms",
+      text: "A point is just a unit on an index like the ASX200. A 30-point move means the whole market shifted a bit."
+    },
+    {
+      id: "Volatility",
+      title: "Volatility",
+      category: "Daily terms",
+      text: "Volatility means how jumpy prices are. Lots of bouncing up and down = high volatility."
+    },
+    {
+      id: "Sentiment",
+      title: "Market sentiment",
+      category: "Daily terms",
+      text: "Market sentiment is the mood of investors. Confident and excited = prices tend to rise. Scared and nervous = prices tend to fall."
+    },
+
+    // Company metrics
+    {
+      id: "MarketCap",
+      title: "Market cap",
+      category: "Company metrics",
+      text: "Market cap is what a company is worth on the market. Share price × number of shares."
+    },
+    {
+      id: "PERatio",
+      title: "PE ratio",
+      category: "Company metrics",
+      text: "The PE ratio shows how many dollars investors are paying for $1 of company profit."
+    },
+    {
+      id: "EPS",
+      title: "EPS (earnings per share)",
+      category: "Company metrics",
+      text: "EPS shows how much profit the company makes for each share someone owns."
+    },
+    {
+      id: "DividendYield",
+      title: "Dividend yield",
+      category: "Company metrics",
+      text: "Dividend yield is how much a company pays you each year in dividends, as a % of the current share price."
+    },
+    {
+      id: "Revenue",
+      title: "Revenue",
+      category: "Company metrics",
+      text: "Revenue is all the money a company brings in from selling its products or services, before paying any bills."
+    },
+    {
+      id: "Profit",
+      title: "Profit",
+      category: "Company metrics",
+      text: "Profit is what’s left after the company has paid all its costs and bills."
+    },
+    {
+      id: "Guidance",
+      title: "Guidance",
+      category: "Company metrics",
+      text: "Guidance is when a company tells investors what it expects for its future sales and profits."
+    },
+    {
+      id: "CashFlow",
+      title: "Cash flow",
+      category: "Company metrics",
+      text: "Cash flow measures how much real cash moves in and out of a company’s bank accounts."
+    },
+    {
+      id: "BalanceSheet",
+      title: "Balance sheet",
+      category: "Company metrics",
+      text: "A balance sheet is like a company’s report card — showing what it owns, what it owes, and what’s left over."
+    },
+    {
+      id: "Debt",
+      title: "Debt",
+      category: "Company metrics",
+      text: "Debt is money a company has borrowed and must pay back later, usually with interest."
+    },
+
+    // Macro
+    {
+      id: "Inflation",
+      title: "Inflation",
+      category: "Macro",
+      text: "Inflation means things slowly get more expensive over time, like your grocery bill creeping up."
+    },
+    {
+      id: "InterestRates",
+      title: "Interest rates",
+      category: "Macro",
+      text: "Interest rates are the cost of borrowing money. Higher rates make loans more expensive, so people and businesses may spend less."
+    },
+    {
+      id: "GDP",
+      title: "GDP",
+      category: "Macro",
+      text: "GDP is the total value of everything a country produces. Bigger GDP usually means a stronger economy."
+    },
+    {
+      id: "Unemployment",
+      title: "Unemployment",
+      category: "Macro",
+      text: "Unemployment counts people who want a job but can’t find one."
+    },
+    {
+      id: "BondYields",
+      title: "Bond yields",
+      category: "Macro",
+      text: "Bond yields show the return governments or companies pay to people who lend them money."
+    },
+    {
+      id: "RBA",
+      title: "RBA",
+      category: "Macro",
+      text: "The RBA (Reserve Bank of Australia) is the team that sets interest rates and tries to keep the economy stable."
+    },
+    {
+      id: "Recession",
+      title: "Recession",
+      category: "Macro",
+      text: "A recession is when the economy shrinks for a while and people cut back on spending."
+    },
+    {
+      id: "SoftLanding",
+      title: "Soft landing",
+      category: "Macro",
+      text: "A soft landing is when inflation falls back down without the economy crashing or lots of people losing jobs."
+    },
+    {
+      id: "GDPGrowth",
+      title: "GDP growth",
+      category: "Macro",
+      text: "GDP growth shows whether the economy is getting bigger (positive) or smaller (negative)."
+    },
+    {
+      id: "RateCut",
+      title: "Rate cut",
+      category: "Macro",
+      text: "A rate cut is when the RBA lowers interest rates to make borrowing cheaper and encourage spending."
+    },
+
+    // Trading
+    {
+      id: "MarketOrder",
+      title: "Market order",
+      category: "Trading",
+      text: "A market order buys or sells a stock instantly at the best available current price."
+    },
+    {
+      id: "LimitOrder",
+      title: "Limit order",
+      category: "Trading",
+      text: "A limit order only buys or sells at the price you choose (or better)."
+    },
+    {
+      id: "Liquidity",
+      title: "Liquidity",
+      category: "Trading",
+      text: "Liquidity tells you how easy it is to buy or sell a stock quickly without moving the price too much."
+    },
+    {
+      id: "Spread",
+      title: "Spread",
+      category: "Trading",
+      text: "The spread is the small gap between what buyers are willing to pay and what sellers are asking."
+    },
+    {
+      id: "Volume",
+      title: "Volume",
+      category: "Trading",
+      text: "Volume is how many shares are traded in a day — like how busy the shop is."
+    },
+    {
+      id: "Rally",
+      title: "Rally",
+      category: "Trading",
+      text: "A rally is when prices climb for a while, often because investors feel positive."
+    },
+    {
+      id: "SellOff",
+      title: "Sell-off",
+      category: "Trading",
+      text: "A sell-off is when lots of people rush to sell, and prices drop quickly."
+    },
+    {
+      id: "TakeProfit",
+      title: "Take profit",
+      category: "Trading",
+      text: "Taking profit means selling after a price rise so you lock in your gains."
+    },
+    {
+      id: "StopLoss",
+      title: "Stop loss",
+      category: "Trading",
+      text: "A stop loss is an order that sells automatically if the price falls to a level you set, to limit your losses."
+    },
+    {
+      id: "AveragingDown",
+      title: "Averaging down",
+      category: "Trading",
+      text: "Averaging down means buying more shares at a cheaper price so your average cost per share goes lower."
+    },
+
+    // Commodities & Crypto
+    {
+      id: "Commodities",
+      title: "Commodities",
+      category: "Commodities & Crypto",
+      text: "Commodities are raw materials like gold, oil, and iron ore that people use to make things."
+    },
+    {
+      id: "CommodityPrices",
+      title: "Commodity prices",
+      category: "Commodities & Crypto",
+      text: "Commodity prices move mainly because of supply and demand — if something becomes harder to get, the price usually jumps."
+    },
+    {
+      id: "Gold",
+      title: "Gold",
+      category: "Commodities & Crypto",
+      text: "Gold is used for jewellery and electronics, and many investors treat it as a 'safe haven' in tough times."
+    },
+    {
+      id: "Oil",
+      title: "Oil",
+      category: "Commodities & Crypto",
+      text: "Oil is used for fuel, plastics, and chemicals — it touches almost everything in modern life."
+    },
+    {
+      id: "IronOre",
+      title: "Iron ore",
+      category: "Commodities & Crypto",
+      text: "Iron ore is a rock that gets turned into steel. It’s a huge export for Australia."
+    },
+    {
+      id: "AUD",
+      title: "Aussie dollar (AUD)",
+      category: "Commodities & Crypto",
+      text: "The Aussie dollar is Australia’s currency and often rises and falls with commodity prices."
+    },
+    {
+      id: "Bitcoin",
+      title: "Bitcoin",
+      category: "Commodities & Crypto",
+      text: "Bitcoin is digital money that isn’t controlled by any government."
+    },
+    {
+      id: "CryptoVolatility",
+      title: "Crypto volatility",
+      category: "Commodities & Crypto",
+      text: "Crypto is new and emotional, so prices can swing wildly in a short time."
+    },
+    {
+      id: "Blockchain",
+      title: "Blockchain",
+      category: "Commodities & Crypto",
+      text: "A blockchain is a secure digital ledger that records who owns what."
+    },
+    {
+      id: "Stablecoin",
+      title: "Stablecoin",
+      category: "Commodities & Crypto",
+      text: "Stablecoins are cryptocurrencies designed to stay around the same price, often pegged to $1 USD."
+    }
+  ];
+
+  // ---------- 2. Helpers ----------
+
+  function miFilterExplainers(query, category) {
+    const q = (query || "").trim().toLowerCase();
+    return miExplainers.filter(item => {
+      const matchesCategory = category === "all" || item.category === category;
+      const matchesQuery =
+        !q ||
+        item.title.toLowerCase().includes(q) ||
+        item.text.toLowerCase().includes(q);
+      return matchesCategory && matchesQuery;
+    });
+  }
+
+  function miBuildSuggestions(query) {
+    const q = (query || "").trim().toLowerCase();
+    if (!q) return [];
+    const startsWith = [];
+    const contains = [];
+
+    for (const item of miExplainers) {
+      const title = item.title.toLowerCase();
+      if (title.startsWith(q)) {
+        startsWith.push(item);
+      } else if (title.includes(q)) {
+        contains.push(item);
+      }
+    }
+
+    return [...startsWith, ...contains].slice(0, 5);
+  }
+
+  // ---------- 3. UI wiring ----------
+
+  (function miInitExplainModal() {
+    const btn = document.getElementById("miExplainBtn");
+    const modal = document.getElementById("miExplainModal");
+    const closeBtn = document.getElementById("miExplainClose");
+    const listEl = document.getElementById("miExplainList");
+    const searchInput = document.getElementById("miExplainSearch");
+    const chipsEl = document.getElementById("miExplainChips");
+    const randomBtn = document.getElementById("miExplainRandom");
+    const suggestionsEl = document.getElementById("miExplainSuggestions");
+
+    if (!btn || !modal) return;
+
+    let currentCategory = "all";
+    let currentQuery = "";
+
+    function openModal() {
+      modal.classList.add("mi-open");
+      modal.setAttribute("aria-hidden", "false");
+      setTimeout(() => searchInput && searchInput.focus(), 50);
+      renderList();
+    }
+
+    function closeModal() {
+      modal.classList.remove("mi-open");
+      modal.setAttribute("aria-hidden", "true");
+      currentQuery = "";
+      if (searchInput) searchInput.value = "";
+      hideSuggestions();
+    }
+
+    function hideSuggestions() {
+      if (suggestionsEl) {
+        suggestionsEl.classList.remove("mi-visible");
+        suggestionsEl.innerHTML = "";
+      }
+    }
+
+    function renderList() {
+      const items = miFilterExplainers(currentQuery, currentCategory);
+      if (!listEl) return;
+      if (items.length === 0) {
+        listEl.innerHTML = '<p class="mi-explain-text">No matches. Try another word like "ASX", "inflation" or "PE ratio".</p>';
+        return;
+      }
+      listEl.innerHTML = items
+        .map(
+          item => `
+          <div class="mi-explain-item">
+            <div class="mi-explain-term">${item.title}</div>
+            <div class="mi-explain-category">${item.category}</div>
+            <div class="mi-explain-text">${item.text}</div>
+          </div>
+        `
+        )
+        .join("");
+    }
+
+    function renderSuggestions() {
+      if (!suggestionsEl) return;
+      const suggestions = miBuildSuggestions(currentQuery);
+      if (suggestions.length === 0) {
+        hideSuggestions();
+        return;
+      }
+      suggestionsEl.innerHTML = suggestions
+        .map(
+          item => `<button type="button" data-id="${item.id}">${item.title}</button>`
+        )
+        .join("");
+      suggestionsEl.classList.add("mi-visible");
+    }
+
+    // Open / close handlers
+    btn.addEventListener("click", openModal);
+    closeBtn && closeBtn.addEventListener("click", closeModal);
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && modal.classList.contains("mi-open")) {
+        closeModal();
+      }
+    });
+
+    // Search input
+    if (searchInput) {
+      searchInput.addEventListener("input", (e) => {
+        currentQuery = e.target.value || "";
+        renderList();
+        renderSuggestions();
+      });
+
+      searchInput.addEventListener("focus", () => {
+        renderSuggestions();
+      });
+    }
+
+    // Clicking suggestions
+    if (suggestionsEl) {
+      suggestionsEl.addEventListener("click", (e) => {
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        const id = btn.getAttribute("data-id");
+        const item = miExplainers.find(x => x.id === id);
+        if (item) {
+          currentQuery = item.title;
+          if (searchInput) searchInput.value = item.title;
+          hideSuggestions();
+          renderList();
+        }
+      });
+    }
+
+    // Category chips
+    if (chipsEl) {
+      chipsEl.addEventListener("click", (e) => {
+        const chip = e.target.closest("button[data-category]");
+        if (!chip) return;
+        const cat = chip.getAttribute("data-category") || "all";
+        currentCategory = cat;
+
+        // Update active styles
+        chipsEl.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+        chip.classList.add("active");
+
+        renderList();
+      });
+    }
+
+    // Random button
+    if (randomBtn) {
+      randomBtn.addEventListener("click", () => {
+        const randomIndex = Math.floor(Math.random() * miExplainers.length);
+        const item = miExplainers[randomIndex];
+        currentCategory = "all";
+        currentQuery = item.title;
+        if (searchInput) searchInput.value = item.title;
+
+        // reset chips
+        chipsEl && chipsEl.querySelectorAll("button").forEach(b => {
+          b.classList.toggle("active", b.getAttribute("data-category") === "all");
+        });
+
+        renderList();
+        hideSuggestions();
+      });
+    }
+  })();
 </script>
 
 </body>
