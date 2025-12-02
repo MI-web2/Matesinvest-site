@@ -1,7 +1,4 @@
 // netlify/functions/story-moderate.js
-// Handles approve/reject links from moderation email.
-// Moves story from "pending" to "approved" or "rejected" sets in Upstash.
-
 const fetch = (...args) => global.fetch(...args);
 
 exports.handler = async function (event) {
@@ -40,8 +37,13 @@ exports.handler = async function (event) {
   }
 
   try {
-    // Get story json
-    const getRes = await redisCommand(UPSTASH_URL, UPSTASH_TOKEN, "HGET", id, "data");
+    // HGET id data
+    const getRes = await upstashPath(
+      UPSTASH_URL,
+      UPSTASH_TOKEN,
+      `/hget/${encodeURIComponent(id)}/${encodeURIComponent("data")}`,
+      "GET"
+    );
     const raw = getRes && getRes.result;
     if (!raw) {
       return htmlResponse(
@@ -53,40 +55,43 @@ exports.handler = async function (event) {
     const story = JSON.parse(raw);
     story.status = action === "approve" ? "approved" : "rejected";
 
-    // Update hash
-    await redisCommand(
+    // HSET id data <json>
+    await upstashPath(
       UPSTASH_URL,
       UPSTASH_TOKEN,
-      "HSET",
-      id,
-      "data",
-      JSON.stringify(story)
+      `/hset/${encodeURIComponent(id)}/${encodeURIComponent(
+        "data"
+      )}/${encodeURIComponent(JSON.stringify(story))}`,
+      "POST"
     );
 
-    // Move sets
-    await redisCommand(
+    // SREM pending
+    await upstashPath(
       UPSTASH_URL,
       UPSTASH_TOKEN,
-      "SREM",
-      "mates:stories:pending",
-      id
+      `/srem/${encodeURIComponent("mates:stories:pending")}/${encodeURIComponent(
+        id
+      )}`,
+      "POST"
     );
 
     if (action === "approve") {
-      await redisCommand(
+      await upstashPath(
         UPSTASH_URL,
         UPSTASH_TOKEN,
-        "SADD",
-        "mates:stories:approved",
-        id
+        `/sadd/${encodeURIComponent(
+          "mates:stories:approved"
+        )}/${encodeURIComponent(id)}`,
+        "POST"
       );
     } else {
-      await redisCommand(
+      await upstashPath(
         UPSTASH_URL,
         UPSTASH_TOKEN,
-        "SADD",
-        "mates:stories:rejected",
-        id
+        `/sadd/${encodeURIComponent(
+          "mates:stories:rejected"
+        )}/${encodeURIComponent(id)}`,
+        "POST"
       );
     }
 
@@ -104,21 +109,19 @@ exports.handler = async function (event) {
   }
 };
 
-// --- Helpers ---
-
-async function redisCommand(UPSTASH_URL, UPSTASH_TOKEN, ...command) {
-  const res = await fetch(UPSTASH_URL, {
-    method: "POST",
+// helpers
+async function upstashPath(baseUrl, token, path, method = "GET") {
+  const url = `${baseUrl}${path}`;
+  const res = await fetch(url, {
+    method,
     headers: {
-      Authorization: `Bearer ${UPSTASH_TOKEN}`,
-      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ command }),
   });
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    console.error("Upstash command failed", command[0], res.status, txt);
+    console.error("Upstash path failed", method, path, res.status, txt);
     throw new Error("Upstash command failed");
   }
   return res.json().catch(() => null);
