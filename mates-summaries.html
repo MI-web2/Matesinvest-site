@@ -1647,7 +1647,19 @@
       Stories are anonymous and will be reviewed before appearing here.
       Please don’t share any personal contact details.
     </div>
-
+<div style="margin-bottom:6px;font-size:0.78rem;color:var(--muted-2);">
+  <label style="display:flex;align-items:flex-start;gap:6px;cursor:pointer;">
+    <input
+      type="checkbox"
+      id="miStoryConsent"
+      style="margin-top:2px;"
+      required
+    />
+    <span>
+      I’m happy for this story to be shared (anonymously) with other MatesInvest users.
+    </span>
+  </label>
+</div>
     <div style="display:flex;align-items:center;gap:8px;">
       <button
         type="submit"
@@ -3491,7 +3503,7 @@ async function miFetchStories() {
 
   miStoriesLoading = true;
   try {
-    const res = await fetch("/.netlify/functions/matesStory-feed");
+const res = await fetch("/.netlify/functions/stories-feed");
     if (!res.ok) {
       console.error("miFetchStories failed", res.status);
       return;
@@ -3573,6 +3585,8 @@ const storyBylineEl= document.getElementById("miStoryByline");
 const storyTagEl   = document.getElementById("miStoryTag");
 const storyStatusEl= document.getElementById("miStoryStatus");
 const storySubmitEl= document.getElementById("miStorySubmit");
+    const storyConsentEl = document.getElementById("miStoryConsent");
+
 
     if (!bookBtn || !modal) return;
 
@@ -3631,10 +3645,11 @@ const storySubmitEl= document.getElementById("miStorySubmit");
         e.preventDefault();
         if (!storyTitleEl || !storyTextEl || !storyStatusEl || !storySubmitEl) return;
 
-        const title = storyTitleEl.value.trim();
-        const text  = storyTextEl.value.trim();
-        const byline = (storyBylineEl?.value || "").trim();
-        const tag    = (storyTagEl?.value || "").trim();
+const title = storyTitleEl.value.trim();
+const text  = storyTextEl.value.trim();
+const byline = (storyBylineEl?.value || "").trim();
+const tag    = (storyTagEl?.value || "").trim();
+const consent = !!(storyConsentEl && storyConsentEl.checked);
 
         if (!title || !text) {
           storyStatusEl.textContent = "Please add a title and a short story.";
@@ -3647,10 +3662,17 @@ const storySubmitEl= document.getElementById("miStorySubmit");
         storyStatusEl.style.color = "var(--muted)";
 
         try {
-          const res = await fetch("/.netlify/functions/matesStory-submit", {
+const res = await fetch("/.netlify/functions/submit-story", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, text, byline, tag }),
+body: JSON.stringify({
+  title,
+  text,
+  tag,
+  consent,
+  // split byline into simple bits for now
+  name: byline || "Anon",
+}),
           });
 
           const data = await res.json().catch(() => ({}));
