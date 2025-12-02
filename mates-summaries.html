@@ -1332,41 +1332,40 @@
 }
 
 /* Stories styling inside MatesBook */
-/* Stories feed inside MatesBook */
+/* Stories feed inside MatesBook – match explainer look */
 .mi-stories-body {
-  margin-top: 4px;
+  margin-top: 6px;
   margin-bottom: 10px;
-  max-height: 260px;              /* scroll area inside modal */
+  max-height: 260px;             /* same scroll height as explainers */
   overflow-y: auto;
   padding-right: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
+/* each story acts like an explainer row */
 .mi-stories-card {
-  border-radius: 12px;
-  background: #f9fbff;
-  border: 1px solid #e2e8f0;
-  padding: 10px 12px 9px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
 }
 
+.mi-stories-card:last-child {
+  border-bottom: none;
+}
+
+/* small tag, like a category label */
 .mi-stories-tag {
-  display: inline-block;
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted-2);
-  background: #e5edff;
-  padding: 2px 7px;
-  border-radius: 999px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
+/* title similar to .mi-explain-term */
 .mi-stories-title {
-  font-size: 0.98rem;
+  font-size: 14px;
   font-weight: 600;
-  margin: 2px 0 2px;
+  margin: 0 0 2px;
   color: var(--navy);
 }
 
@@ -1374,26 +1373,27 @@
   display: flex;
   gap: 8px;
   align-items: baseline;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
-.mi-stories-date {
-  font-size: 0.78rem;
+/* date + byline small & muted, like explainer category */
+.mi-stories-date,
+.mi-stories-byline {
+  font-size: 11px;
   color: var(--muted-2);
 }
 
 .mi-stories-text {
-  font-size: 0.9rem;
-  line-height: 1.45;
-  margin: 0 0 4px;
+  font-size: 13px;          /* same as explainer body text */
+  line-height: 1.4;
+  margin: 2px 0 0;
   color: #0b1220;
 }
 
 .mi-stories-byline {
-  font-size: 0.78rem;
-  color: var(--muted-2);
-  margin: 0;
+  margin-top: 2px;
 }
+
   </style>
 
 </head>
