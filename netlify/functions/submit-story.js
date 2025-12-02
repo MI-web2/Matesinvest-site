@@ -10,7 +10,7 @@ exports.handler = async function (event) {
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   const EMAIL_FROM = process.env.EMAIL_FROM || "hello@matesinvest.com";
   const MODERATION_SECRET = process.env.MATES_STORY_MOD_SECRET;
-  const MOD_EMAIL_TO = process.env.MATES_STORY_MOD_EMAIL_TO; // e.g. "luke@...,dale@..."
+  const MOD_EMAIL_TO = process.env.MATES_STORY_MOD_EMAIL_TO; // "luke@...,dale@..."
 
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method not allowed" };
@@ -70,15 +70,26 @@ exports.handler = async function (event) {
       createdAt: now.toISOString().slice(0, 10), // YYYY-MM-DD
     };
 
-    // Store story JSON in hash: HSET id data <json>
-    await redisCommand(UPSTASH_URL, UPSTASH_TOKEN, "HSET", id, "data", JSON.stringify(story));
-    // Add id to pending set
-    await redisCommand(
+    const storyJson = JSON.stringify(story);
+
+    // HSET id data <json>
+    await upstashPath(
       UPSTASH_URL,
       UPSTASH_TOKEN,
-      "SADD",
-      "mates:stories:pending",
-      id
+      `/hset/${encodeURIComponent(id)}/${encodeURIComponent(
+        "data"
+      )}/${encodeURIComponent(storyJson)}`,
+      "POST"
+    );
+
+    // SADD mates:stories:pending id
+    await upstashPath(
+      UPSTASH_URL,
+      UPSTASH_TOKEN,
+      `/sadd/${encodeURIComponent("mates:stories:pending")}/${encodeURIComponent(
+        id
+      )}`,
+      "POST"
     );
 
     // Send moderation email (Resend)
@@ -95,7 +106,10 @@ exports.handler = async function (event) {
       body: JSON.stringify({ ok: true, id }),
     };
   } catch (err) {
-    console.error("submit-story error", err && (err.stack || err.message));
+    console.error(
+      "submit-story error",
+      err && (err.stack || err.message)
+    );
     return {
       statusCode: 500,
       body: JSON.stringify({ error: "Internal error" }),
@@ -105,19 +119,18 @@ exports.handler = async function (event) {
 
 // --- Helpers ---
 
-async function redisCommand(UPSTASH_URL, UPSTASH_TOKEN, ...command) {
-  const res = await fetch(UPSTASH_URL, {
-    method: "POST",
+async function upstashPath(baseUrl, token, path, method = "GET") {
+  const url = `${baseUrl}${path}`;
+  const res = await fetch(url, {
+    method,
     headers: {
-      Authorization: `Bearer ${UPSTASH_TOKEN}`,
-      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ command }),
   });
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    console.error("Upstash command failed", command[0], res.status, txt);
+    console.error("Upstash path failed", method, path, res.status, txt);
     throw new Error("Upstash command failed");
   }
   return res.json().catch(() => null);
@@ -169,7 +182,9 @@ async function sendModerationEmail({
     </p>
   `;
 
-  const toList = MOD_EMAIL_TO.split(",").map((e) => e.trim()).filter(Boolean);
+  const toList = MOD_EMAIL_TO.split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
