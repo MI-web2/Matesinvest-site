@@ -1332,13 +1332,23 @@
 }
 
 /* Stories styling inside MatesBook */
+/* Stories feed inside MatesBook */
 .mi-stories-body {
   margin-top: 4px;
   margin-bottom: 10px;
+  max-height: 260px;              /* scroll area inside modal */
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mi-stories-card {
   border-radius: 12px;
   background: #f9fbff;
   border: 1px solid #e2e8f0;
-  padding: 12px 12px 10px;
+  padding: 10px 12px 9px;
 }
 
 .mi-stories-tag {
@@ -1356,8 +1366,20 @@
 .mi-stories-title {
   font-size: 0.98rem;
   font-weight: 600;
-  margin: 2px 0 4px;
+  margin: 2px 0 2px;
   color: var(--navy);
+}
+
+.mi-stories-meta-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.mi-stories-date {
+  font-size: 0.78rem;
+  color: var(--muted-2);
 }
 
 .mi-stories-text {
@@ -1372,20 +1394,6 @@
   color: var(--muted-2);
   margin: 0;
 }
-
-.mi-stories-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
-.mi-stories-index {
-  font-size: 0.78rem;
-  color: var(--muted-2);
-}
-
-
   </style>
 
 </head>
@@ -1572,15 +1580,9 @@
     </div>
 
     <!-- Stories pane -->
-    <div class="mi-book-pane" id="miBookStoriesPane" hidden>
-      <div id="miStoriesBody" class="mi-stories-body"></div>
-
-      <div class="mi-stories-footer">
-        <span id="miStoriesIndex" class="mi-stories-index"></span>
-        <button id="miStoriesNext" class="mi-explain-random">
-          Show another story
-        </button>
-      </div>
+<div class="mi-book-pane" id="miBookStoriesPane" hidden>
+  <div id="miStoriesBody" class="mi-stories-body"></div>
+</div>
     </div>
   </div>
 </div>
@@ -3400,30 +3402,34 @@ document.querySelectorAll('.card-metal').forEach(card => {
 
   // ---------- 2. Data: Mates stories (seed these with real ones later) ----------
 
-  const miStories = [
-    {
-      id: "s1",
-      tag: "Beginner story",
-      title: "Penny Stocks",
-      text: "I put $500 into Commsec and turned it into $200 relatively quickly, I then decided I needed to learn more about what I was doing.",
-      byline: "Luke, 34 • Brisbane"
-    },
-    {
-      id: "s2",
-      tag: "Lesson learned",
-      title: "Chasing a hot tip",
-      text: "I bought a stock because a mate said it was 'going to the moon'. It dropped 40% and I sold. Now I only buy what I actually understand.",
-      byline: "Anon, 33 • Melbourne"
-    },
-    {
-      id: "s3",
-      tag: "Small win",
-      title: "First dividend felt huge",
-      text: "My first dividend was only a few dollars, but it flipped a switch — I realised my money could work without me doing anything.",
-      byline: "Anon, 22 • Sydney"
-    }
-    // add your Reddit / HotCopper stories here as you get permission
-  ];
+const miStories = [
+  {
+    id: "s1",
+    date: "2025-11-30",
+    tag: "Beginner story",
+    title: "Starting with my first ETF",
+    text: "I put $500 into a broad Aussie ETF because I had no idea how to pick stocks. Best decision I made — it got me started without overthinking.",
+    byline: "Anon, 27 • Brisbane"
+  },
+  {
+    id: "s2",
+    date: "2025-11-28",
+    tag: "Lesson learned",
+    title: "Chasing a hot tip",
+    text: "I bought a stock because a mate said it was 'going to the moon'. It dropped 40% and I sold. Now I only buy what I actually understand.",
+    byline: "Anon, 33 • Melbourne"
+  },
+  {
+    id: "s3",
+    date: "2025-11-25",
+    tag: "Small win",
+    title: "First dividend felt huge",
+    text: "My first dividend was only a few dollars, but it flipped a switch — I realised my money could work without me doing anything.",
+    byline: "Anon, 22 • Sydney"
+  }
+  // add more as you go, just keep using YYYY-MM-DD
+];
+
 
   // ---------- 3. Helpers for explainers ----------
 
@@ -3476,15 +3482,12 @@ document.querySelectorAll('.card-metal').forEach(card => {
     const suggestionsEl = document.getElementById("miExplainSuggestions");
 
     // stories elements
-    const storiesBodyEl = document.getElementById("miStoriesBody");
-    const storiesIndexEl = document.getElementById("miStoriesIndex");
-    const storiesNextBtn = document.getElementById("miStoriesNext");
+const storiesBodyEl = document.getElementById("miStoriesBody");
 
     if (!bookBtn || !modal) return;
 
     let currentCategory = "all";
     let currentQuery = "";
-    let currentStoryIndex = 0;
 
     // ---- explain rendering ----
     function hideSuggestions() {
@@ -3524,29 +3527,46 @@ document.querySelectorAll('.card-metal').forEach(card => {
     }
 
     // ---- stories rendering ----
-    function renderStory() {
-      if (!storiesBodyEl) return;
+function renderStoriesFeed() {
+  if (!storiesBodyEl) return;
 
-      if (!miStories.length) {
-        storiesBodyEl.innerHTML = '<p class="mi-stories-text">Stories coming soon. Check back later.</p>';
-        if (storiesIndexEl) storiesIndexEl.textContent = "";
-        if (storiesNextBtn) storiesNextBtn.disabled = true;
-        return;
-      }
+  if (!miStories.length) {
+    storiesBodyEl.innerHTML = '<p class="mi-stories-text">Stories coming soon. Check back later.</p>';
+    return;
+  }
 
-      const story = miStories[currentStoryIndex];
+  // sort by date descending (newest first)
+  const sorted = [...miStories].sort((a, b) => {
+    const da = new Date(a.date);
+    const db = new Date(b.date);
+    return db - da;
+  });
 
-      storiesBodyEl.innerHTML = `
+  storiesBodyEl.innerHTML = sorted.map(story => {
+    // format date (fallback to raw string if Date parsing fails)
+    let displayDate = story.date;
+    const d = new Date(story.date);
+    if (!isNaN(d.getTime())) {
+      displayDate = d.toLocaleDateString("en-AU", {
+        day: "numeric",
+        month: "short",
+        year: "numeric"
+      });
+    }
+
+    return `
+      <article class="mi-stories-card">
         ${story.tag ? `<div class="mi-stories-tag">${story.tag}</div>` : ""}
         <div class="mi-stories-title">${story.title}</div>
+        <div class="mi-stories-meta-line">
+          <span class="mi-stories-date">${displayDate}</span>
+        </div>
         <p class="mi-stories-text">${story.text}</p>
         <p class="mi-stories-byline">${story.byline}</p>
-      `;
-
-      if (storiesIndexEl) {
-        storiesIndexEl.textContent = `${currentStoryIndex + 1} of ${miStories.length}`;
-      }
-    }
+      </article>
+    `;
+  }).join("");
+}
 
     // ---- tab switching ----
     function setActivePane(pane) {
@@ -3559,11 +3579,12 @@ document.querySelectorAll('.card-metal').forEach(card => {
         explainPane.removeAttribute("hidden");
         storiesPane.setAttribute("hidden", "true");
         renderExplainList();
-      } else {
-        storiesPane.removeAttribute("hidden");
-        explainPane.setAttribute("hidden", "true");
-        renderStory();
-      }
+} else {
+  storiesPane.removeAttribute("hidden");
+  explainPane.setAttribute("hidden", "true");
+  renderStoriesFeed();
+}
+
     }
 
     // ---- open / close ----
@@ -3661,15 +3682,6 @@ document.querySelectorAll('.card-metal').forEach(card => {
         });
         renderExplainList();
         hideSuggestions();
-      });
-    }
-
-    // Stories next button
-    if (storiesNextBtn) {
-      storiesNextBtn.addEventListener("click", () => {
-        if (!miStories.length) return;
-        currentStoryIndex = (currentStoryIndex + 1) % miStories.length;
-        renderStory();
       });
     }
   })();
