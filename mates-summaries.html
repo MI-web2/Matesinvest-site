@@ -1334,11 +1334,12 @@
 /* Stories styling inside MatesBook */
 /* Stories feed inside MatesBook – match explainer look */
 .mi-stories-body {
-  margin-top: 6px;
-  margin-bottom: 10px;
-  max-height: 260px;             /* same scroll height as explainers */
+  flex: 1;                 /* fill the modal height like explainers */
   overflow-y: auto;
   padding-right: 4px;
+  margin-top: 6px;
+  margin-bottom: 12px;
+  border-radius: 12px;      /* same rounding as explainer list */
 }
 
 /* each story acts like an explainer row */
@@ -1382,13 +1383,13 @@
   font-size: 11px;
   color: var(--muted-2);
 }
-
 .mi-stories-text {
-  font-size: 13px;          /* same as explainer body text */
+  font-size: 13px;
   line-height: 1.4;
   margin: 2px 0 0;
-  color: #0b1220;
+  color: var(--muted, #475569);   /* same as explainer body */
 }
+
 
 .mi-stories-byline {
   margin-top: 2px;
