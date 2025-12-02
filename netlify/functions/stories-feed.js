@@ -1,6 +1,4 @@
 // netlify/functions/stories-feed.js
-// Returns all APPROVED stories for MatesBook.
-
 const fetch = (...args) => global.fetch(...args);
 
 exports.handler = async function () {
@@ -13,40 +11,44 @@ exports.handler = async function () {
   }
 
   try {
-    // All approved IDs
-    const resIds = await redisCommand(
+    // SMEMBERS mates:stories:approved
+    const idsRes = await upstashPath(
       UPSTASH_URL,
       UPSTASH_TOKEN,
-      "SMEMBERS",
-      "mates:stories:approved"
+      `/smembers/${encodeURIComponent("mates:stories:approved")}`,
+      "GET"
     );
-    const ids = (resIds && resIds.result) || [];
+    const ids = (idsRes && idsRes.result) || [];
 
     if (!ids.length) {
       return {
         statusCode: 200,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stories: [] }),
       };
     }
 
-    // Fetch each story (HGET id data). Count will be small so 1-by-1 is fine.
     const stories = [];
     for (const id of ids) {
-      const r = await redisCommand(UPSTASH_URL, UPSTASH_TOKEN, "HGET", id, "data");
+      const r = await upstashPath(
+        UPSTASH_URL,
+        UPSTASH_TOKEN,
+        `/hget/${encodeURIComponent(id)}/${encodeURIComponent("data")}`,
+        "GET"
+      );
       const raw = r && r.result;
       if (!raw) continue;
       try {
-        const story = JSON.parse(raw);
-        stories.push(story);
+        stories.push(JSON.parse(raw));
       } catch {
         // skip bad json
       }
     }
 
-    // Sort newest first
+    // newest first
     stories.sort((a, b) => {
-      const da = new Date(a.createdAt || 0);
-      const db = new Date(b.createdAt || 0);
+      const da = new Date(a.createdAt || a.date || 0);
+      const db = new Date(b.createdAt || b.date || 0);
       return db - da;
     });
 
@@ -61,19 +63,18 @@ exports.handler = async function () {
   }
 };
 
-async function redisCommand(UPSTASH_URL, UPSTASH_TOKEN, ...command) {
-  const res = await fetch(UPSTASH_URL, {
-    method: "POST",
+async function upstashPath(baseUrl, token, path, method = "GET") {
+  const url = `${baseUrl}${path}`;
+  const res = await fetch(url, {
+    method,
     headers: {
-      Authorization: `Bearer ${UPSTASH_TOKEN}`,
-      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ command }),
   });
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    console.error("Upstash command failed", command[0], res.status, txt);
+    console.error("Upstash path failed", method, path, res.status, txt);
     throw new Error("Upstash command failed");
   }
   return res.json().catch(() => null);
