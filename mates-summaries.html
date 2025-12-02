@@ -1580,8 +1580,87 @@
       </button>
     </div>
 
-    <!-- Stories pane -->
+<!-- Stories pane -->
 <div class="mi-book-pane" id="miBookStoriesPane" hidden>
+  <!-- Share story CTA + inline form -->
+  <div style="margin-bottom:8px;font-size:0.85rem;color:var(--muted);">
+    Want to share your own investing story?
+    <button
+      type="button"
+      id="miStoryOpenForm"
+      class="btn-pill"
+      style="margin-left:6px;padding:0.24rem 0.6rem;font-size:0.8rem;"
+    >
+      Share your story
+    </button>
+  </div>
+
+  <form id="miStoryForm" style="display:none;margin-bottom:10px;font-size:0.85rem;">
+    <div style="margin-bottom:6px;">
+      <label style="display:block;margin-bottom:3px;">Title</label>
+      <input
+        id="miStoryTitle"
+        type="text"
+        maxlength="120"
+        required
+        style="width:100%;padding:6px 8px;border-radius:10px;border:1px solid var(--border);font-size:0.85rem;"
+        placeholder="E.g. My first ETF, chasing a hot tip…"
+      />
+    </div>
+
+    <div style="margin-bottom:6px;">
+      <label style="display:block;margin-bottom:3px;">Story (what happened?)</label>
+      <textarea
+        id="miStoryText"
+        rows="4"
+        required
+        style="width:100%;padding:6px 8px;border-radius:10px;border:1px solid var(--border);font-size:0.85rem;resize:vertical;"
+        placeholder="Keep it short and honest. No stock tips or personal details."
+      ></textarea>
+    </div>
+
+    <div style="margin-bottom:6px;">
+      <label style="display:block;margin-bottom:3px;">How should we show your name? (optional)</label>
+      <input
+        id="miStoryByline"
+        type="text"
+        maxlength="80"
+        style="width:100%;padding:6px 8px;border-radius:10px;border:1px solid var(--border);font-size:0.85rem;"
+        placeholder="E.g. Anon, 27 • Brisbane"
+      />
+    </div>
+
+    <div style="margin-bottom:6px;">
+      <label style="display:block;margin-bottom:3px;">Tag (optional)</label>
+      <select
+        id="miStoryTag"
+        style="width:100%;padding:6px 8px;border-radius:10px;border:1px solid var(--border);font-size:0.85rem;"
+      >
+        <option value="">No tag</option>
+        <option value="Beginner story">Beginner story</option>
+        <option value="Lesson learned">Lesson learned</option>
+        <option value="Small win">Small win</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom:6px;font-size:0.78rem;color:var(--muted-2);">
+      Stories are anonymous and will be reviewed before appearing here.
+      Please don’t share any personal contact details.
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button
+        type="submit"
+        id="miStorySubmit"
+        class="btn-pill btn-pill-primary"
+        style="font-size:0.84rem;"
+      >
+        Submit story
+      </button>
+      <span id="miStoryStatus" style="font-size:0.78rem;color:var(--muted-2);"></span>
+    </div>
+  </form>
+
   <div id="miStoriesBody" class="mi-stories-body"></div>
 </div>
     </div>
@@ -3400,36 +3479,38 @@ document.querySelectorAll('.card-metal').forEach(card => {
     { id: "Stablecoin", title: "Stablecoin", category: "Commodities & Crypto",
       text: "Stablecoins are cryptocurrencies designed to stay around the same price, often pegged to $1 USD." }
   ];
+// ---------- 2. Data: Mates stories (now loaded from backend) ----------
 
-  // ---------- 2. Data: Mates stories (seed these with real ones later) ----------
+// Will be filled from /.netlify/functions/matesStory-feed
+let miStories = [];
+let miStoriesLoaded = false;
+let miStoriesLoading = false;
 
-const miStories = [
-  {
-    id: "s1",
-    date: "2025-11-30",
-    tag: "Beginner story",
-    title: "Starting with my first ETF",
-    text: "I put $500 into a broad Aussie ETF because I had no idea how to pick stocks. Best decision I made — it got me started without overthinking.",
-    byline: "Anon, 27 • Brisbane"
-  },
-  {
-    id: "s2",
-    date: "2025-11-28",
-    tag: "Lesson learned",
-    title: "Chasing a hot tip",
-    text: "I bought a stock because a mate said it was 'going to the moon'. It dropped 40% and I sold. Now I only buy what I actually understand.",
-    byline: "Anon, 33 • Melbourne"
-  },
-  {
-    id: "s3",
-    date: "2025-11-25",
-    tag: "Small win",
-    title: "First dividend felt huge",
-    text: "My first dividend was only a few dollars, but it flipped a switch — I realised my money could work without me doing anything.",
-    byline: "Anon, 22 • Sydney"
+async function miFetchStories() {
+  if (miStoriesLoaded || miStoriesLoading) return;
+
+  miStoriesLoading = true;
+  try {
+    const res = await fetch("/.netlify/functions/matesStory-feed");
+    if (!res.ok) {
+      console.error("miFetchStories failed", res.status);
+      return;
+    }
+    const data = await res.json().catch(() => null);
+
+    // Expect shape: { stories: [...] } or plain array
+    const list = Array.isArray(data?.stories) ? data.stories :
+                 Array.isArray(data) ? data : [];
+
+    miStories = list;
+    miStoriesLoaded = true;
+  } catch (err) {
+    console.error("miFetchStories error", err);
+  } finally {
+    miStoriesLoading = false;
   }
-  // add more as you go, just keep using YYYY-MM-DD
-];
+}
+
 
 
   // ---------- 3. Helpers for explainers ----------
@@ -3482,8 +3563,16 @@ const miStories = [
     const randomExplainBtn = document.getElementById("miExplainRandom");
     const suggestionsEl = document.getElementById("miExplainSuggestions");
 
-    // stories elements
+// stories elements
 const storiesBodyEl = document.getElementById("miStoriesBody");
+const storyOpenBtn = document.getElementById("miStoryOpenForm");
+const storyFormEl  = document.getElementById("miStoryForm");
+const storyTitleEl = document.getElementById("miStoryTitle");
+const storyTextEl  = document.getElementById("miStoryText");
+const storyBylineEl= document.getElementById("miStoryByline");
+const storyTagEl   = document.getElementById("miStoryTag");
+const storyStatusEl= document.getElementById("miStoryStatus");
+const storySubmitEl= document.getElementById("miStorySubmit");
 
     if (!bookBtn || !modal) return;
 
@@ -3526,47 +3615,121 @@ const storiesBodyEl = document.getElementById("miStoriesBody");
         .join("");
       suggestionsEl.classList.add("mi-visible");
     }
+    // ---- story form handlers ----
+    if (storyOpenBtn && storyFormEl) {
+      storyOpenBtn.addEventListener("click", () => {
+        const isHidden = storyFormEl.style.display === "none" || !storyFormEl.style.display;
+        storyFormEl.style.display = isHidden ? "block" : "none";
+        if (isHidden && storyTitleEl) {
+          storyTitleEl.focus();
+        }
+      });
+    }
 
+    if (storyFormEl) {
+      storyFormEl.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!storyTitleEl || !storyTextEl || !storyStatusEl || !storySubmitEl) return;
+
+        const title = storyTitleEl.value.trim();
+        const text  = storyTextEl.value.trim();
+        const byline = (storyBylineEl?.value || "").trim();
+        const tag    = (storyTagEl?.value || "").trim();
+
+        if (!title || !text) {
+          storyStatusEl.textContent = "Please add a title and a short story.";
+          storyStatusEl.style.color = "#dc2626";
+          return;
+        }
+
+        storySubmitEl.disabled = true;
+        storyStatusEl.textContent = "Sending your story…";
+        storyStatusEl.style.color = "var(--muted)";
+
+        try {
+          const res = await fetch("/.netlify/functions/matesStory-submit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, text, byline, tag }),
+          });
+
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.error) {
+            const msg = data.error || "Something went wrong. Try again later.";
+            storyStatusEl.textContent = msg;
+            storyStatusEl.style.color = "#dc2626";
+          } else {
+            storyStatusEl.textContent =
+              "Thanks for sharing — your story will appear once it’s approved.";
+            storyStatusEl.style.color = "#15803d";
+            storyTitleEl.value = "";
+            storyTextEl.value = "";
+            if (storyBylineEl) storyBylineEl.value = "";
+            if (storyTagEl) storyTagEl.value = "";
+          }
+        } catch (err) {
+          console.error("matesStory-submit failed", err);
+          storyStatusEl.textContent = "Network error, please try again.";
+          storyStatusEl.style.color = "#dc2626";
+        } finally {
+          storySubmitEl.disabled = false;
+        }
+      });
+    }
     // ---- stories rendering ----
-function renderStoriesFeed() {
+async function renderStoriesFeed() {
   if (!storiesBodyEl) return;
 
+  // Load from backend on first visit
+  if (!miStoriesLoaded && !miStoriesLoading) {
+    storiesBodyEl.innerHTML =
+      '<p class="mi-stories-text">Loading mates’ stories…</p>';
+    await miFetchStories();
+  }
+
   if (!miStories.length) {
-    storiesBodyEl.innerHTML = '<p class="mi-stories-text">Stories coming soon. Check back later.</p>';
+    storiesBodyEl.innerHTML =
+      '<p class="mi-stories-text">No stories yet. Be the first to share yours.</p>';
     return;
   }
 
   // sort by date descending (newest first)
   const sorted = [...miStories].sort((a, b) => {
-    const da = new Date(a.date);
-    const db = new Date(b.date);
+    const da = new Date(a.date || a.createdAt || 0);
+    const db = new Date(b.date || b.createdAt || 0);
     return db - da;
   });
 
-  storiesBodyEl.innerHTML = sorted.map(story => {
-    // format date (fallback to raw string if Date parsing fails)
-    let displayDate = story.date;
-    const d = new Date(story.date);
-    if (!isNaN(d.getTime())) {
-      displayDate = d.toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "short",
-        year: "numeric"
-      });
-    }
+  storiesBodyEl.innerHTML = sorted
+    .map((story) => {
+      let displayDate = story.date || story.createdAt || "";
+      const d = new Date(displayDate);
+      if (!isNaN(d.getTime())) {
+        displayDate = d.toLocaleDateString("en-AU", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      }
 
-    return `
-      <article class="mi-stories-card">
-        ${story.tag ? `<div class="mi-stories-tag">${story.tag}</div>` : ""}
-        <div class="mi-stories-title">${story.title}</div>
-        <div class="mi-stories-meta-line">
-          <span class="mi-stories-date">${displayDate}</span>
-        </div>
-        <p class="mi-stories-text">${story.text}</p>
-        <p class="mi-stories-byline">${story.byline}</p>
-      </article>
-    `;
-  }).join("");
+      const tag = story.tag || "";
+      const title = story.title || "";
+      const text = story.text || story.body || "";
+      const byline = story.byline || "Anon";
+
+      return `
+        <article class="mi-stories-card">
+          ${tag ? `<div class="mi-stories-tag">${tag}</div>` : ""}
+          <div class="mi-stories-title">${title}</div>
+          <div class="mi-stories-meta-line">
+            <span class="mi-stories-date">${displayDate}</span>
+          </div>
+          <p class="mi-stories-text">${text}</p>
+          <p class="mi-stories-byline">${byline}</p>
+        </article>
+      `;
+    })
+    .join("");
 }
 
     // ---- tab switching ----
