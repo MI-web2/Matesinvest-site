@@ -3,7 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MatesFeedback – Help improve MatesInvest</title>
+
+  <title>MatesFeedback – Help improve MatesFeed | MatesInvest</title>
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="MatesFeedback – Help improve MatesFeed | MatesInvest" />
+  <meta property="og:description" content="Share your feedback on MatesFeed so we can make simplified ASX summaries more useful for everyday investors." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://matesinvest.com/mates-feedback" />
+  <meta property="og:image" content="https://matesinvest.com/assets/img/matesfeed-og.png" />
+  <meta property="og:image:width" content="945" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name" content="MatesInvest" />
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="MatesFeedback – Help improve MatesFeed | MatesInvest" />
+  <meta name="twitter:description" content="Share your feedback on MatesFeed so we can make simplified ASX summaries more useful for everyday investors." />
+  <meta name="twitter:image" content="https://matesinvest.com/assets/img/matesfeed-og.png" />
+
+  <link rel="icon" type="image/png" href="/assets/img/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/img/favicon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 
   <style>
     :root{
@@ -13,16 +35,27 @@
       --card: #ffffff;
       --muted: #64748b;
       --muted-2: #94a3b8;
-      --radius: 18px;
+      --accent: var(--cyan);
+      --accent-strong: #0093cc;
+      --accent-soft: rgba(0,191,255,0.10);
       --border: #e2e8f0;
+      --card-border: #e2e8f0;
+      --glass: rgba(255,255,255,0.9);
+      --radius: 18px;
+      --gap: 1rem;
     }
 
+    *{box-sizing:border-box}
+    html,body{height:100%}
     body{
       margin:0;
-      font-family: Inter, system-ui, sans-serif;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
       background: radial-gradient(circle at top left, #e2ebff 0, #f5f7fb 55%);
       color:#0b1220;
       -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      line-height:1.4;
+      padding-bottom:3rem;
     }
 
     .page-shell{
@@ -32,119 +65,298 @@
       position:relative;
     }
 
+    .corner-pattern {
+      position:absolute;
+      top:-18px;
+      right:0;
+      width:150px;
+      height:150px;
+      background:
+        linear-gradient(135deg, rgba(0,191,255,0.25), rgba(0,32,64,0.05)),
+        linear-gradient(90deg, rgba(148,163,184,0.35) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(148,163,184,0.35) 1px, transparent 1px);
+      background-size: 100% 100%, 18px 18px, 18px 18px;
+      border-radius: 24px;
+      opacity:0.7;
+      pointer-events:none;
+      z-index:-1;
+    }
+
+    /* NAV – identical to mates-summaries */
+    .nav{
+      position:sticky;
+      top:0;
+      z-index:30;
+      backdrop-filter: blur(12px);
+      background: rgba(255,255,255,0.96);
+      border-bottom: 1px solid #eef1f6;
+    }
+    .nav-inner{
+      max-width:1080px;
+      margin:0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:1rem;
+      padding:0.7rem 1.25rem;
+    }
+    .nav-left{display:flex;align-items:center;gap:0.75rem}
+    .nav-logo{height:40px;width:40px;border-radius:10px;object-fit:cover}
+    .nav-title{font-weight:700;font-size:1.05rem;color:var(--navy)}
+    .nav-pill{
+      padding:0.15rem 0.65rem;
+      border-radius:999px;
+      font-size:0.75rem;
+      background:#e7f7ff;
+      color:#083a59;
+      border:1px solid #c5e5ff;
+    }
+    .nav-right{
+      font-size:0.82rem;
+      color:var(--muted);
+      display:flex;
+      gap:0.75rem;
+      align-items:center
+    }
+    .nav-home-link{
+      padding:0.4rem 0.9rem;
+      border-radius:999px;
+      border:1px solid #cfd8e3;
+      text-decoration:none;
+      color:#0b1220;
+      background:#ffffff;
+      font-weight:600;
+      font-size:0.86rem;
+    }
+    .nav-home-link:hover{
+      background:#f3f6fb;
+    }
+    .nav-tagline-short { display:none; }
+    @media (max-width:640px) {
+      .nav-inner { padding:0.55rem 1rem; gap:0.5rem; }
+      .nav-logo { height:32px; width:32px; }
+      .nav-title { font-size:0.98rem; }
+      .nav-pill { display:none; }
+      .nav-right { font-size:0.78rem; gap:0.5rem; }
+
+      .nav-tagline-full { display:none; }
+      .nav-tagline-short { display:inline; font-size:0.78rem; }
+    }
+
+    /* Generic card – same as summaries */
     .card {
       background: var(--card);
       border-radius: var(--radius);
       padding:1.25rem 1.4rem;
-      margin-top:1.25rem;
-      border:1px solid var(--border);
+      margin-bottom:1.1rem;
+      border:1px solid var(--card-border);
       box-shadow: 0 10px 30px rgba(15,23,42,0.08);
     }
+    .card h2{
+      margin:0;
+      font-size:1.25rem;
+      color:var(--navy);
+    }
 
-    h1 { margin:0 0 0.35rem; font-size:1.8rem; color:var(--navy); }
-    .lead { margin:0 0 1rem; font-size:1rem; color:var(--muted); max-width:32rem; }
+    /* Feedback header & text scale to match */
+    .feedback-lead {
+      margin:0.25rem 0 0.8rem;
+      font-size:0.9rem;
+      color:var(--muted);
+      max-width:32rem;
+    }
+
+    .back-link {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      font-size:0.85rem;
+      text-decoration:none;
+      color:var(--navy);
+      font-weight:600;
+      margin-bottom:0.75rem;
+    }
+
+    .back-link span {
+      font-size:1rem;
+    }
+
+    /* Form – tuned to same font sizes as the rest of the page */
+    form {
+      margin-top:0.4rem;
+    }
+
+    .field-group {
+      margin-top:0.6rem;
+    }
 
     label {
       font-weight:600;
       display:block;
-      margin-top:1rem;
       margin-bottom:0.25rem;
       color:var(--navy);
+      font-size:0.85rem; /* same vibe as chips & meta text */
     }
 
     input, textarea, select {
       width:100%;
-      padding:0.7rem;
+      padding:0.55rem 0.7rem;
       border-radius:10px;
       border:1px solid var(--border);
-      font-size:1rem;
+      font-size:0.9rem;  /* matches brief-subtitle / email copy */
+      font-family: inherit;
     }
 
     textarea {
-      min-height:120px;
+      min-height:110px;
       resize:vertical;
     }
 
-    button {
-      margin-top:1.25rem;
-      padding:0.75rem 1.4rem;
-      background: var(--cyan);
+    .help-text {
+      font-size:0.78rem;
+      color:var(--muted-2);
+      margin-top:0.25rem;
+    }
+
+    button[type="submit"] {
+      margin-top:1rem;
+      padding:0.6rem 1.2rem;
+      background: var(--accent);
       border:none;
-      border-radius:10px;
-      font-size:1rem;
-      font-weight:600;
-      cursor:pointer;
-      color:white;
-    }
-
-    button:hover {
-      background:#0093cc;
-    }
-
-    a.back-link {
-      text-decoration:none;
+      border-radius:999px;
       font-size:0.9rem;
-      font-weight:600;
-      color:var(--navy);
+      font-weight:700;
+      cursor:pointer;
+      color:#001220;
+      box-shadow:0 5px 14px rgba(15,23,42,0.22);
+    }
+
+    button[type="submit"]:hover {
+      background:var(--accent-strong);
+    }
+
+    .footnote {
+      margin-top:0.8rem;
+      font-size:0.8rem;
+      color:var(--muted-2);
+    }
+
+    @media (max-width:480px) {
+      .page-shell { padding:0.9rem 1rem 2rem; }
+      .card { padding:1rem; border-radius:16px; }
+      body { padding-bottom:2rem; }
     }
   </style>
 </head>
 
 <body>
-  <div class="page-shell">
-    <a href="/mates-summaries" class="back-link">← Back to MatesFeed</a>
+  <!-- Same nav as mates-summaries -->
+  <div class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <img src="/assets/img/logo-placeholder.png" class="nav-logo" alt="MatesInvest logo">
+        <div>
+          <div class="nav-title">MatesInvest</div>
+          <div class="nav-pill">MatesFeed · Prototype</div>
+        </div>
+      </div>
+      <div class="nav-right">
+        <span class="nav-tagline nav-tagline-full">
+          Help us improve MatesFeed
+        </span>
+        <span class="nav-tagline nav-tagline-short">
+          Feedback welcome
+        </span>
+        <a href="/mates-summaries" class="nav-home-link">Back to MatesFeed</a>
+      </div>
+    </div>
+  </div>
 
-    <div class="card">
-      <h1>MatesFeedback</h1>
-      <p class="lead">
-        Help us make MatesInvest better. This is an early build — your feedback guides what we fix and what we build next.
+  <div class="page-shell">
+    <div class="corner-pattern" aria-hidden="true"></div>
+
+    <a href="/mates-summaries" class="back-link">
+      <span>←</span> Back to market summaries
+    </a>
+
+    <section class="card">
+      <h2>MatesFeedback</h2>
+      <p class="feedback-lead">
+        This is still an early build. Your feedback helps decide what we fix, what we add,
+        and how we make the ASX easier to follow for everyday Aussies.
       </p>
 
-      <!-- ⭐⭐ NETLIFY FORM ⭐⭐ -->
+      <!-- Netlify form -->
       <form name="matesfeedback" method="POST" data-netlify="true">
+        <!-- Required hidden input so Netlify registers the form -->
+        <input type="hidden" name="form-name" value="matesfeedback" />
 
-        <label>How useful did you find today's summary?</label>
-        <select name="usefulness" required>
-          <option value="">Select one</option>
-          <option>Very useful</option>
-          <option>Useful</option>
-          <option>Neutral</option>
-          <option>Not very useful</option>
-          <option>Not useful at all</option>
-        </select>
+        <div class="field-group">
+          <label for="fb-usefulness">How useful did you find today's summary?</label>
+          <select id="fb-usefulness" name="usefulness" required>
+            <option value="">Select one</option>
+            <option>Very useful</option>
+            <option>Useful</option>
+            <option>Neutral</option>
+            <option>Not very useful</option>
+            <option>Not useful at all</option>
+          </select>
+        </div>
 
-        <label>Was anything confusing or unclear?</label>
-        <textarea name="confusing"></textarea>
+        <div class="field-group">
+          <label for="fb-confusing">Was anything confusing or unclear?</label>
+          <textarea id="fb-confusing" name="confusing"></textarea>
+        </div>
 
-        <label>What features would make this more valuable?</label>
-        <textarea name="features"></textarea>
+        <div class="field-group">
+          <label for="fb-features">What features would make this more valuable?</label>
+          <textarea id="fb-features" name="features"></textarea>
+        </div>
 
-        <label>How likely are you to use this daily?</label>
-        <select name="likelihood" required>
-          <option value="">Select one</option>
-          <option>Very likely</option>
-          <option>Somewhat likely</option>
-          <option>Not sure</option>
-          <option>Unlikely</option>
-          <option>Never</option>
-        </select>
+        <div class="field-group">
+          <label for="fb-likelihood">How likely are you to use this daily?</label>
+          <select id="fb-likelihood" name="likelihood" required>
+            <option value="">Select one</option>
+            <option>Very likely</option>
+            <option>Somewhat likely</option>
+            <option>Not sure</option>
+            <option>Unlikely</option>
+            <option>Never</option>
+          </select>
+        </div>
 
-        <label>What type of investor are you?</label>
-        <select name="investor-type" required>
-          <option value="">Select one</option>
-          <option>Beginner</option>
-          <option>Intermediate</option>
-          <option>Experienced</option>
-          <option>Just browsing</option>
-        </select>
+        <div class="field-group">
+          <label for="fb-investor">What type of investor are you?</label>
+          <select id="fb-investor" name="investor-type" required>
+            <option value="">Select one</option>
+            <option>Beginner</option>
+            <option>Intermediate</option>
+            <option>Experienced</option>
+            <option>Just browsing</option>
+          </select>
+        </div>
 
-        <label>Email (optional)</label>
-        <input type="email" name="email" placeholder="Only if you want early access">
+        <div class="field-group">
+          <label for="fb-email">Email (optional)</label>
+          <input
+            id="fb-email"
+            type="email"
+            name="email"
+            placeholder="Only if you want early access & follow-up"
+          />
+          <div class="help-text">
+            We’ll only use this to contact you about MatesInvest. No spam.
+          </div>
+        </div>
 
-        <button type="submit">Submit Feedback</button>
+        <button type="submit">Submit feedback</button>
 
+        <div class="footnote">
+          We read every response, but can’t reply to all individually. Please don’t share
+          any personal contact details or sensitive information in the text boxes.
+        </div>
       </form>
-    </div>
+    </section>
   </div>
 </body>
 </html>
