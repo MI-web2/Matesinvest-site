@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MatesFeedback – Help improve MatesInvest</title>
+
+  <style>
+    :root{
+      --navy: #002040;
+      --cyan: #00BFFF;
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --muted: #64748b;
+      --muted-2: #94a3b8;
+      --radius: 18px;
+      --border: #e2e8f0;
+    }
+
+    body{
+      margin:0;
+      font-family: Inter, system-ui, sans-serif;
+      background: radial-gradient(circle at top left, #e2ebff 0, #f5f7fb 55%);
+      color:#0b1220;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    .page-shell{
+      max-width:1080px;
+      margin:0 auto;
+      padding:1.5rem 1.25rem 3rem;
+      position:relative;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding:1.25rem 1.4rem;
+      margin-top:1.25rem;
+      border:1px solid var(--border);
+      box-shadow: 0 10px 30px rgba(15,23,42,0.08);
+    }
+
+    h1 { margin:0 0 0.35rem; font-size:1.8rem; color:var(--navy); }
+    .lead { margin:0 0 1rem; font-size:1rem; color:var(--muted); max-width:32rem; }
+
+    label {
+      font-weight:600;
+      display:block;
+      margin-top:1rem;
+      margin-bottom:0.25rem;
+      color:var(--navy);
+    }
+
+    input, textarea, select {
+      width:100%;
+      padding:0.7rem;
+      border-radius:10px;
+      border:1px solid var(--border);
+      font-size:1rem;
+    }
+
+    textarea {
+      min-height:120px;
+      resize:vertical;
+    }
+
+    button {
+      margin-top:1.25rem;
+      padding:0.75rem 1.4rem;
+      background: var(--cyan);
+      border:none;
+      border-radius:10px;
+      font-size:1rem;
+      font-weight:600;
+      cursor:pointer;
+      color:white;
+    }
+
+    button:hover {
+      background:#0093cc;
+    }
+
+    a.back-link {
+      text-decoration:none;
+      font-size:0.9rem;
+      font-weight:600;
+      color:var(--navy);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page-shell">
+    <a href="/mates-summaries" class="back-link">← Back to MatesFeed</a>
+
+    <div class="card">
+      <h1>MatesFeedback</h1>
+      <p class="lead">
+        Help us make MatesInvest better. This is an early build — your feedback guides what we fix and what we build next.
+      </p>
+
+      <!-- ⭐⭐ NETLIFY FORM ⭐⭐ -->
+      <form name="matesfeedback" method="POST" data-netlify="true">
+
+        <label>How useful did you find today's summary?</label>
+        <select name="usefulness" required>
+          <option value="">Select one</option>
+          <option>Very useful</option>
+          <option>Useful</option>
+          <option>Neutral</option>
+          <option>Not very useful</option>
+          <option>Not useful at all</option>
+        </select>
+
+        <label>Was anything confusing or unclear?</label>
+        <textarea name="confusing"></textarea>
+
+        <label>What features would make this more valuable?</label>
+        <textarea name="features"></textarea>
+
+        <label>How likely are you to use this daily?</label>
+        <select name="likelihood" required>
+          <option value="">Select one</option>
+          <option>Very likely</option>
+          <option>Somewhat likely</option>
+          <option>Not sure</option>
+          <option>Unlikely</option>
+          <option>Never</option>
+        </select>
+
+        <label>What type of investor are you?</label>
+        <select name="investor-type" required>
+          <option value="">Select one</option>
+          <option>Beginner</option>
+          <option>Intermediate</option>
+          <option>Experienced</option>
+          <option>Just browsing</option>
+        </select>
+
+        <label>Email (optional)</label>
+        <input type="email" name="email" placeholder="Only if you want early access">
+
+        <button type="submit">Submit Feedback</button>
+
+      </form>
+    </div>
+  </div>
+</body>
+</html>
