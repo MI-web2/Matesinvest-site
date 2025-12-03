@@ -1,17 +1,250 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <link rel="icon" type="image/png" href="assets/favicon.png">
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Thank You – MatesInvest</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="styles.css">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Thank You – MatesInvest" />
+  <meta property="og:description" content="Thanks for helping us make MatesInvest better." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://matesinvest.com/thanks.html" />
+  <meta property="og:image" content="https://matesinvest.com/assets/img/matesfeed-og.png" />
+  <meta property="og:image:width" content="945" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name" content="MatesInvest" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/assets/img/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/img/favicon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+
+  <style>
+    :root{
+      --navy: #002040;
+      --cyan: #00BFFF;
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --muted: #64748b;
+      --muted-2: #94a3b8;
+      --accent: var(--cyan);
+      --accent-strong: #0093cc;
+      --accent-soft: rgba(0,191,255,0.10);
+      --border: #e2e8f0;
+      --card-border: #e2e8f0;
+      --glass: rgba(255,255,255,0.9);
+      --radius: 18px;
+      --gap: 1rem;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: radial-gradient(circle at top left, #e2ebff 0, #f5f7fb 55%);
+      color:#0b1220;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      line-height:1.4;
+      padding-bottom:3rem;
+    }
+
+    .page-shell{
+      max-width:1080px;
+      margin:0 auto;
+      padding:1.5rem 1.25rem 3rem;
+      position:relative;
+    }
+
+    .corner-pattern {
+      position:absolute;
+      top:-18px;
+      right:0;
+      width:150px;
+      height:150px;
+      background:
+        linear-gradient(135deg, rgba(0,191,255,0.25), rgba(0,32,64,0.05)),
+        linear-gradient(90deg, rgba(148,163,184,0.35) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(148,163,184,0.35) 1px, transparent 1px);
+      background-size: 100% 100%, 18px 18px, 18px 18px;
+      border-radius: 24px;
+      opacity:0.7;
+      pointer-events:none;
+      z-index:-1;
+    }
+
+    /* NAV – same as MatesFeed style */
+    .nav{
+      position:sticky;
+      top:0;
+      z-index:30;
+      backdrop-filter: blur(12px);
+      background: rgba(255,255,255,0.96);
+      border-bottom: 1px solid #eef1f6;
+    }
+    .nav-inner{
+      max-width:1080px;
+      margin:0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:1rem;
+      padding:0.7rem 1.25rem;
+    }
+    .nav-left{display:flex;align-items:center;gap:0.75rem}
+    .nav-logo{height:40px;width:40px;border-radius:10px;object-fit:cover}
+    .nav-title{font-weight:700;font-size:1.05rem;color:var(--navy)}
+    .nav-pill{
+      padding:0.15rem 0.65rem;
+      border-radius:999px;
+      font-size:0.75rem;
+      background:#e7f7ff;
+      color:#083a59;
+      border:1px solid #c5e5ff;
+    }
+    .nav-right{
+      font-size:0.82rem;
+      color:var(--muted);
+      display:flex;
+      gap:0.75rem;
+      align-items:center
+    }
+    .nav-home-link{
+      padding:0.4rem 0.9rem;
+      border-radius:999px;
+      border:1px solid #cfd8e3;
+      text-decoration:none;
+      color:#0b1220;
+      background:#ffffff;
+      font-weight:600;
+      font-size:0.86rem;
+    }
+    .nav-home-link:hover{
+      background:#f3f6fb;
+    }
+    .nav-tagline-short { display:none; }
+    @media (max-width:640px) {
+      .nav-inner { padding:0.55rem 1rem; gap:0.5rem; }
+      .nav-logo { height:32px; width:32px; }
+      .nav-title { font-size:0.98rem; }
+      .nav-pill { display:none; }
+      .nav-right { font-size:0.78rem; gap:0.5rem; }
+
+      .nav-tagline-full { display:none; }
+      .nav-tagline-short { display:inline; font-size:0.78rem; }
+    }
+
+    /* Card */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding:1.5rem 1.6rem;
+      margin-top:1.5rem;
+      border:1px solid var(--card-border);
+      box-shadow: 0 10px 30px rgba(15,23,42,0.08);
+      max-width:520px;
+    }
+
+    .thanks-title {
+      margin:0 0 0.35rem;
+      font-size:1.7rem;
+      color:var(--navy);
+    }
+
+    .thanks-copy {
+      margin:0 0 1.1rem;
+      font-size:0.95rem;
+      color:var(--muted);
+    }
+
+    .btn-row {
+      display:flex;
+      flex-wrap:wrap;
+      gap:0.75rem;
+      margin-top:0.25rem;
+    }
+
+    .btn {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:0.65rem 1.3rem;
+      border-radius:999px;
+      font-size:0.9rem;
+      font-weight:600;
+      text-decoration:none;
+      border:1px solid transparent;
+      cursor:pointer;
+    }
+
+    .btn-primary {
+      background:var(--accent);
+      color:#001220;
+      border-color:transparent;
+      box-shadow:0 5px 14px rgba(15,23,42,0.22);
+    }
+    .btn-primary:hover {
+      background:var(--accent-strong);
+    }
+
+    .btn-ghost {
+      background:#ffffff;
+      color:#0b1220;
+      border-color:#d3dbe8;
+    }
+    .btn-ghost:hover {
+      background:#f3f6fb;
+    }
+
+    @media (max-width:480px) {
+      .page-shell { padding:0.9rem 1rem 2rem; }
+      .card { padding:1.2rem; border-radius:16px; }
+      body { padding-bottom:2rem; }
+    }
+  </style>
 </head>
+
 <body>
-  <div class="container">
-    <h1>Thank You!</h1>
-    <p>Your submission has been received. We’ll be in touch soon.</p>
-    <a href="/" class="btn btn-primary">Back to Home</a>
+  <!-- Nav bar -->
+  <div class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <img src="/assets/img/logo-placeholder.png" class="nav-logo" alt="MatesInvest logo">
+        <div>
+          <div class="nav-title">MatesInvest</div>
+          <div class="nav-pill">Thank you</div>
+        </div>
+      </div>
+      <div class="nav-right">
+        <span class="nav-tagline nav-tagline-full">
+          Thanks for helping us build MatesInvest
+        </span>
+        <span class="nav-tagline nav-tagline-short">
+          Appreciate you
+        </span>
+        <a href="/mates-summaries" class="nav-home-link">View MatesFeed</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-shell">
+    <div class="corner-pattern" aria-hidden="true"></div>
+
+    <section class="card">
+      <h1 class="thanks-title">Thank you!</h1>
+      <p class="thanks-copy">
+        Your submission has been received. Every bit of feedback helps us make
+        MatesInvest more useful for everyday investors.
+      </p>
+
+      <div class="btn-row">
+        <a href="/mates-summaries" class="btn btn-primary">Back to MatesFeed</a>
+        <a href="/" class="btn btn-ghost">Back to Home</a>
+      </div>
+    </section>
   </div>
 </body>
 </html>
