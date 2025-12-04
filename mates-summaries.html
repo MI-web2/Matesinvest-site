@@ -1451,31 +1451,60 @@
     .mates-note {
   margin-top: 0.8rem; /* matches gap between the top performer cards */
 }
+.nav-home-link {
+  font-size: 0.85rem;
+  text-decoration: none;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  color: var(--navy);
+  background: transparent;
+  border: 1px solid transparent;
+}
+.nav-home-link:hover {
+  background: rgba(15,23,42,0.06);
+}
+.nav-home-link {
+  font-size: 0.85rem;
+  text-decoration: none;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  color: var(--navy);
+  background: transparent;
+  border: 1px solid transparent;
+}
+.nav-home-link:hover {
+  background: rgba(15,23,42,0.06);
+}
   </style>
 
 </head>
 
-  <body>
-    <div class="page">
-      <nav class="top-nav">
-        <div class="nav-left">
-          <a href="/" class="nav-logo">
-            <img
-              src="/assets/img/logo-placeholder.png"
-              alt="MatesInvest"
-              class="nav-logo-img"
-            />
-            <div class="nav-logo-text">MatesInvest</div>
-          </a>
+<body>
+  <div class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <img src="/assets/img/logo-placeholder.png" class="nav-logo" alt="MatesInvest logo">
+        <div>
+          <div class="nav-title">MatesInvest</div>
+          <div class="nav-pill">MatesFeed · Prototype</div>
         </div>
-        <div class="nav-right">
-          <a href="/" class="nav-link">Home</a>
-          <a href="/equity-screener.html" class="nav-pill">ASX Daily Brief</a>
-        </div>
+      </div>
+
+      <div class="nav-right" style="display:flex; align-items:center; gap:0.75rem; white-space:nowrap;">
+        <span class="nav-tagline nav-tagline-full">
+          Live AI summaries · Not financial advice
+        </span>
+
+        <span class="nav-tagline nav-tagline-short">
+          Live AI · NFA
+        </span>
+
+        <a href="/" class="nav-home-link">Home</a>
+        <a href="/equity-screener.html" class="nav-pill-link">ASX Explorer</a>
+      </div>
 
     </div>
   </div>
-
   <div class="page-shell">
     <div class="corner-pattern" aria-hidden="true"></div>
 <!-- HERO / INTRO SECTION -->
