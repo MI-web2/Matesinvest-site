@@ -88,11 +88,19 @@ function normalizeCode(code) {
 // Read "big universe" from asx-universe.txt (or env override)
 function readUniverseSync() {
   const override = process.env.UNIVERSE_FILE;
+  // Search several likely locations so Netlify / local dev both work.
   const candidates = override
-    ? [path.join(__dirname, override)]
+    ? [
+        path.join(__dirname, override),
+        path.join(process.cwd(), override),
+        path.join(process.cwd(), "netlify", "functions", override),
+      ]
     : [
         path.join(__dirname, "asx-universe.txt"),
+        path.join(process.cwd(), "asx-universe.txt"),
+        path.join(process.cwd(), "netlify", "functions", "asx-universe.txt"),
         path.join(__dirname, "asx200.txt"), // fallback if you temporarily re-use it
+        path.join(process.cwd(), "netlify", "functions", "asx200.txt"),
       ];
 
   for (const p of candidates) {
