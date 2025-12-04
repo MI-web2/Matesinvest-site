@@ -40,9 +40,11 @@
   schedule = "30 21 * * 1-5"
 
 [functions."snapshot-asx-universe"]
-  # Run once overnight AEST (adjust as you like)
-  schedule = "0 11 * * *" # 11:00 UTC ≈ 10pm AEST (no market open)
+  # Run repeatedly overnight in batches. This fires every 2 minutes between 11:00–23:59 UTC
+  # Each invocation processes one batch (reads offset from Upstash, writes part:<offset>, updates offset).
+  # Adjust the hour range or frequency if you prefer a different window.
+  schedule = "*/2 11-23 * * *"
 
 [functions."snapshot-asx-universe-prices"]
-  # Run once overnight AEST (adjust as you like)
-  schedule = "0 11 * * *" # 11:00 UTC ≈ 10pm AEST (no market open)
+  # Run repeatedly overnight in the same window (every 2 minutes between 11:00–23:59 UTC)
+  schedule = "*/2 11-23 * * *"
