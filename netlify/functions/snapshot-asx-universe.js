@@ -1,8 +1,19 @@
 // netlify/functions/snapshot-asx-universe.js
 //
-// Nightly snapshot of full ASX universe fundamentals for the screener.
-// Added batching (offset/limit) and extra logging to avoid timeouts on large universes.
-// Also supports optionally excluding companies whose name ends with "ETF" via EXCLUDE_ETF=1.
+// Batched snapshot writer: writes each processed batch to asx:universe:fundamentals:part:<offset>
+// and persists progress to asx:universe:offset. Does NOT overwrite the final "latest" key.
+//
+// Requirements (env):
+//   EODHD_API_TOKEN
+//   UPSTASH_REDIS_REST_URL
+//   UPSTASH_REDIS_REST_TOKEN
+//
+// Optional env:
+//   TRY_SUFFIXES (default "AU,AX,ASX")
+//   CONCURRENCY (default 8)
+//   RETRIES (default 2)
+//   BATCH_SIZE (default 200)
+//   EXCLUDE_ETF  (default "1" to exclude ETFs at snapshot level)
 
 const fs = require("fs");
 const path = require("path");
@@ -17,9 +28,7 @@ const DEFAULT_TRY_SUFFIXES = ["AU", "AX", "ASX"];
 const DEFAULT_CONCURRENCY = 8;
 const DEFAULT_RETRIES = 2;
 
-function sleep(ms) {
-  return new Promise((res) => setTimeout(res, ms));
-}
+function sleep(ms) { return new Promise((res) => setTimeout(res, ms)); }
 
 async function fetchWithTimeout(url, opts = {}, timeout = 15000) {
   const controller = new AbortController();
@@ -34,27 +43,39 @@ async function fetchWithTimeout(url, opts = {}, timeout = 15000) {
   }
 }
 
+// Upstash helpers
+async function redisGet(urlBase, token, key) {
+  if (!urlBase || !token) return null;
+  try {
+    const res = await fetchWithTimeout(`${urlBase}/get/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }, 10000);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("redisGet failed", key, res.status, txt && txt.slice(0, 200));
+      return null;
+    }
+    const j = await res.json().catch(() => null);
+    return j && typeof j.result !== "undefined" ? j.result : null;
+  } catch (err) {
+    console.warn("redisGet error", key, err && err.message);
+    return null;
+  }
+}
+
 async function redisSet(urlBase, token, key, value, ttlSeconds) {
   if (!urlBase || !token) return false;
   try {
-    const payload =
-      typeof value === "string" ? value : JSON.stringify(value);
+    const payload = typeof value === "string" ? value : JSON.stringify(value);
     const ttl = ttlSeconds ? `?EX=${Number(ttlSeconds)}` : "";
     const res = await fetchWithTimeout(
-      `${urlBase}/set/${encodeURIComponent(key)}/${encodeURIComponent(
-        payload
-      )}${ttl}`,
+      `${urlBase}/set/${encodeURIComponent(key)}/${encodeURIComponent(payload)}${ttl}`,
       { method: "POST", headers: { Authorization: `Bearer ${token}` } },
       15000
     );
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
-      console.warn(
-        "redisSet failed",
-        key,
-        res.status,
-        txt && txt.slice(0, 300)
-      );
+      console.warn("redisSet failed", key, res.status, txt && txt.slice(0, 300));
       return false;
     }
     return true;
@@ -65,200 +86,98 @@ async function redisSet(urlBase, token, key, value, ttlSeconds) {
 }
 
 function normalizeCode(code) {
-  return String(code || "")
-    .replace(/\.[A-Z0-9]{1,6}$/i, "")
-    .toUpperCase();
+  return String(code || "").replace(/\.[A-Z0-9]{1,6}$/i, "").toUpperCase();
 }
 
-// Helper to detect names that end with "ETF" (case-insensitive).
 function isEtfName(name) {
   if (!name || typeof name !== "string") return false;
-  // replace common punctuation/hyphen/parentheses with spaces, collapse whitespace
-  const cleaned = name
-    .replace(/[\u2013\u2014–—\-()]/g, " ")
-    .replace(/[\s\.,;:]+/g, " ")
-    .trim();
+  const cleaned = name.replace(/[\u2013\u2014–—\-()]/g, " ").replace(/[\s\.,;:]+/g, " ").trim();
   return /\bETF$/i.test(cleaned);
 }
 
-// Read "big universe" from asx-universe.txt (or env override)
 function readUniverseSync() {
   const override = process.env.UNIVERSE_FILE;
   const candidates = override
-    ? [
-        path.join(__dirname, override),
-        path.join(process.cwd(), override),
-        path.join(process.cwd(), "netlify", "functions", override),
-      ]
-    : [
-        path.join(__dirname, "asx-universe.txt"),
-        path.join(process.cwd(), "asx-universe.txt"),
-        path.join(process.cwd(), "netlify", "functions", "asx-universe.txt"),
-        path.join(__dirname, "asx200.txt"), // fallback
-        path.join(process.cwd(), "netlify", "functions", "asx200.txt"),
-      ];
-
+    ? [ path.join(__dirname, override), path.join(process.cwd(), override), path.join(process.cwd(), "netlify", "functions", override) ]
+    : [ path.join(__dirname, "asx-universe.txt"), path.join(process.cwd(), "asx-universe.txt"), path.join(process.cwd(), "netlify", "functions", "asx-universe.txt") ];
   for (const p of candidates) {
     try {
       if (fs.existsSync(p)) {
         const raw = fs.readFileSync(p, "utf8");
-        const parts = raw
-          .split(/[\s,]+/) // comma or whitespace separated
-          .map((s) => s.trim())
-          .filter(Boolean);
-        console.log(
-          `[snapshot-asx-universe] using universe file: ${p} (entries=${parts.length})`
-        );
-        return Array.from(new Set(parts.map((c) => c.toUpperCase())));
+        const parts = raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+        console.log(`[snapshot-asx-universe] using universe file: ${p} (entries=${parts.length})`);
+        return Array.from(new Set(parts.map(c => c.toUpperCase())));
       }
     } catch (err) {
-      console.warn(
-        `[snapshot-asx-universe] read failure for ${p}: ${err && err.message}`
-      );
+      console.warn(`[snapshot-asx-universe] read failure for ${p}: ${err && err.message}`);
     }
   }
-
-  throw new Error(
-    "Failed to read universe list: asx-universe.txt not found in expected locations."
-  );
-}
-
-// Optional: read ASX200 list to add a flag inAsx200
-function readAsx200Sync() {
-  const candidates = [
-    path.join(__dirname, "asx200.txt"),
-    path.join(process.cwd(), "netlify", "functions", "asx200.txt"),
-  ];
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) {
-        const raw = fs.readFileSync(p, "utf8");
-        const parts = raw
-          .split(/[\s,]+/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        console.log(
-          `[snapshot-asx-universe] using asx200 file: ${p} (entries=${parts.length})`
-        );
-        return new Set(parts.map((c) => c.toUpperCase()));
-      }
-    } catch (err) {
-      console.warn(
-        `[snapshot-asx-universe] asx200 read failure for ${p}: ${
-          err && err.message
-        }`
-      );
-    }
-  }
-  return new Set();
-}
-
-// Safe getter
-function get(obj, path, fallback = null) {
-  return path.split(".").reduce((acc, key) => {
-    if (acc && Object.prototype.hasOwnProperty.call(acc, key)) {
-      return acc[key];
-    }
-    return fallback;
-  }, obj);
+  throw new Error("Failed to read universe list");
 }
 
 exports.handler = async function (event) {
   const start = Date.now();
 
-  if (!EODHD_TOKEN) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Missing EODHD_API_TOKEN" }),
-    };
-  }
-  if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Missing Upstash env" }),
-    };
-  }
+  if (!EODHD_TOKEN) return { statusCode: 500, body: JSON.stringify({ error: "Missing EODHD_API_TOKEN" }) };
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) return { statusCode: 500, body: JSON.stringify({ error: "Missing Upstash env" }) };
 
   const qs = (event && event.queryStringParameters) || {};
-  const TRY_SUFFIXES = (
-    process.env.TRY_SUFFIXES
-      ? process.env.TRY_SUFFIXES.split(",")
-      : DEFAULT_TRY_SUFFIXES
-  )
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const CONCURRENCY = Number(
-    process.env.CONCURRENCY || DEFAULT_CONCURRENCY
-  );
+  const TRY_SUFFIXES = (process.env.TRY_SUFFIXES ? process.env.TRY_SUFFIXES.split(",") : DEFAULT_TRY_SUFFIXES).map(s => s.trim()).filter(Boolean);
+  const CONCURRENCY = Number(process.env.CONCURRENCY || DEFAULT_CONCURRENCY);
   const RETRIES = Number(process.env.RETRIES || DEFAULT_RETRIES);
-
-  // EXCLUDE_ETF (env) toggles skipping names that end with "ETF".
+  const BATCH_SIZE = Number(qs.limit || qs.size || process.env.BATCH_SIZE || 200);
   const EXCLUDE_ETF = String(process.env.EXCLUDE_ETF || "1") === "1";
 
-  let universeCodes;
-  let asx200Set;
+  // Load universe & asx200
+  let universeCodes, asx200Set;
   try {
     universeCodes = readUniverseSync();
-    asx200Set = readAsx200Sync();
+    // asx200 lookup optional
+    try {
+      const asx200Raw = fs.existsSync(path.join(__dirname, "asx200.txt")) ? fs.readFileSync(path.join(__dirname, "asx200.txt"), "utf8") : "";
+      const asxParts = asx200Raw ? asx200Raw.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean) : [];
+      asx200Set = new Set(asxParts.map(s => s.toUpperCase()));
+    } catch (e) { asx200Set = new Set(); }
   } catch (err) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: err.message }),
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: err && err.message }) };
   }
 
   const universeTotal = universeCodes.length;
   console.log(`[snapshot-asx-universe] universeTotal=${universeTotal}`);
 
-  // support batching: offset & limit (query params) or env BATCH_SIZE
-  const offset = Math.max(0, Number(qs.offset || qs.off || 0));
-  const limit = Number(
-    qs.limit ||
-      qs.size ||
-      process.env.BATCH_SIZE ||
-      200
-  );
-  const batchStart = offset;
-  const batchLimit = Math.max(1, Number(limit));
-
-  // Optional dev mode: &code=BHP to test a single ticker quickly
-  const singleCode = qs.code
-    ? String(qs.code).trim().toUpperCase()
-    : null;
-  if (singleCode) {
-    universeCodes = [singleCode];
-  } else {
-    // slice the universe for this run
-    universeCodes = universeCodes.slice(batchStart, batchStart + batchLimit);
+  // Prefer persisted offset from Upstash if qs.offset not provided
+  let offset = Math.max(0, Number(qs.offset || qs.off || 0));
+  if (!qs.offset) {
+    const rawOffset = await redisGet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:offset");
+    if (rawOffset) {
+      const parsed = Number(String(rawOffset));
+      if (!Number.isNaN(parsed)) offset = Math.max(0, parsed);
+    }
   }
 
-  console.log(
-    `[snapshot-asx-universe] running batch start=${batchStart} limit=${batchLimit} actual=${universeCodes.length} excludeETF=${EXCLUDE_ETF}`
-  );
+  // Single-code dev override
+  const singleCode = qs.code ? String(qs.code).trim().toUpperCase() : null;
+  const batchStart = offset;
+  const batchLimit = Math.max(1, Math.min(BATCH_SIZE, universeTotal - batchStart));
 
-  // Fundamentals fetch with retries
+  // Prepare the slice
+  const batchUniverse = singleCode ? [singleCode] : universeCodes.slice(batchStart, batchStart + batchLimit);
+  console.log(`[snapshot-asx-universe] running batch start=${batchStart} limit=${batchLimit} actual=${batchUniverse.length} excludeETF=${EXCLUDE_ETF}`);
+
+  // helper to fetch fundamentals with retries
   async function fetchFundamentals(fullCode) {
-    const url = `https://eodhd.com/api/fundamentals/${encodeURIComponent(
-      fullCode
-    )}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`;
-
+    const url = `https://eodhd.com/api/fundamentals/${encodeURIComponent(fullCode)}?api_token=${encodeURIComponent(EODHD_TOKEN)}&fmt=json`;
     let attempt = 0;
     let lastText = null;
-
     while (attempt <= RETRIES) {
       try {
         const res = await fetchWithTimeout(url, {}, 18000);
-        const text = await res.text().catch(() => "");
+        const text = await res.text().catch(()=>"");
         if (!res.ok) {
           lastText = text || lastText;
-          // Retry on 429/5xx
-          if (
-            res.status === 429 ||
-            (res.status >= 500 && res.status < 600)
-          ) {
+          if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
             const backoff = 400 * Math.pow(2, attempt);
-            await sleep(backoff + Math.random() * 250);
+            await sleep(backoff + Math.random() * 200);
             attempt++;
             continue;
           }
@@ -273,7 +192,7 @@ exports.handler = async function (event) {
       } catch (err) {
         lastText = String(err && err.message) || lastText;
         const backoff = 400 * Math.pow(2, attempt);
-        await sleep(backoff + Math.random() * 250);
+        await sleep(backoff + Math.random() * 200);
         attempt++;
       }
     }
@@ -292,213 +211,96 @@ exports.handler = async function (event) {
     return { baseCode, fullCode: null, data: null, attempts };
   }
 
+  // process batch with limited concurrency
   const items = [];
   const failures = [];
-
   let idx = 0;
-  const total = universeCodes.length;
-  const workers = new Array(Math.min(CONCURRENCY, total))
-    .fill(null)
-    .map(async () => {
-      while (true) {
-        const i = idx++;
-        if (i >= total) return;
-        const rawCode = universeCodes[i];
-        const base = normalizeCode(rawCode);
-
-        try {
-          const result = await getFundamentalsForBaseCode(base);
-          if (!result.data) {
-            failures.push({
-              code: base,
-              attempts: result.attempts,
-              reason: "no-fundamentals",
-            });
-            continue;
-          }
-
-          const d = result.data;
-          const general = d.General || {};
-          const highlights = d.Highlights || {};
-          const ratios =
-            d.ValuationRatios || d.Valuation || {};
-          const valuation = d.Valuation || {};
-          const defaultStats = d.DefaultKeyStatistics || {};
-
-          const price = Number(
-            highlights.Close ||
-              highlights.LastClose ||
-              highlights.LatestClose
-          );
-
-          const num = (v) =>
-            v === null || typeof v === "undefined" || v === ""
-              ? null
-              : Number(v);
-
-          const item = {
-            code: base,
-            name: general.Name || base,
-            sector: general.Sector || null,
-            industry: general.Industry || null,
-            inAsx200: asx200Set.has(base) ? 1 : 0,
-            price: Number.isFinite(price) ? price : null,
-            marketCap: num(
-              highlights.MarketCapitalization ||
-                general.MarketCapitalization
-            ),
-            pctChange: num(
-              highlights.ChangePercent ||
-                highlights.RelativePriceChange
-            ),
-            ebitda: num(highlights.EBITDA),
-            peRatio: num(
-              ratios.PERatio || highlights.PERatio
-            ),
-            pegRatio: num(
-              ratios.PEGRatio ||
-                highlights.PEGRatio ||
-                defaultStats.PEGRatio
-            ),
-            eps: num(
-              highlights.EarningsPerShare ||
-                highlights.EarningsShare
-            ),
-            bookValue: num(highlights.BookValue),
-            dividendPerShare: num(
-              highlights.DividendShare ||
-                get(
-                  d,
-                  "SplitsDividends.LastAnnualDividend"
-                )
-            ),
-            dividendYield: num(
-              get(
-                d,
-                "SplitsDividends.ForwardAnnualDividendYield",
-                highlights.DividendYield
-              )
-            ),
-            profitMargin: num(highlights.ProfitMargin),
-            operatingMargin: num(
-              highlights.OperatingMargin ||
-                highlights.OperatingMarginTTM
-            ),
-            returnOnAssets: num(
-              highlights.ReturnOnAssets ||
-                highlights.ReturnOnAssetsTTM
-            ),
-            returnOnEquity: num(
-              highlights.ReturnOnEquity ||
-                highlights.ReturnOnEquityTTM
-            ),
-            revenue: num(highlights.RevenueTTM || highlights.Revenue),
-            revenuePerShare: num(
-              highlights.RevenuePerShareTTM ||
-                highlights.RevenuePerShare
-            ),
-            grossProfit: num(
-              highlights.GrossProfitTTM ||
-                highlights.GrossProfit
-            ),
-            dilutedEps: num(
-              highlights.DilutedEpsTTM ||
-                highlights.DilutedEps
-            ),
-            quarterlyRevenueGrowthYoy: num(
-              highlights.QuarterlyRevenueGrowthYOY
-            ),
-            quarterlyEarningsGrowthYoy: num(
-              highlights.QuarterlyEarningsGrowthYOY
-            ),
-            trailingPE: num(
-              ratios.TrailingPE ||
-                valuation.TrailingPE ||
-                highlights.PERatio
-            ),
-            forwardPE: num(
-              ratios.ForwardPE || valuation.ForwardPE
-            ),
-            priceToSales: num(
-              ratios.PriceSalesTTM ||
-                ratios.PriceToSalesRatio ||
-                valuation.PriceSalesTTM
-            ),
-            priceToBook: num(
-              ratios.PriceBookMRQ ||
-                ratios.PriceToBookRatio ||
-                valuation.PriceBookMRQ
-            ),
-            enterpriseValue: num(
-              ratios.EnterpriseValue ||
-                valuation.EnterpriseValue
-            ),
-            evToRevenue: num(
-              ratios.EnterpriseValueRevenue ||
-                ratios.EnterpriseValueToRevenue ||
-                valuation.EnterpriseValueRevenue
-            ),
-            evToEbitda: num(
-              ratios.EnterpriseValueEbitda ||
-                ratios.EnterpriseValueToEBITDA ||
-                valuation.EnterpriseValueEbitda
-            ),
-          };
-
-          // Optionally skip ETFs based on company name
-          if (EXCLUDE_ETF && isEtfName(item.name)) {
-            console.log(`[snapshot-asx-universe] skipping ETF ${item.code} - ${item.name}`);
-            continue;
-          }
-
-          items.push(item);
-        } catch (err) {
-          console.warn(
-            "[snapshot-asx-universe] error for",
-            rawCode,
-            err && err.message
-          );
-          failures.push({
-            code: rawCode,
-            reason: "exception",
-            error: String(err && err.message),
-          });
+  const total = batchUniverse.length;
+  const workers = new Array(Math.min(CONCURRENCY, total)).fill(null).map(async () => {
+    while (true) {
+      const i = idx++;
+      if (i >= total) return;
+      const rawCode = batchUniverse[i];
+      const base = normalizeCode(rawCode);
+      try {
+        const result = await getFundamentalsForBaseCode(base);
+        if (!result.data) {
+          failures.push({ code: base, attempts: result.attempts, reason: "no-fundamentals" });
+          continue;
         }
+        const d = result.data;
+        const general = d.General || {};
+        const highlights = d.Highlights || {};
+        const ratios = d.ValuationRatios || d.Valuation || {};
+        const valuation = d.Valuation || {};
+        const defaultStats = d.DefaultKeyStatistics || {};
+        const price = Number(highlights.Close || highlights.LastClose || highlights.LatestClose);
+        const num = (v) => v === null || typeof v === "undefined" || v === "" ? null : Number(v);
+
+        const item = {
+          code: base,
+          name: general.Name || base,
+          sector: general.Sector || null,
+          industry: general.Industry || null,
+          inAsx200: asx200Set.has(base) ? 1 : 0,
+          price: Number.isFinite(price) ? price : null,
+          marketCap: num(highlights.MarketCapitalization || general.MarketCapitalization),
+          pctChange: num(highlights.ChangePercent || highlights.RelativePriceChange),
+          ebitda: num(highlights.EBITDA),
+          peRatio: num(ratios.PERatio || highlights.PERatio),
+          pegRatio: num(ratios.PEGRatio || highlights.PEGRatio || defaultStats.PEGRatio),
+          eps: num(highlights.EarningsPerShare || highlights.EarningsShare),
+          bookValue: num(highlights.BookValue),
+          dividendPerShare: num(highlights.DividendShare || get(d, "SplitsDividends.LastAnnualDividend")),
+          dividendYield: num(get(d, "SplitsDividends.ForwardAnnualDividendYield", highlights.DividendYield)),
+          profitMargin: num(highlights.ProfitMargin),
+          operatingMargin: num(highlights.OperatingMargin || highlights.OperatingMarginTTM),
+          returnOnAssets: num(highlights.ReturnOnAssets || highlights.ReturnOnAssetsTTM),
+          returnOnEquity: num(highlights.ReturnOnEquity || highlights.ReturnOnEquityTTM),
+          revenue: num(highlights.RevenueTTM || highlights.Revenue),
+          revenuePerShare: num(highlights.RevenuePerShareTTM || highlights.RevenuePerShare),
+          grossProfit: num(highlights.GrossProfitTTM || highlights.GrossProfit),
+          dilutedEps: num(highlights.DilutedEpsTTM || highlights.DilutedEps),
+          quarterlyRevenueGrowthYoy: num(highlights.QuarterlyRevenueGrowthYOY),
+          quarterlyEarningsGrowthYoy: num(highlights.QuarterlyEarningsGrowthYOY),
+          trailingPE: num(ratios.TrailingPE || valuation.TrailingPE || highlights.PERatio),
+          forwardPE: num(ratios.ForwardPE || valuation.ForwardPE),
+          priceToSales: num(ratios.PriceSalesTTM || ratios.PriceToSalesRatio || valuation.PriceSalesTTM),
+          priceToBook: num(ratios.PriceBookMRQ || ratios.PriceToBookRatio || valuation.PriceBookMRQ),
+          enterpriseValue: num(ratios.EnterpriseValue || valuation.EnterpriseValue),
+          evToRevenue: num(ratios.EnterpriseValueRevenue || ratios.EnterpriseValueToRevenue || valuation.EnterpriseValueRevenue),
+          evToEbitda: num(ratios.EnterpriseValueEbitda || ratios.EnterpriseValueToEBITDA || valuation.EnterpriseValueEbitda),
+        };
+
+        if (EXCLUDE_ETF && isEtfName(item.name)) {
+          console.log(`[snapshot-asx-universe] skipping ETF ${item.code} - ${item.name}`);
+          continue;
+        }
+
+        items.push(item);
+      } catch (err) {
+        console.warn("[snapshot-asx-universe] error for", rawCode, err && err.message);
+        failures.push({ code: rawCode, reason: "exception", error: String(err && err.message) });
       }
-    });
+    }
+  });
 
   await Promise.all(workers);
 
-  // Persist the result as a single blob (note: this is only the batch)
-  const key = "asx:universe:fundamentals:latest";
-  const payload = {
-    generatedAt: new Date().toISOString(),
-    universeTotal,       // original total count
-    batchStart,          // offset we processed
-    batchSize: universeCodes.length,
-    count: items.length,
-    items,
-  };
+  // Write per-part key and advance offset
+  const partKey = `asx:universe:fundamentals:part:${batchStart}`;
+  const payload = { generatedAt: new Date().toISOString(), universeTotal, batchStart, batchSize: batchUniverse.length, count: items.length, items };
+  const okPart = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, partKey, payload);
 
-  const ok = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, key, payload);
+  // Determine nextOffset (do not advance if singleCode used)
+  const nextOffset = singleCode ? batchStart : Math.min(universeTotal, batchStart + batchLimit);
+  const okOffset = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:offset", String(nextOffset));
+  await redisSet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:lastRun", new Date().toISOString());
 
-  const responseBody = {
-    ok,
-    key,
-    requestedUniverseTotal: universeTotal,
-    batchStart,
-    batchRequested: batchLimit,
-    batchProcessed: universeCodes.length,
-    collected: items.length,
-    failures: failures.slice(0, 40),
-    elapsedMs: Date.now() - start,
-  };
+  const excludedInThisBatch = batchUniverse.length - items.length - failures.length;
 
-  // helpful debugging log: Netlify will show this in function logs
+  const responseBody = { ok: okPart && okOffset, partKey, requestedUniverseTotal: universeTotal, batchStart, batchRequested: batchLimit, batchProcessed: batchUniverse.length, collected: items.length, failures: failures.slice(0,40), excludedInThisBatch, nextOffset, elapsedMs: Date.now() - start };
+
   console.log("[snapshot-asx-universe] response:", JSON.stringify(responseBody));
-
-  return {
-    statusCode: ok ? 200 : 500,
-    body: JSON.stringify(responseBody),
-  };
+  return { statusCode: okPart && okOffset ? 200 : 500, body: JSON.stringify(responseBody) };
 };
