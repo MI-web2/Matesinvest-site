@@ -123,10 +123,11 @@ exports.handler = async function () {
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 
-  // Bulk last-day prices for AU
-  const url = `https://eodhd.com/api/eod-bulk-last-day/AU?api_token=${encodeURIComponent(
-    EODHD_TOKEN
-  )}&fmt=json`;
+// Bulk last-day prices for AU, including previous close / change%
+const url = `https://eodhd.com/api/eod-bulk-last-day/AU?api_token=${encodeURIComponent(
+  EODHD_TOKEN
+)}&fmt=json&previous_close=1`;
+
 
   let rawArray;
   try {
