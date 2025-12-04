@@ -35,3 +35,8 @@
 [functions."snapshot-asx200-fundamentals"]
   # run overnight Mon–Fri AEST-ish
   schedule = "30 21 * * 1-5"
+
+[functions."snapshot-asx-universe"]
+  # Run once overnight AEST (adjust as you like)
+  schedule = "0 11 * * *" # 11:00 UTC ≈ 10pm AEST (no market open)
+
