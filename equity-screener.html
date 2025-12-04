@@ -238,12 +238,14 @@
         font-size: 0.84rem;
       }
 
-      thead {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        background: #f1f5f9;
-      }
+/* Sticky header row (all column headers) */
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;            /* header above body cells */
+  background: #f1f5f9;
+}
+
 
       th,
       td {
@@ -306,24 +308,26 @@
         white-space: nowrap;
       }
 
-/* ---------- STICKY FIRST COLUMN (CODE) ---------- */
+/* Sticky first column (Code) */
 th.sticky-col {
   position: sticky;
+  top: 0;                /* stick to top AND left */
   left: 0;
-  z-index: 6; /* higher than all other header cells */
+  z-index: 4;            /* above other headers */
   background: #f1f5f9;
 }
 
 td.sticky-col {
   position: sticky;
   left: 0;
-  z-index: 4; /* lower than header but above body cells */
+  z-index: 2;            /* above normal body cells, below headers */
   background: #ffffff;
 }
 
 tbody tr:nth-child(even) td.sticky-col {
   background: #f8fafc;
 }
+
 
 
       /* ---------- MOBILE TWEAKS ---------- */
