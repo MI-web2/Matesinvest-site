@@ -1444,6 +1444,10 @@
   font-size:0.78rem;
   color: var(--muted-2);
 }
+    /* Add a consistent top spacing before the Morning Note */
+.mates-note-wrapper {
+  margin-top: 1rem; /* match the card gap spacing */
+}
   </style>
 
 </head>
@@ -2506,16 +2510,34 @@ function renderMorningBrief(payload) {
   // Expose globally so loadStockOfTheDay() can use the same stock
   window._mates_sotd = sotdCandidate;
 
-  // Mates Morning Note placeholder
-  const matesPlaceholder = `
-    <div id="matesMorningNote" class="mates-note" style="display:none;">
-      <div class="mates-note-header">
-        <span class="pill">Mates Morning Note</span>
-        <span id="matesNoteTimestamp" class="timestamp">Updated —</span>
-      </div>
-      <div id="matesNoteText" class="mates-note-body">Loading today’s note…</div>
+// Morning Note placeholder
+const matesPlaceholder = `
+  <div id="matesMorningNote" class="mates-note" style="display:none;">
+    
+    <div class="mates-note-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
+      <span class="pill" style="
+        background:#e0f2ff;
+        border:1px solid #bfe4ff;
+        padding:0.3rem 0.75rem;
+        font-size:0.78rem;
+        border-radius:999px;
+        color:#005884;
+        font-weight:600;
+        white-space:nowrap;
+      ">Morning Note</span>
+
+      <span id="matesNoteTimestamp" class="timestamp" style="font-size:0.78rem; color:var(--muted-2);">
+        Updated —
+      </span>
     </div>
-  `;
+
+    <div id="matesNoteText" class="mates-note-body" style="white-space:pre-line; font-size:0.9rem; line-height:1.5;">
+      Loading today’s note…
+    </div>
+
+  </div>
+`;
+
 
   // SOTD placeholder
   const sotdTickerText =
