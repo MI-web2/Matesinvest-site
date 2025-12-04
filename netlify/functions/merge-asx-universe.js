@@ -1,7 +1,11 @@
-// merge-asx-universe.js
-// Run this locally or as a separate function after you have processed all batches.
-// It will fetch each per-part key and merge into a single deduped latest blob:
-// writes asx:universe:fundamentals:latest
+// netlify/functions/merge-asx-universe.js
+// Robust merge script for per-part snapshots into a single deduped latest blob.
+// Safe: refuses to write an empty latest and logs missing parts.
+//
+// Usage (locally):
+//   UPSTASH_REDIS_REST_URL=... UPSTASH_REDIS_REST_TOKEN=... node merge-asx-universe.js
+//
+// Or deploy as a Netlify function and call it once parts are done.
 
 const fs = require("fs");
 const path = require("path");
@@ -28,16 +32,14 @@ function readUniverseSync() {
   throw new Error("asx-universe.txt not found locally (needed to know universeTotal and batch offsets).");
 }
 
-// Small helper to GET a key from Upstash REST API
 async function redisGet(key) {
   const url = `${UPSTASH_URL}/get/${encodeURIComponent(key)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }});
   if (!res.ok) throw new Error(`Upstash GET failed ${res.status}`);
   const j = await res.json();
-  return j.result || null; // Upstash returns { result: <value|null> }
+  return j.result || null;
 }
 
-// Set key
 async function redisSet(key, value) {
   const payload = typeof value === "string" ? value : JSON.stringify(value);
   const url = `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(payload)}`;
@@ -51,13 +53,16 @@ async function redisSet(key, value) {
     const universe = readUniverseSync();
     const universeTotal = universe.length;
     const batchSize = Number(process.env.BATCH_SIZE || 200);
+
+    console.log("merge: universeTotal=", universeTotal, "batchSize=", batchSize);
+
     const parts = [];
     for (let offset = 0; offset < universeTotal; offset += batchSize) {
       const key = `asx:universe:fundamentals:part:${offset}`;
-      console.log("fetching", key);
+      console.log("merge: fetching", key);
       const raw = await redisGet(key);
       if (!raw) {
-        console.warn("missing part", key);
+        console.warn("merge: missing part", key);
         continue;
       }
       let parsed;
@@ -66,29 +71,56 @@ async function redisSet(key, value) {
       } catch (e) {
         parsed = raw;
       }
-      if (parsed && Array.isArray(parsed.items)) parts.push(parsed);
+
+      // Accept either an array of rows, or an object with .items
+      if (Array.isArray(parsed)) {
+        parts.push({ batchStart: offset, batchSize: parsed.length, items: parsed });
+        console.log(`merge: part ${offset} is raw array (len=${parsed.length})`);
+      } else if (parsed && Array.isArray(parsed.items)) {
+        parts.push(parsed);
+        console.log(`merge: part ${offset} ok (items=${parsed.items.length})`);
+      } else {
+        console.warn(`merge: part ${offset} unexpected shape — skipping`);
+      }
     }
 
-    // Merge and dedupe by code (keep first encountered)
+    if (parts.length === 0) {
+      throw new Error("No parts found to merge — aborting (will not overwrite latest).");
+    }
+
+    // Merge and dedupe by code (preserve order by batchStart)
+    parts.sort((a,b) => (a.batchStart || 0) - (b.batchStart || 0));
     const mergedMap = new Map();
-    parts.sort((a,b) => a.batchStart - b.batchStart); // ensure order
     for (const p of parts) {
+      if (!Array.isArray(p.items)) continue;
       for (const it of p.items) {
-        const code = it.code;
+        if (!it || !it.code) continue;
+        const code = String(it.code).toUpperCase();
         if (!mergedMap.has(code)) mergedMap.set(code, it);
       }
+    }
+
+    const mergedItems = Array.from(mergedMap.values());
+    if (mergedItems.length === 0) {
+      throw new Error("Merged items empty — aborting (no write).");
     }
 
     const merged = {
       generatedAt: new Date().toISOString(),
       universeTotal,
       partCount: parts.length,
-      count: mergedMap.size,
-      items: Array.from(mergedMap.values()),
+      count: mergedItems.length,
+      items: mergedItems,
     };
 
+    // Write to a temporary key first, then atomically set latest (Upstash REST has only SET)
+    const tmpKey = `asx:universe:fundamentals:latest:tmp:${Date.now()}`;
+    console.log("merge: writing tmp", tmpKey);
+    await redisSet(tmpKey, merged);
+    console.log("merge: moving tmp to latest");
     await redisSet("asx:universe:fundamentals:latest", merged);
-    console.log("merged saved:", merged.count, "items");
+    // optional: delete tmp or leave for audit
+    console.log("merge saved. merged count=", merged.count);
   } catch (err) {
     console.error("merge failed:", err && err.message);
     process.exit(2);
