@@ -48,3 +48,8 @@
 [functions."snapshot-asx-universe-prices"]
   # Run repeatedly overnight in the same window (every 2 minutes between 11:00–23:59 UTC)
   schedule = "*/2 11-23 * * *"
+  
+  # Merge job: run shortly after snapshot window ends so all parts are expected to be written.
+# Runs daily at 00:05 UTC; second run at 02:05 UTC as a fallback.
+[functions."merge-asx-universe"]
+  schedule = "5 0,2 * * *"
