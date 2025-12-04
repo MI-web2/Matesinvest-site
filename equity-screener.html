@@ -394,6 +394,226 @@
           display: none; /* hide long caption on very small screens */
         }
       }
+      /* ---------- Instrument modal (shared with mates-summaries) ---------- */
+
+.mi-ins-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.mi-ins-modal {
+  background: #0b1020;
+  color: #f9fafb;
+  border-radius: 18px;
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+  width: 100%;
+  padding: 20px 22px 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  position: relative;
+}
+
+.mi-ins-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  position: sticky;
+  top: 0;
+  background: #0b1020;
+  z-index: 50;
+  padding-bottom: 8px;
+  padding-top: 6px;
+}
+
+.mi-ins-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.mi-ins-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.mi-ins-price-block {
+  text-align: right;
+}
+
+.mi-ins-price {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.mi-ins-change {
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.mi-ins-change.up {
+  color: #4ade80;
+}
+
+.mi-ins-change.down {
+  color: #f97373;
+}
+
+.mi-ins-date {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 3px;
+}
+
+.mi-ins-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 20px;
+  color: #9ca3af;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  z-index: 200;
+}
+
+.mi-ins-close:hover {
+  color: #e5e7eb;
+}
+
+.mi-ins-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.mi-ins-tag {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(31, 41, 55, 0.85);
+  color: #e5e7eb;
+  border: 1px solid rgba(55, 65, 81, 0.9);
+}
+
+.mi-ins-section {
+  margin-bottom: 14px;
+}
+
+.mi-ins-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: #d1d5db;
+}
+
+.mi-ins-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+
+.mi-ins-stat-item {
+  font-size: 12px;
+}
+
+.mi-ins-stat-label {
+  color: #9ca3af;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.mi-ins-stat-value {
+  font-weight: 500;
+}
+
+.mi-ins-history-summary {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+
+#mi-ins-chart {
+  width: 100%;
+  height: 220px;
+  margin-top: 10px;
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 12px;
+}
+
+.mi-ins-ai-summary {
+  font-size: 0.9rem;
+  color: #e5e7eb;
+  background: rgba(15, 23, 42, 0.65);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  line-height: 1.4;
+}
+
+/* News list inside modal */
+.mi-ins-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.mi-ins-news-item {
+  padding: 8px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.mi-ins-news-item-title {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.mi-ins-news-item-meta {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.mi-ins-news-item a {
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+
+.mi-ins-news-item a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .mi-ins-modal {
+    margin: 10px;
+    padding: 16px 14px 18px;
+  }
+
+  .mi-ins-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .mi-ins-price-block {
+    text-align: left;
+  }
+
+  .mi-ins-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
     </style>
   </head>
   <body>
@@ -783,8 +1003,9 @@
             const evBn = toBillions(item.enterpriseValue);
 
             return `
-              <tr>
-                <td class="sticky-col"><strong>${item.code}</strong></td>
+  <tr data-code="${item.code}" data-type="equity">
+    <td class="sticky-col"><strong>${item.code}</strong></td>
+
                 <td>${item.name || ""}</td>
                 <td><span class="pill">${item.sector || "Unknown"}</span></td>
 
@@ -887,6 +1108,446 @@
       });
 
       loadData();
+      // ---------- Instrument helpers (reuse instrument-details from mates-summaries) ----------
+
+async function miFetchInstrumentDetails(type, code) {
+  const url = `/.netlify/functions/instrument-details?type=${encodeURIComponent(
+    type
+  )}&code=${encodeURIComponent(code)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`instrument-details failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+async function miFetchAiSummary(type, code) {
+  const url = `/.netlify/functions/instrument-ai-summary?type=${encodeURIComponent(
+    type
+  )}&code=${encodeURIComponent(code)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`instrument-ai-summary failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+// Use your existing newsFeed function, but scoped to a single symbol
+async function miFetchInstrumentNews(code) {
+  // MarketAux + EODHD-backed news feed supports symbols= param already on mates-summaries. :contentReference[oaicite:4]{index=4}
+  const params = new URLSearchParams({
+    symbols: `${code}.AX`,
+    per_page: "6",
+  });
+  const res = await fetch("/.netlify/functions/newsFeed?" + params.toString());
+  if (!res.ok) {
+    throw new Error(`newsFeed failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.articles || [];
+}
+
+// ---------- Formatting helpers ----------
+
+function miFormatCurrency(n, currency = "AUD") {
+  if (typeof n !== "number" || !isFinite(n)) return null;
+  try {
+    return new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return n.toFixed(2);
+  }
+}
+
+function miFormatCompactNumber(n) {
+  if (typeof n !== "number" || !isFinite(n)) return null;
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
+  if (abs >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (abs >= 1_000) return (n / 1_000).toFixed(1) + "k";
+  return n.toFixed(0);
+}
+
+function miFormatPercent(n, digits = 2) {
+  if (typeof n !== "number" || !isFinite(n)) return null;
+  return n.toFixed(digits) + "%";
+}
+
+function miFormatDate(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+// ---------- Chart renderer (same idea as mates-summaries) ----------
+
+function miRenderChart(history) {
+  const canvas = document.getElementById("mi-ins-chart");
+  if (!canvas || !history || !Array.isArray(history.points)) return;
+
+  const ctx = canvas.getContext("2d");
+  const pts = history.points.map((p) => p[1]).filter((x) => typeof x === "number");
+
+  const w = canvas.width;
+  const h = canvas.height;
+
+  ctx.clearRect(0, 0, w, h);
+
+  if (pts.length < 2) {
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = "12px system-ui";
+    ctx.fillText("No chart data available", 12, 20);
+    return;
+  }
+
+  const min = Math.min(...pts);
+  const max = Math.max(...pts);
+  const padX = 20;
+  const padY = 10;
+
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#38bdf8";
+  ctx.beginPath();
+
+  pts.forEach((v, i) => {
+    const x = padX + (i / (pts.length - 1)) * (w - padX * 2);
+    const y = h - padY - ((v - min) / (max - min)) * (h - padY * 2);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+
+  ctx.stroke();
+
+  const gradient = ctx.createLinearGradient(0, padY, 0, h);
+  gradient.addColorStop(0, "rgba(56,189,248,0.25)");
+  gradient.addColorStop(1, "rgba(56,189,248,0.0)");
+
+  ctx.lineTo(w - padX, h - padY);
+  ctx.lineTo(padX, h - padY);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+}
+
+// ---------- Modal open/close + populate ----------
+
+function miOpenInstrumentModal(data) {
+  const overlay = document.getElementById("mi-instrument-overlay");
+  if (!overlay) return;
+
+  const latest = data.latest || {};
+  const f = data.fundamentals || {};
+
+  const titleEl = document.getElementById("mi-ins-title");
+  const subtitleEl = document.getElementById("mi-ins-subtitle");
+  const priceEl = document.getElementById("mi-ins-price");
+  const changeEl = document.getElementById("mi-ins-change");
+  const dateEl = document.getElementById("mi-ins-date");
+  const tagsEl = document.getElementById("mi-ins-tags");
+  const statsEl = document.getElementById("mi-ins-stats");
+  const historySummaryEl = document.getElementById("mi-ins-history-summary");
+  const aiSummaryEl = document.getElementById("mi-ins-ai-summary");
+  const newsEl = document.getElementById("mi-ins-news");
+
+  const name = data.name || data.code || "";
+  const code = data.code || "";
+  const sector = f.sector || "";
+  const industry = f.industry || "";
+  const sizeBucket = f.sizeBucket || null;
+
+  // Header
+  if (titleEl) titleEl.textContent = name;
+  if (subtitleEl) {
+    const bits = [];
+    if (code) bits.push(code);
+    if (sector) bits.push(sector);
+    subtitleEl.textContent = bits.join(" • ") || "";
+  }
+
+  // Price + change
+  const priceNum =
+    typeof latest.price === "number" && isFinite(latest.price)
+      ? latest.price
+      : null;
+  const pctChange =
+    typeof latest.pctChange === "number" && isFinite(latest.pctChange)
+      ? latest.pctChange
+      : null;
+
+  if (priceEl) {
+    priceEl.textContent =
+      priceNum !== null
+        ? miFormatCurrency(priceNum, f.currency || "AUD")
+        : "—";
+  }
+
+  if (changeEl) {
+    changeEl.classList.remove("up", "down");
+    if (pctChange === null) {
+      changeEl.textContent = "Change: —";
+    } else {
+      const arrow = pctChange > 0 ? "▲" : pctChange < 0 ? "▼" : "•";
+      changeEl.textContent = `${arrow} ${pctChange.toFixed(2)}% yesterday`;
+      if (pctChange > 0) changeEl.classList.add("up");
+      else if (pctChange < 0) changeEl.classList.add("down");
+    }
+  }
+
+  if (dateEl) {
+    const d = miFormatDate(latest.date);
+    dateEl.textContent = d ? `as at ${d}` : "";
+  }
+
+  // Tags
+  if (tagsEl) {
+    tagsEl.innerHTML = "";
+    const tags = [];
+    if (sizeBucket) {
+      const label =
+        sizeBucket === "mega"
+          ? "Mega cap"
+          : sizeBucket === "large"
+          ? "Large cap"
+          : sizeBucket === "mid"
+          ? "Mid cap"
+          : sizeBucket === "small"
+          ? "Small cap"
+          : null;
+      if (label) tags.push(label);
+    }
+    if (sector) tags.push(sector);
+    if (industry) tags.push(industry);
+
+    tags.forEach((t) => {
+      const span = document.createElement("span");
+      span.className = "mi-ins-tag";
+      span.textContent = t;
+      tagsEl.appendChild(span);
+    });
+  }
+
+  // Stats
+  if (statsEl) {
+    statsEl.innerHTML = "";
+    const addStat = (label, valueStr) => {
+      if (!valueStr) return;
+      const item = document.createElement("div");
+      item.className = "mi-ins-stat-item";
+      const lab = document.createElement("span");
+      lab.className = "mi-ins-stat-label";
+      lab.textContent = label;
+      const val = document.createElement("span");
+      val.className = "mi-ins-stat-value";
+      val.textContent = valueStr;
+      item.appendChild(lab);
+      item.appendChild(val);
+      statsEl.appendChild(item);
+    };
+
+    if (typeof f.marketCap === "number" && isFinite(f.marketCap)) {
+      addStat("Market cap", miFormatCompactNumber(f.marketCap));
+    }
+    if (typeof f.revenueLastYear === "number" && isFinite(f.revenueLastYear)) {
+      addStat("Revenue (last year)", miFormatCompactNumber(f.revenueLastYear));
+    }
+    if (typeof f.netIncomeLastYear === "number" && isFinite(f.netIncomeLastYear)) {
+      addStat("Net profit (last year)", miFormatCompactNumber(f.netIncomeLastYear));
+    }
+    if (typeof f.pe === "number" && isFinite(f.pe)) {
+      addStat("P/E ratio", f.pe.toFixed(2) + "×");
+    }
+    if (typeof f.dividendYield === "number" && isFinite(f.dividendYield)) {
+      addStat("Dividend yield", miFormatPercent(f.dividendYield, 2));
+    }
+    if (typeof f.paysDividend === "boolean") {
+      addStat("Pays dividend", f.paysDividend ? "Yes" : "No");
+    }
+    if (typeof f.eps === "number" && isFinite(f.eps)) {
+      addStat("Earnings per share", f.eps.toFixed(2));
+    }
+  }
+
+  // History summary + chart
+  const h = data.history;
+  if (historySummaryEl) {
+    if (h && Array.isArray(h.points) && h.points.length > 1) {
+      const start = miFormatDate(h.startDate);
+      const end = miFormatDate(h.endDate);
+      historySummaryEl.textContent =
+        start && end
+          ? `Showing daily closes from ${start} to ${end}.`
+          : "Showing last 6 months of daily closes.";
+    } else {
+      historySummaryEl.textContent = "Price history not available.";
+    }
+  }
+  if (h) miRenderChart(h);
+
+  // AI summary
+  if (aiSummaryEl) {
+    aiSummaryEl.textContent =
+      "We’re loading a short AI snapshot for this company…";
+    miFetchAiSummary("equity", data.code || "")
+      .then((s) => {
+        if (s && s.summary) {
+          aiSummaryEl.textContent = s.summary;
+        } else {
+          aiSummaryEl.textContent =
+            "We couldn’t generate a summary right now.";
+        }
+      })
+      .catch((err) => {
+        console.error("AI summary error", err);
+        aiSummaryEl.textContent =
+          "We couldn’t generate a summary right now.";
+      });
+  }
+
+  // News
+  if (newsEl) {
+    newsEl.textContent = "Loading headlines for this name…";
+    miFetchInstrumentNews(code)
+      .then((articles) => {
+        if (!articles.length) {
+          newsEl.textContent = "No recent headlines found for this code.";
+          return;
+        }
+        const html = articles
+          .slice(0, 6)
+          .map((a) => {
+            const when = a.publishedAt || a.published || "";
+            const d = miFormatDate(when) || "";
+            const source = a.source || "";
+            const title = a.title || "";
+            return `
+              <div class="mi-ins-news-item">
+                <div class="mi-ins-news-item-title">${title}</div>
+                <div class="mi-ins-news-item-meta">
+                  ${source}${d ? " • " + d : ""}
+                </div>
+                ${
+                  a.url
+                    ? `<a href="${a.url}" target="_blank" rel="noopener">Read original →</a>`
+                    : ""
+                }
+              </div>
+            `;
+          })
+          .join("");
+        newsEl.innerHTML = `<div class="mi-ins-news-list">${html}</div>`;
+      })
+      .catch((err) => {
+        console.error("Instrument news error", err);
+        newsEl.textContent = "Couldn’t load news right now.";
+      });
+  }
+
+  overlay.style.display = "flex";
+  overlay.setAttribute("aria-hidden", "false");
+}
+
+function miCloseInstrumentModal() {
+  const overlay = document.getElementById("mi-instrument-overlay");
+  if (!overlay) return;
+  overlay.style.display = "none";
+  overlay.setAttribute("aria-hidden", "true");
+}
+
+// ---------- Wire up row clicks to open modal ----------
+
+tableBody.addEventListener("click", async (e) => {
+  const row = e.target.closest("tr[data-code]");
+  if (!row) return;
+
+  const code = row.getAttribute("data-code");
+  const type = row.getAttribute("data-type") || "equity";
+
+  try {
+    const data = await miFetchInstrumentDetails(type, code);
+    miOpenInstrumentModal(data);
+  } catch (err) {
+    console.error("Failed to load instrument details", err);
+    alert("Sorry, we couldn't load that company at the moment.");
+  }
+});
+
+// Close from X button or clicking backdrop
+document.getElementById("mi-ins-close-btn")?.addEventListener("click", miCloseInstrumentModal);
+
+document.getElementById("mi-instrument-overlay")?.addEventListener("click", (e) => {
+  if (e.target.id === "mi-instrument-overlay") {
+    miCloseInstrumentModal();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    miCloseInstrumentModal();
+  }
+});
     </script>
+    <!-- Instrument details modal for screener -->
+<div id="mi-instrument-overlay" class="mi-ins-overlay" aria-hidden="true">
+  <div class="mi-ins-modal" role="dialog" aria-modal="true" aria-labelledby="mi-ins-title">
+    <div class="mi-ins-header">
+      <div>
+        <h2 id="mi-ins-title" class="mi-ins-title">Instrument name</h2>
+        <div id="mi-ins-subtitle" class="mi-ins-subtitle">CODE • Sector</div>
+      </div>
+      <div class="mi-ins-price-block">
+        <div id="mi-ins-price" class="mi-ins-price">$0.00</div>
+        <div id="mi-ins-change" class="mi-ins-change">+0.0% today</div>
+        <div id="mi-ins-date" class="mi-ins-date">as at —</div>
+      </div>
+      <button
+        class="mi-ins-close"
+        type="button"
+        id="mi-ins-close-btn"
+        aria-label="Close"
+      >
+        ✕
+      </button>
+    </div>
+
+    <div id="mi-ins-tags" class="mi-ins-tags"></div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Key stats</h3>
+      <div id="mi-ins-stats" class="mi-ins-stats-grid"></div>
+    </div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Price history</h3>
+      <div class="mi-ins-history">
+        <div id="mi-ins-history-summary" class="mi-ins-history-summary">
+          Showing last 6 months of daily closes.
+        </div>
+        <canvas id="mi-ins-chart" width="600" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Company snapshot</h3>
+      <div id="mi-ins-ai-summary" class="mi-ins-ai-summary">
+        We’re loading a short AI summary for this company…
+      </div>
+    </div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Latest news</h3>
+      <div id="mi-ins-news">
+        Loading headlines for this name…
+      </div>
+    </div>
+  </div>
+</div>
   </body>
 </html>
