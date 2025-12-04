@@ -1,6 +1,9 @@
 [functions]
   directory = "netlify/functions"
-  included_files = ["netlify/functions/asx200.txt"]
+  included_files = [
+    "netlify/functions/asx200.txt",
+    "netlify/functions/asx-universe.txt"
+  ]
   node_bundler = "esbuild"
 
 [functions."snapshot-metals"]
@@ -39,4 +42,3 @@
 [functions."snapshot-asx-universe"]
   # Run once overnight AEST (adjust as you like)
   schedule = "0 11 * * *" # 11:00 UTC ≈ 10pm AEST (no market open)
-
