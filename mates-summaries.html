@@ -1414,7 +1414,43 @@
 .feedback-inline a:hover {
   color: var(--cyan);
 }
+@media (max-width: 640px) {
+  .hero-intro h1 {
+    font-size: 1.45rem !important;
+    line-height: 1.25 !important;
+  }
 
+  .hero-intro p {
+    font-size: 0.95rem !important;
+    line-height: 1.35 !important;
+  }
+}
+    /* Mates Morning Note */
+.mates-note {
+  background:#f9fbff;
+  border: 1px solid #dbeafe;
+  padding: 0.95rem 1rem;
+  border-radius: 14px;
+}
+
+.mates-note-body {
+  font-size:0.9rem;
+  line-height:1.5;
+  color:#0b1220;
+  white-space: pre-line;  /* show line breaks from the text */
+}
+
+.mates-note .timestamp {
+  font-size:0.78rem;
+  color: var(--muted-2);
+}
+    /* Add a consistent top spacing before the Morning Note */
+.mates-note-wrapper {
+  margin-top: 1rem; /* match the card gap spacing */
+}
+    .mates-note {
+  margin-top: 0.8rem; /* matches gap between the top performer cards */
+}
   </style>
 
 </head>
@@ -1444,41 +1480,81 @@
 
   <div class="page-shell">
     <div class="corner-pattern" aria-hidden="true"></div>
+<!-- HERO / INTRO SECTION -->
+<section class="hero-intro" style="margin-bottom: 1.5rem;">
+  <div style="
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 1.6rem 1.8rem;
+    box-shadow: 0 10px 30px rgba(15,23,42,0.08);
+  ">
+    <!-- Main heading -->
+    <h1 style="margin-top:0; margin-bottom:0.4rem; font-size:1.75rem; font-weight:700; color:var(--navy);">
+      MatesFeed — ASX in Plain English
+    </h1>
 
+    <!-- Value proposition -->
+    <p style="margin:0; margin-bottom:1rem; font-size:1rem; color:var(--muted);">
+      Daily ASX market summary, updated every morning at <strong>6:05am AEST</strong>.
+      No jargon. No noise. Just the stuff that actually moved the market.
+    </p>
+
+    <!-- CTA buttons -->
+    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-top:0.75rem;">
+
+      <!-- Morning brief button now controls the brief -->
+      <button
+        id="openBrief"
+        type="button"
+        style="
+          padding:0.65rem 1.2rem;
+          border-radius:999px;
+          font-weight:600;
+          font-size:0.95rem;
+          color:#001220;
+          background:var(--accent);
+          border:1px solid transparent;
+          box-shadow:0 5px 14px rgba(15,23,42,0.22);
+          cursor:pointer;
+        ">
+        Read Today’s Morning Brief
+      </button>
+
+      <!-- Subscribe button -->
+      <a href="/join.html"
+        style="
+          padding:0.65rem 1.2rem;
+          border-radius:999px;
+          font-weight:600;
+          font-size:0.95rem;
+          color:#0b1220;
+          background:#ffffff;
+          border:1px solid #cfd8e3;
+          text-decoration:none;
+        ">
+        Get the 6:05am Email
+      </a>
+    </div>
+
+    <!-- New here? explainer -->
+    <p style="margin:0; margin-top:1rem; font-size:0.85rem; color:var(--muted-2);">
+      New here? This page updates daily with a plain-English ASX brief + live headlines.
+      Perfect for Aussie investors who want quick insights before the market opens.
+    </p>
+
+    <!-- Morning brief content now lives inside the hero card -->
+    <div id="briefContent" class="brief-content" aria-live="polite">
+      <!-- injected by JS -->
+    </div>
+  </div>
+</section>
     <!-- HERO (kept for accessibility/SEO but visually hidden) -->
     <h1 class="visually-hidden">MatesFeed</h1>
-    <!-- MORNING BRIEF -->
-    <section id="morningBrief" class="card">
-      <div class="brief-header">
-<div>
-  <h2 style="margin:0">Morning Briefing</h2>
-  <div class="brief-subtitle">
-    A short note on what could move markets in Australia today.
-  </div>
-</div>
 
-<div class="brief-controls">
-  <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
-</div>
-
-      </div>
-
-      <div id="briefContent" class="brief-content" aria-live="polite">
-        <!-- injected by JS -->
-      </div>
-    </section>
-<a href="/join.html"
-   style="
-     font-size:0.9rem;
-     color:var(--navy);
-     text-decoration:none;
-     font-weight:600;
-   ">
-   Subscribe to the Daily Email →
-</a>
-<div class="feedback-inline">
-  <a href="/mates-feedback.html">💬 Give feedback</a>
-</div>
+    <div class="feedback-inline">
+      <a href="/mates-feedback.html">💬 Give feedback</a>
+    </div>
 
     <!-- LATEST HEADLINES -->
     <section id="news" class="card" aria-labelledby="latest-headlines">
@@ -2437,16 +2513,34 @@ function renderMorningBrief(payload) {
   // Expose globally so loadStockOfTheDay() can use the same stock
   window._mates_sotd = sotdCandidate;
 
-  // Mates Morning Note placeholder
-  const matesPlaceholder = `
-    <div id="matesMorningNote" class="mates-note" style="display:none;">
-      <div class="mates-note-header">
-        <span class="pill">Mates Morning Note</span>
-        <span id="matesNoteTimestamp" class="timestamp">Updated —</span>
-      </div>
-      <div id="matesNoteText" class="mates-note-body">Loading today’s note…</div>
+// Morning Note placeholder
+const matesPlaceholder = `
+  <div id="matesMorningNote" class="mates-note" style="display:none;">
+    
+    <div class="mates-note-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
+      <span class="pill" style="
+        background:#e0f2ff;
+        border:1px solid #bfe4ff;
+        padding:0.3rem 0.75rem;
+        font-size:0.78rem;
+        border-radius:999px;
+        color:#005884;
+        font-weight:600;
+        white-space:nowrap;
+      ">Morning Note</span>
+
+      <span id="matesNoteTimestamp" class="timestamp" style="font-size:0.78rem; color:var(--muted-2);">
+        Updated —
+      </span>
     </div>
-  `;
+
+    <div id="matesNoteText" class="mates-note-body" style="white-space:pre-line; font-size:0.9rem; line-height:1.5;">
+      Loading today’s note…
+    </div>
+
+  </div>
+`;
+
 
   // SOTD placeholder
   const sotdTickerText =
