@@ -27,8 +27,11 @@
         box-sizing: border-box;
       }
 
+      html,
       body {
         margin: 0;
+        max-width: 100%;
+        overflow-x: hidden; /* stop whole page from sliding sideways */
         font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
         background: radial-gradient(circle at top, #dbeafe 0, #f5f7fb 55%);
         color: var(--navy);
@@ -40,7 +43,7 @@
         padding: 1.5rem 1.25rem 2.5rem;
       }
 
-      /* ---------- TOP NAV (MATCHING MATES-SUMMARIES STYLE) ---------- */
+      /* ---------- TOP NAV ---------- */
 
       .top-nav {
         display: flex;
@@ -63,17 +66,10 @@
         color: inherit;
       }
 
-      .nav-logo-mark {
-        width: 32px;
+      .nav-logo-img {
         height: 32px;
-        border-radius: 999px;
-        background: linear-gradient(135deg, #00bfff, #0093cc);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #f9fafb;
-        font-weight: 700;
-        font-size: 0.9rem;
+        width: auto;
+        display: block;
       }
 
       .nav-logo-text {
@@ -132,7 +128,7 @@
         font-size: 0.9rem;
       }
 
-      /* ---------- FILTER CARD (TIDIER / BRANDED) ---------- */
+      /* ---------- FILTER CARD ---------- */
 
       .filters-card {
         background: var(--glass);
@@ -203,6 +199,7 @@
         outline: none;
         background: #f8fafc;
         font-size: 0.82rem;
+        width: 100%;
       }
 
       input::placeholder {
@@ -229,13 +226,14 @@
       .table-scroll {
         width: 100%;
         max-height: calc(100vh - 260px);
-        overflow: auto;
+        overflow-x: auto; /* horizontal scroll only inside here */
+        overflow-y: auto;
         position: relative;
       }
 
       table {
         width: 100%;
-        min-width: 2200px; /* forces horizontal scroll for all columns */
+        min-width: 2200px;
         border-collapse: collapse;
         font-size: 0.84rem;
       }
@@ -328,6 +326,8 @@
         background: #f8fafc;
       }
 
+      /* ---------- MOBILE TWEAKS ---------- */
+
       @media (max-width: 768px) {
         .page {
           padding-inline: 0.85rem;
@@ -346,6 +346,13 @@
           padding-inline: 0.55rem;
         }
       }
+
+      /* stack filters fully on smaller phones so they don't overflow */
+      @media (max-width: 640px) {
+        .filters {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
   </head>
   <body>
@@ -353,8 +360,11 @@
       <nav class="top-nav">
         <div class="nav-left">
           <a href="/" class="nav-logo">
-            <!-- If you have a real logo asset, swap this block with <img src="/assets/matesinvest-logo.svg" ...> -->
-            <div class="nav-logo-mark">MI</div>
+            <img
+              src="/assets/logo-placeholder.svg"
+              alt="MatesInvest"
+              class="nav-logo-img"
+            />
             <div class="nav-logo-text">MatesInvest</div>
           </a>
         </div>
@@ -640,23 +650,19 @@
         const dyMin = parseFloat(dyMinInput.value);
 
         filteredItems = rawItems.filter((item) => {
-          // Search filter
           if (q) {
             const haystack = `${item.code} ${item.name}`.toLowerCase();
             if (!haystack.includes(q)) return false;
           }
 
-          // Sector filter
           if (sector && item.sector !== sector) return false;
 
-          // P/E filter
           const pe = Number(item.peRatio);
           if (!Number.isNaN(pe)) {
             if (!Number.isNaN(peMin) && pe < peMin) return false;
             if (!Number.isNaN(peMax) && pe > peMax) return false;
           }
 
-          // Market cap filter (convert to billions)
           const mc = Number(item.marketCap);
           const mcBn = Number.isNaN(mc) ? NaN : mc / 1_000_000_000;
           if (!Number.isNaN(mcBn)) {
@@ -664,10 +670,8 @@
             if (!Number.isNaN(mcMaxBn) && mcBn > mcMaxBn) return false;
           }
 
-          // Dividend yield minimum
           const dy = Number(item.dividendYield);
           if (!Number.isNaN(dy) && !Number.isNaN(dyMin)) {
-            // fundamentals are typically fractions (0.045 => 4.5%)
             const dyPct = dy <= 1 && dy >= -1 ? dy * 100 : dy;
             if (dyPct < dyMin) return false;
           }
@@ -802,7 +806,6 @@
         return `${n.toFixed(2)}%`;
       }
 
-      // Event listeners
       searchInput.addEventListener("input", applyFilters);
       sectorSelect.addEventListener("change", applyFilters);
       peMinInput.addEventListener("input", applyFilters);
