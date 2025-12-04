@@ -104,6 +104,29 @@ async function redisSet(urlBase, token, key, value, ttlSeconds) {
   }
 }
 
+// Helper: try a list of candidate fields on the row and return first finite number
+function tryNumberFields(obj, candidates = []) {
+  for (const k of candidates) {
+    if (!obj) continue;
+    const v = obj[k];
+    if (v === null || typeof v === "undefined") continue;
+    // If string with percent, strip and parse
+    if (typeof v === "string") {
+      const str = v.trim();
+      if (str.endsWith("%")) {
+        const num = Number(str.slice(0, -1));
+        if (Number.isFinite(num)) return num;
+      }
+      const parsed = Number(str.replace(/[, ]+/g, ""));
+      if (Number.isFinite(parsed)) return parsed;
+      continue;
+    }
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
 exports.handler = async function () {
   const start = Date.now();
 
@@ -166,43 +189,75 @@ exports.handler = async function () {
 
     const close = Number(r.close ?? r.Close ?? NaN);
 
-    // Change % is usually change_p, but we defensively check variants
-    const changePct = Number(
-      r.change_p ??
-        r.changeP ??
-        r.ChangeP ??
-        r.changePercent ??
-        r.ChangePercent ??
-        NaN
-    );
+    // Try to extract percent change robustly (handles "1.23%" or numeric)
+    let changePct = tryNumberFields(r, [
+      "change_p",
+      "changeP",
+      "ChangeP",
+      "changePercent",
+      "ChangePercent",
+      "change_pct",
+      "chgPercent",
+      "percentage_change",
+      "pct_change",
+      "percent_change",
+    ]);
 
-    let prevClose = null;
-    if (
-      Number.isFinite(close) &&
-      Number.isFinite(changePct) &&
-      changePct !== -100
-    ) {
-      // reverse the percentage change: close = prevClose * (1 + pct/100)
-      const denom = 1 + changePct / 100;
-      if (denom !== 0) {
-        prevClose = close / denom;
+    // Also try common absolute change fields (we use them later if percent is missing)
+    const changeAbs = tryNumberFields(r, [
+      "change",
+      "Change",
+      "chg",
+      "delta",
+      "diff",
+      "priceChange",
+    ]);
+
+    // Try explicit prev/previous close fields first (many payloads include one of these)
+    let prevClose = tryNumberFields(r, [
+      "previousClose",
+      "prevClose",
+      "PrevClose",
+      "previous_close",
+      "prev_close",
+      "previous_close_price",
+      "previous_close_value",
+      "previousclose",
+      "previous",
+      "yesterdayClose",
+      "previouscloseprice"
+    ]);
+
+    // If prevClose not provided, derive it:
+    if ((prevClose === null || prevClose === undefined) && Number.isFinite(close)) {
+      // If we have an absolute change value, prefer that: prev = close - change
+      if (changeAbs !== null && Number.isFinite(changeAbs)) {
+        prevClose = close - Number(changeAbs);
+      } else if (changePct !== null && Number.isFinite(changePct)) {
+        // If percent is given as, e.g., 1.23 => denom = 1 + pct/100
+        const denom = 1 + Number(changePct) / 100;
+        if (denom !== 0) {
+          prevClose = close / denom;
+        }
       }
     }
 
+    // Normalize changePct to a numeric value if still missing but we can compute from close & prevClose
+    if ((changePct === null || changePct === undefined) && Number.isFinite(close) && Number.isFinite(prevClose) && prevClose !== 0) {
+      changePct = ((close - prevClose) / prevClose) * 100;
+    }
+
+    // Validate numeric types
+    const pct = Number.isFinite(changePct) ? Number(changePct) : null;
+    const prev = Number.isFinite(prevClose) ? Number(prevClose) : null;
     const volume = Number(r.volume ?? r.Volume ?? NaN);
 
     rows.push({
       code: base,
       date: r.date || r.Date || null,
       close: Number.isFinite(close) ? Number(close) : null,
-      prevClose:
-        typeof prevClose === "number" && Number.isFinite(prevClose)
-          ? Number(prevClose)
-          : null,
-      pctChange:
-        typeof changePct === "number" && Number.isFinite(changePct)
-          ? Number(changePct)
-          : null,
+      prevClose: prev,
+      pctChange: pct,
       volume:
         typeof volume === "number" && Number.isFinite(volume)
           ? Number(volume)
