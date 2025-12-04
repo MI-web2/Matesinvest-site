@@ -2,6 +2,7 @@
 //
 // Nightly snapshot of full ASX universe fundamentals for the screener.
 // Added batching (offset/limit) and extra logging to avoid timeouts on large universes.
+// Also supports optionally excluding companies whose name ends with "ETF" via EXCLUDE_ETF=1.
 
 const fs = require("fs");
 const path = require("path");
@@ -67,6 +68,17 @@ function normalizeCode(code) {
   return String(code || "")
     .replace(/\.[A-Z0-9]{1,6}$/i, "")
     .toUpperCase();
+}
+
+// Helper to detect names that end with "ETF" (case-insensitive).
+function isEtfName(name) {
+  if (!name || typeof name !== "string") return false;
+  // replace common punctuation/hyphen/parentheses with spaces, collapse whitespace
+  const cleaned = name
+    .replace(/[\u2013\u2014–—\-()]/g, " ")
+    .replace(/[\s\.,;:]+/g, " ")
+    .trim();
+  return /\bETF$/i.test(cleaned);
 }
 
 // Read "big universe" from asx-universe.txt (or env override)
@@ -181,6 +193,9 @@ exports.handler = async function (event) {
   );
   const RETRIES = Number(process.env.RETRIES || DEFAULT_RETRIES);
 
+  // EXCLUDE_ETF (env) toggles skipping names that end with "ETF".
+  const EXCLUDE_ETF = String(process.env.EXCLUDE_ETF || "1") === "1";
+
   let universeCodes;
   let asx200Set;
   try {
@@ -219,7 +234,7 @@ exports.handler = async function (event) {
   }
 
   console.log(
-    `[snapshot-asx-universe] running batch start=${batchStart} limit=${batchLimit} actual=${universeCodes.length}`
+    `[snapshot-asx-universe] running batch start=${batchStart} limit=${batchLimit} actual=${universeCodes.length} excludeETF=${EXCLUDE_ETF}`
   );
 
   // Fundamentals fetch with retries
@@ -429,6 +444,12 @@ exports.handler = async function (event) {
                 valuation.EnterpriseValueEbitda
             ),
           };
+
+          // Optionally skip ETFs based on company name
+          if (EXCLUDE_ETF && isEtfName(item.name)) {
+            console.log(`[snapshot-asx-universe] skipping ETF ${item.code} - ${item.name}`);
+            continue;
+          }
 
           items.push(item);
         } catch (err) {
