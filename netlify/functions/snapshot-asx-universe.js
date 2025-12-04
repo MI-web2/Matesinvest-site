@@ -115,6 +115,21 @@ function readUniverseSync() {
   throw new Error("Failed to read universe list");
 }
 
+// Robust safe-get helper (replaces previous `get(...)` usage)
+function safeGet(obj, path, fallback = null) {
+  if (!obj || !path) return fallback;
+  const parts = path.split('.');
+  let cur = obj;
+  for (const p of parts) {
+    if (cur && Object.prototype.hasOwnProperty.call(cur, p)) {
+      cur = cur[p];
+    } else {
+      return fallback;
+    }
+  }
+  return cur;
+}
+
 exports.handler = async function (event) {
   const start = Date.now();
 
@@ -132,7 +147,6 @@ exports.handler = async function (event) {
   let universeCodes, asx200Set;
   try {
     universeCodes = readUniverseSync();
-    // asx200 lookup optional
     try {
       const asx200Raw = fs.existsSync(path.join(__dirname, "asx200.txt")) ? fs.readFileSync(path.join(__dirname, "asx200.txt"), "utf8") : "";
       const asxParts = asx200Raw ? asx200Raw.split(/[\s,]+/).map(s=>s.trim()).filter(Boolean) : [];
@@ -251,8 +265,8 @@ exports.handler = async function (event) {
           pegRatio: num(ratios.PEGRatio || highlights.PEGRatio || defaultStats.PEGRatio),
           eps: num(highlights.EarningsPerShare || highlights.EarningsShare),
           bookValue: num(highlights.BookValue),
-          dividendPerShare: num(highlights.DividendShare || get(d, "SplitsDividends.LastAnnualDividend")),
-          dividendYield: num(get(d, "SplitsDividends.ForwardAnnualDividendYield", highlights.DividendYield)),
+          dividendPerShare: num(highlights.DividendShare || safeGet(d, "SplitsDividends.LastAnnualDividend")),
+          dividendYield: num(safeGet(d, "SplitsDividends.ForwardAnnualDividendYield", highlights.DividendYield)),
           profitMargin: num(highlights.ProfitMargin),
           operatingMargin: num(highlights.OperatingMargin || highlights.OperatingMarginTTM),
           returnOnAssets: num(highlights.ReturnOnAssets || highlights.ReturnOnAssetsTTM),
