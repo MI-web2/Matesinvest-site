@@ -31,7 +31,7 @@
       body {
         margin: 0;
         max-width: 100%;
-        overflow-x: hidden; /* stop whole page from sliding sideways */
+        overflow-x: hidden;
         font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
         background: radial-gradient(circle at top, #dbeafe 0, #f5f7fb 55%);
         color: var(--navy);
@@ -128,22 +128,31 @@
         font-size: 0.9rem;
       }
 
-      /* ---------- FILTER CARD ---------- */
+      /* ---------- FILTER CARD (COLLAPSIBLE) ---------- */
 
       .filters-card {
         background: var(--glass);
         border-radius: var(--radius);
         border: 1px solid var(--card-border);
         box-shadow: 0 10px 26px rgba(15, 23, 42, 0.09);
-        padding: 0.55rem 0.75rem 0.65rem;
+        padding: 0.4rem 0.75rem 0.45rem;
         margin-bottom: 0.9rem;
       }
 
-      .filters-header {
+      .filters-toggle {
+        all: unset;
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        margin-bottom: 0.35rem;
+        justify-content: space-between;
+        width: 100%;
+        cursor: pointer;
+      }
+
+      .filters-toggle-left {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-width: 0;
       }
 
       .filters-chip {
@@ -156,6 +165,7 @@
         background: var(--accent-soft);
         color: var(--navy);
         font-weight: 500;
+        flex-shrink: 0;
       }
 
       .filters-chip-dot {
@@ -168,6 +178,29 @@
       .filters-caption {
         font-size: 0.75rem;
         color: var(--muted-2);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .filters-toggle-icon {
+        font-size: 0.9rem;
+        color: var(--muted-2);
+        margin-left: 0.5rem;
+        transition: transform 0.18s ease;
+      }
+
+      .filters-card.open .filters-toggle-icon {
+        transform: rotate(180deg);
+      }
+
+      .filters-body {
+        display: none;
+        margin-top: 0.45rem;
+      }
+
+      .filters-card.open .filters-body {
+        display: block;
       }
 
       .filters {
@@ -226,7 +259,7 @@
       .table-scroll {
         width: 100%;
         max-height: calc(100vh - 260px);
-        overflow-x: auto; /* horizontal scroll only inside here */
+        overflow-x: auto;
         overflow-y: auto;
         position: relative;
       }
@@ -238,14 +271,16 @@
         font-size: 0.84rem;
       }
 
-/* Sticky header row (all column headers) */
-thead th {
-  position: sticky;
-  top: 0;
-  z-index: 3;            /* header above body cells */
-  background: #f1f5f9;
-}
+      thead {
+        background: #f1f5f9;
+      }
 
+      thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: #f1f5f9;
+      }
 
       th,
       td {
@@ -308,27 +343,26 @@ thead th {
         white-space: nowrap;
       }
 
-/* Sticky first column (Code) */
-th.sticky-col {
-  position: sticky;
-  top: 0;                /* stick to top AND left */
-  left: 0;
-  z-index: 4;            /* above other headers */
-  background: #f1f5f9;
-}
+      /* ---------- STICKY FIRST COLUMN (CODE) ---------- */
 
-td.sticky-col {
-  position: sticky;
-  left: 0;
-  z-index: 2;            /* above normal body cells, below headers */
-  background: #ffffff;
-}
+      th.sticky-col {
+        position: sticky;
+        top: 0;
+        left: 0;
+        z-index: 4; /* above other headers */
+        background: #f1f5f9;
+      }
 
-tbody tr:nth-child(even) td.sticky-col {
-  background: #f8fafc;
-}
+      td.sticky-col {
+        position: sticky;
+        left: 0;
+        z-index: 2; /* above body cells, below headers */
+        background: #ffffff;
+      }
 
-
+      tbody tr:nth-child(even) td.sticky-col {
+        background: #f8fafc;
+      }
 
       /* ---------- MOBILE TWEAKS ---------- */
 
@@ -351,20 +385,15 @@ tbody tr:nth-child(even) td.sticky-col {
         }
       }
 
-      /* stack filters fully on smaller phones so they don't overflow */
       @media (max-width: 640px) {
         .filters {
           grid-template-columns: 1fr;
         }
-      }
-      /* ---------- STICKY HEADER ROW ---------- */
-thead th {
-  position: sticky;
-  top: 0;
-  z-index: 5; /* higher than sticky column cells */
-  background: #f1f5f9; /* same as your existing header bg */
-}
 
+        .filters-caption {
+          display: none; /* hide long caption on very small screens */
+        }
+      }
     </style>
   </head>
   <body>
@@ -373,7 +402,7 @@ thead th {
         <div class="nav-left">
           <a href="/" class="nav-logo">
             <img
-              src="/assets/img/logo-placeholder.png" 
+              src="/assets/logo-placeholder.svg"
               alt="MatesInvest"
               class="nav-logo-img"
             />
@@ -394,82 +423,87 @@ thead th {
         </p>
       </header>
 
-      <section class="filters-card">
-        <div class="filters-header">
-          <div class="filters-chip">
-            <span class="filters-chip-dot"></span>
-            Filters
+      <section class="filters-card" id="filtersCard">
+        <button type="button" class="filters-toggle" id="filtersToggle">
+          <div class="filters-toggle-left">
+            <div class="filters-chip">
+              <span class="filters-chip-dot"></span>
+              Filters
+            </div>
+            <div class="filters-caption">
+              Search, narrow by sector, and screen for value or income ideas.
+            </div>
           </div>
-          <div class="filters-caption">
-            Search, narrow by sector, and screen for value or income ideas.
-          </div>
-        </div>
+          <span class="filters-toggle-icon" id="filtersToggleIcon">▾</span>
+        </button>
 
-        <div class="filters">
-          <div class="filter-group">
-            <label class="filter-label" for="searchInput">Search</label>
-            <input
-              id="searchInput"
-              type="text"
-              placeholder="Code or name (e.g. BHP, CSL)"
-            />
-          </div>
-
-          <div class="filter-group">
-            <label class="filter-label" for="sectorSelect">Sector</label>
-            <select id="sectorSelect">
-              <option value="">All sectors</option>
-            </select>
-          </div>
-
-          <div class="filter-group">
-            <label class="filter-label">P/E (min – max)</label>
-            <div style="display: flex; gap: 0.25rem">
+        <div class="filters-body" id="filtersBody">
+          <div class="filters">
+            <div class="filter-group">
+              <label class="filter-label" for="searchInput">Search</label>
               <input
-                id="peMin"
+                id="searchInput"
+                type="text"
+                placeholder="Code or name (e.g. BHP, CSL)"
+              />
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label" for="sectorSelect">Sector</label>
+              <select id="sectorSelect">
+                <option value="">All sectors</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">P/E (min – max)</label>
+              <div style="display: flex; gap: 0.25rem">
+                <input
+                  id="peMin"
+                  type="number"
+                  step="0.1"
+                  placeholder="0"
+                  style="flex: 1"
+                />
+                <input
+                  id="peMax"
+                  type="number"
+                  step="0.1"
+                  placeholder="50"
+                  style="flex: 1"
+                />
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">Mkt cap (A$bn, min – max)</label>
+              <div style="display: flex; gap: 0.25rem">
+                <input
+                  id="mcMin"
+                  type="number"
+                  step="1"
+                  placeholder="0"
+                  style="flex: 1"
+                />
+                <input
+                  id="mcMax"
+                  type="number"
+                  step="1"
+                  placeholder="300"
+                  style="flex: 1"
+                />
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">Div. yield (min %)</label>
+              <input
+                id="dyMin"
                 type="number"
                 step="0.1"
                 placeholder="0"
-                style="flex: 1"
-              />
-              <input
-                id="peMax"
-                type="number"
-                step="0.1"
-                placeholder="50"
-                style="flex: 1"
               />
             </div>
-          </div>
-
-          <div class="filter-group">
-            <label class="filter-label">Mkt cap (A$bn, min – max)</label>
-            <div style="display: flex; gap: 0.25rem">
-              <input
-                id="mcMin"
-                type="number"
-                step="1"
-                placeholder="0"
-                style="flex: 1"
-              />
-              <input
-                id="mcMax"
-                type="number"
-                step="1"
-                placeholder="300"
-                style="flex: 1"
-              />
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <label class="filter-label">Div. yield (min %)</label>
-            <input
-              id="dyMin"
-              type="number"
-              step="0.1"
-              placeholder="0"
-            />
           </div>
         </div>
       </section>
@@ -608,9 +642,19 @@ thead th {
       const statusMeta = document.getElementById("statusMeta");
       const ths = document.querySelectorAll("th.sortable");
 
+      const filtersCard = document.getElementById("filtersCard");
+      const filtersToggle = document.getElementById("filtersToggle");
+      const filtersToggleIcon = document.getElementById("filtersToggleIcon");
+
       let rawItems = [];
       let filteredItems = [];
       let sortState = { key: "code", direction: "asc" };
+
+      // Filters dropdown toggle
+      filtersToggle.addEventListener("click", () => {
+        const isOpen = filtersCard.classList.toggle("open");
+        filtersToggleIcon.textContent = isOpen ? "▴" : "▾";
+      });
 
       async function loadData() {
         try {
@@ -811,7 +855,7 @@ thead th {
         return `${pct.toFixed(2)}%`;
       }
 
-      // Treat n as already in percent points (e.g. 1.23 => 1.23%)
+      // Treat n as already in percent points
       function formatPercentRaw(value) {
         const n = Number(value);
         if (Number.isNaN(n)) return "-";
