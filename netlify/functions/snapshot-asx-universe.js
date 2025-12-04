@@ -1,23 +1,7 @@
 // netlify/functions/snapshot-asx-universe.js
 //
 // Nightly snapshot of full ASX universe fundamentals for the screener.
-//
-// - Reads tickers from asx-universe.txt (CSV or newline-separated)
-// - (Optional) also reads asx200.txt to mark which are in the ASX 200
-// - Fetches fundamentals from EODHD once per symbol (with suffix fallbacks)
-// - Stores a compact list into Upstash as:
-//      asx:universe:fundamentals:latest
-//
-// Requirements (Netlify env):
-//   EODHD_API_TOKEN
-//   UPSTASH_REDIS_REST_URL
-//   UPSTASH_REDIS_REST_TOKEN
-//
-// Optional env:
-//   TRY_SUFFIXES   (default "AU,AX,ASX")
-//   UNIVERSE_FILE  (override path to asx-universe.txt)
-//   CONCURRENCY    (default 8)
-//   RETRIES        (default 2)
+// Added batching (offset/limit) and extra logging to avoid timeouts on large universes.
 
 const fs = require("fs");
 const path = require("path");
@@ -88,7 +72,6 @@ function normalizeCode(code) {
 // Read "big universe" from asx-universe.txt (or env override)
 function readUniverseSync() {
   const override = process.env.UNIVERSE_FILE;
-  // Search several likely locations so Netlify / local dev both work.
   const candidates = override
     ? [
         path.join(__dirname, override),
@@ -99,7 +82,7 @@ function readUniverseSync() {
         path.join(__dirname, "asx-universe.txt"),
         path.join(process.cwd(), "asx-universe.txt"),
         path.join(process.cwd(), "netlify", "functions", "asx-universe.txt"),
-        path.join(__dirname, "asx200.txt"), // fallback if you temporarily re-use it
+        path.join(__dirname, "asx200.txt"), // fallback
         path.join(process.cwd(), "netlify", "functions", "asx200.txt"),
       ];
 
@@ -210,13 +193,34 @@ exports.handler = async function (event) {
     };
   }
 
+  const universeTotal = universeCodes.length;
+  console.log(`[snapshot-asx-universe] universeTotal=${universeTotal}`);
+
+  // support batching: offset & limit (query params) or env BATCH_SIZE
+  const offset = Math.max(0, Number(qs.offset || qs.off || 0));
+  const limit = Number(
+    qs.limit ||
+      qs.size ||
+      process.env.BATCH_SIZE ||
+      200
+  );
+  const batchStart = offset;
+  const batchLimit = Math.max(1, Number(limit));
+
   // Optional dev mode: &code=BHP to test a single ticker quickly
   const singleCode = qs.code
     ? String(qs.code).trim().toUpperCase()
     : null;
   if (singleCode) {
     universeCodes = [singleCode];
+  } else {
+    // slice the universe for this run
+    universeCodes = universeCodes.slice(batchStart, batchStart + batchLimit);
   }
+
+  console.log(
+    `[snapshot-asx-universe] running batch start=${batchStart} limit=${batchLimit} actual=${universeCodes.length}`
+  );
 
   // Fundamentals fetch with retries
   async function fetchFundamentals(fullCode) {
@@ -262,7 +266,6 @@ exports.handler = async function (event) {
   }
 
   async function getFundamentalsForBaseCode(baseCode) {
-    // Try with existing suffixes; first one that returns ok JSON wins
     const attempts = [];
     for (const sfx of TRY_SUFFIXES) {
       const fullCode = `${baseCode}.${sfx}`;
@@ -300,8 +303,6 @@ exports.handler = async function (event) {
           }
 
           const d = result.data;
-
-          // --- Map a compact item shape for the screener ---
           const general = d.General || {};
           const highlights = d.Highlights || {};
           const ratios =
@@ -315,7 +316,6 @@ exports.handler = async function (event) {
               highlights.LatestClose
           );
 
-          // helper to coerce to number but keep null if missing
           const num = (v) =>
             v === null || typeof v === "undefined" || v === ""
               ? null
@@ -327,8 +327,6 @@ exports.handler = async function (event) {
             sector: general.Sector || null,
             industry: general.Industry || null,
             inAsx200: asx200Set.has(base) ? 1 : 0,
-
-            // Basic price & size
             price: Number.isFinite(price) ? price : null,
             marketCap: num(
               highlights.MarketCapitalization ||
@@ -338,27 +336,20 @@ exports.handler = async function (event) {
               highlights.ChangePercent ||
                 highlights.RelativePriceChange
             ),
-
-            // Key fundamentals
             ebitda: num(highlights.EBITDA),
-
             peRatio: num(
               ratios.PERatio || highlights.PERatio
             ),
-
             pegRatio: num(
               ratios.PEGRatio ||
                 highlights.PEGRatio ||
                 defaultStats.PEGRatio
             ),
-
             eps: num(
               highlights.EarningsPerShare ||
                 highlights.EarningsShare
             ),
-
             bookValue: num(highlights.BookValue),
-
             dividendPerShare: num(
               highlights.DividendShare ||
                 get(
@@ -366,7 +357,6 @@ exports.handler = async function (event) {
                   "SplitsDividends.LastAnnualDividend"
                 )
             ),
-
             dividendYield: num(
               get(
                 d,
@@ -374,83 +364,65 @@ exports.handler = async function (event) {
                 highlights.DividendYield
               )
             ),
-
             profitMargin: num(highlights.ProfitMargin),
-
             operatingMargin: num(
               highlights.OperatingMargin ||
                 highlights.OperatingMarginTTM
             ),
-
             returnOnAssets: num(
               highlights.ReturnOnAssets ||
                 highlights.ReturnOnAssetsTTM
             ),
-
             returnOnEquity: num(
               highlights.ReturnOnEquity ||
                 highlights.ReturnOnEquityTTM
             ),
-
             revenue: num(highlights.RevenueTTM || highlights.Revenue),
-
             revenuePerShare: num(
               highlights.RevenuePerShareTTM ||
                 highlights.RevenuePerShare
             ),
-
             grossProfit: num(
               highlights.GrossProfitTTM ||
                 highlights.GrossProfit
             ),
-
             dilutedEps: num(
               highlights.DilutedEpsTTM ||
                 highlights.DilutedEps
             ),
-
             quarterlyRevenueGrowthYoy: num(
               highlights.QuarterlyRevenueGrowthYOY
             ),
-
             quarterlyEarningsGrowthYoy: num(
               highlights.QuarterlyEarningsGrowthYOY
             ),
-
-            // Valuation metrics
             trailingPE: num(
               ratios.TrailingPE ||
                 valuation.TrailingPE ||
                 highlights.PERatio
             ),
-
             forwardPE: num(
               ratios.ForwardPE || valuation.ForwardPE
             ),
-
             priceToSales: num(
               ratios.PriceSalesTTM ||
                 ratios.PriceToSalesRatio ||
                 valuation.PriceSalesTTM
             ),
-
             priceToBook: num(
               ratios.PriceBookMRQ ||
                 ratios.PriceToBookRatio ||
                 valuation.PriceBookMRQ
             ),
-
             enterpriseValue: num(
               ratios.EnterpriseValue ||
                 valuation.EnterpriseValue
             ),
-
             evToRevenue: num(
               ratios.EnterpriseValueRevenue ||
                 ratios.EnterpriseValueToRevenue ||
                 valuation.EnterpriseValueRevenue
             ),
-
             evToEbitda: num(
               ratios.EnterpriseValueEbitda ||
                 ratios.EnterpriseValueToEBITDA ||
@@ -476,11 +448,13 @@ exports.handler = async function (event) {
 
   await Promise.all(workers);
 
-  // Persist the result as a single blob
+  // Persist the result as a single blob (note: this is only the batch)
   const key = "asx:universe:fundamentals:latest";
   const payload = {
     generatedAt: new Date().toISOString(),
-    universeSize: universeCodes.length,
+    universeTotal,       // original total count
+    batchStart,          // offset we processed
+    batchSize: universeCodes.length,
     count: items.length,
     items,
   };
@@ -490,11 +464,17 @@ exports.handler = async function (event) {
   const responseBody = {
     ok,
     key,
-    requested: universeCodes.length,
+    requestedUniverseTotal: universeTotal,
+    batchStart,
+    batchRequested: batchLimit,
+    batchProcessed: universeCodes.length,
     collected: items.length,
     failures: failures.slice(0, 40),
     elapsedMs: Date.now() - start,
   };
+
+  // helpful debugging log: Netlify will show this in function logs
+  console.log("[snapshot-asx-universe] response:", JSON.stringify(responseBody));
 
   return {
     statusCode: ok ? 200 : 500,
