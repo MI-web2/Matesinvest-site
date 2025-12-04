@@ -21,7 +21,8 @@ exports.handler = async function () {
     console.error("RESEND_API_KEY missing");
     return { statusCode: 500, body: "Resend not configured" };
   }
-    function sleep(ms) {
+
+  function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
@@ -80,6 +81,7 @@ exports.handler = async function () {
     if (!j || !Array.isArray(j.result)) return [];
     return j.result.filter((e) => typeof e === "string" && e.includes("@"));
   }
+
   async function redisGet(key) {
     const url = `${UPSTASH_URL}/get/` + encodeURIComponent(key);
     const res = await fetchWithTimeout(
@@ -103,7 +105,8 @@ exports.handler = async function () {
   }
 
   async function redisSet(key, value, ttlSeconds) {
-    let url = `${UPSTASH_URL}/set/` +
+    let url =
+      `${UPSTASH_URL}/set/` +
       encodeURIComponent(key) +
       "/" +
       encodeURIComponent(value);
@@ -128,7 +131,7 @@ exports.handler = async function () {
     }
   }
 
-  // 🔧 UPDATED: send a single email (to one or a small list of recipients)
+  // Send email to one or multiple recipients
   async function sendEmail(to, subject, html) {
     const toList = Array.isArray(to) ? to : [to];
 
@@ -165,6 +168,14 @@ exports.handler = async function () {
     }
   }
 
+  function chunkArray(arr, size) {
+    const chunks = [];
+    for (let i = 0; i < arr.length; i += size) {
+      chunks.push(arr.slice(i, i + size));
+    }
+    return chunks;
+  }
+
   // Fetch the Mates Morning Note via the existing function
   async function getMorningNote() {
     try {
@@ -182,7 +193,7 @@ exports.handler = async function () {
   }
 
   // Build HTML email from morning-brief payload + morning note
-   function buildEmailHtml(payload, morningNote) {
+  function buildEmailHtml(payload, morningNote) {
     const aestNow = getAestDate(new Date());
     const niceDate = aestNow.toLocaleDateString("en-AU", {
       weekday: "long",
@@ -205,7 +216,7 @@ exports.handler = async function () {
       URANIUM: "Uranium",
     };
 
-    // ---- NEW: Crypto snapshot (BTC / ETH / SOL / ADA) ----
+    // Crypto snapshot (BTC / ETH / SOL / ADA)
     const cryptoObj =
       payload.crypto && typeof payload.crypto === "object"
         ? payload.crypto
@@ -293,7 +304,6 @@ exports.handler = async function () {
       })
       .join("");
 
-    // NEW: crypto rows
     const cryptoRows = cryptoOrder
       .filter((sym) => cryptoObj[sym])
       .map((sym) => {
@@ -544,33 +554,18 @@ exports.handler = async function () {
     `;
   }
 
-try {
+  try {
     // -----------------------------------------
-    // IDEMPOTENCY CHECK (skip if already sent)
+    // Date-based key prefix for per-recipient locks
     // -----------------------------------------
-
     const aestNowForKey = getAestDate(new Date());
     const yyyy = aestNowForKey.getFullYear();
     const mm = String(aestNowForKey.getMonth() + 1).padStart(2, "0");
     const dd = String(aestNowForKey.getDate()).padStart(2, "0");
-
-    const sendKey = `email:daily:${yyyy}-${mm}-${dd}`;
-
-    const alreadySent = await redisGet(sendKey);
-    if (alreadySent) {
-        console.log("Daily brief already sent for", sendKey, "- skipping");
-        return {
-            statusCode: 200,
-            body: `Already sent daily brief for ${yyyy}-${mm}-${dd}`,
-        };
-    }
-
-    // -----------------------------------------
-    // Proceed with generating the email
-    // -----------------------------------------
+    const sendKeyPrefix = `email:daily:${yyyy}-${mm}-${dd}`;
+    const perRecipientTtlSeconds = 60 * 60 * 72; // 72h
 
     // 1) Get the morning brief payload by calling the existing handler
-
     const mbResponse = await morningBriefFn.handler(
       {
         queryStringParameters: { region: "au" },
@@ -611,36 +606,65 @@ try {
     const subjectDate = formatAestForSubject(new Date());
     const subject = `MatesMorning – ASX Briefing for ${subjectDate}`;
     const html = buildEmailHtml(payload, morningNote);
-// Mark as sent before sending (prevents retries sending again)
-await redisSet(sendKey, "sent", 60 * 60 * 36); // 36-hour TTL
 
+    // 5) Batch send, with per-recipient idempotency keys
+    const batchSize = 40; // up to 40 recipients per API call
+    const batches = chunkArray(subscribers, batchSize);
 
-    // 🔧 5) Send individually to each subscriber, throttled for Resend (2 req/sec)
     let sentCount = 0;
-    for (const email of subscribers) {
-      try {
-        await sendEmail(email, subject, html); // one recipient at a time
-        sentCount++;
 
-        // Respect Resend rate limit: max 2 req/sec
-        await sleep(1200); // ~1.6 requests per second
+    for (const batch of batches) {
+      // Filter out addresses that already got today's brief
+      const pending = [];
+      for (const email of batch) {
+        const personKey = `${sendKeyPrefix}:${email}`;
+        const already = await redisGet(personKey);
+        if (already) {
+          console.log("Already sent to", email, "- skipping");
+          continue;
+        }
+        pending.push({ email, personKey });
+      }
+
+      if (!pending.length) {
+        continue;
+      }
+
+      const toList = pending.map((p) => p.email);
+
+      try {
+        await sendEmail(toList, subject, html);
+        sentCount += pending.length;
+
+        // Mark each recipient as sent
+        await Promise.all(
+          pending.map((p) =>
+            redisSet(p.personKey, "sent", perRecipientTtlSeconds)
+          )
+        );
+
+        // Gentle pause between batches to be kind to Resend
+        await sleep(1500);
       } catch (err) {
-        console.error("Failed sending to", email, err && err.message);
+        console.error(
+          "Failed sending batch to",
+          toList,
+          err && err.message
+        );
+        // Continue to next batch – partial failure won't kill whole run
       }
     }
 
-
-    console.log("Sent daily brief to subscribers", sentCount);
+    console.log(
+      `Daily brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`
+    );
 
     return {
       statusCode: 200,
       body: `Sent to ${sentCount} subscribers`,
     };
   } catch (err) {
-    console.error(
-      "email-daily-brief error",
-      err && (err.stack || err.message)
-    );
+    console.error("email-daily-brief error", err && (err.stack || err.message));
     return {
       statusCode: 500,
       body: "Internal error",
