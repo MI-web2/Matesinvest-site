@@ -104,29 +104,6 @@ async function redisSet(urlBase, token, key, value, ttlSeconds) {
   }
 }
 
-// Helper: try a list of candidate fields on the row and return first finite number
-function tryNumberFields(obj, candidates = []) {
-  for (const k of candidates) {
-    if (!obj) continue;
-    const v = obj[k];
-    if (v === null || typeof v === "undefined") continue;
-    // If string with percent, strip and parse
-    if (typeof v === "string") {
-      const str = v.trim();
-      if (str.endsWith("%")) {
-        const num = Number(str.slice(0, -1));
-        if (Number.isFinite(num)) return num;
-      }
-      const parsed = Number(str.replace(/[, ]+/g, ""));
-      if (Number.isFinite(parsed)) return parsed;
-      continue;
-    }
-    const n = Number(v);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
-
 exports.handler = async function () {
   const start = Date.now();
 
@@ -187,81 +164,79 @@ exports.handler = async function () {
     const base = normalizeCode(rawCode);
     if (!base || !universeSet.has(base)) continue;
 
+    // Close price
     const close = Number(r.close ?? r.Close ?? NaN);
+    const closeVal =
+      typeof close === "number" && Number.isFinite(close)
+        ? Number(close)
+        : null;
 
-    // Try to extract percent change robustly (handles "1.23%" or numeric)
-    let changePct = tryNumberFields(r, [
-      "change_p",
-      "changeP",
-      "ChangeP",
-      "changePercent",
-      "ChangePercent",
-      "change_pct",
-      "chgPercent",
-      "percentage_change",
-      "pct_change",
-      "percent_change",
-    ]);
+    // Raw change percent if provided
+    let changePct = Number(
+      r.change_p ??
+        r.changeP ??
+        r.ChangeP ??
+        r.changePercent ??
+        r.ChangePercent ??
+        NaN
+    );
+    if (!Number.isFinite(changePct)) changePct = null;
 
-    // Also try common absolute change fields (we use them later if percent is missing)
-    const changeAbs = tryNumberFields(r, [
-      "change",
-      "Change",
-      "chg",
-      "delta",
-      "diff",
-      "priceChange",
-    ]);
+    // Previous close straight from API if present
+    let prevRaw =
+      r.previousClose ??
+      r.PreviousClose ??
+      r.previous_close ??
+      r.prev_close ??
+      r.Previous_Close ??
+      null;
+    let prevClose = Number(prevRaw ?? NaN);
+    if (!Number.isFinite(prevClose)) prevClose = null;
 
-    // Try explicit prev/previous close fields first (many payloads include one of these)
-    let prevClose = tryNumberFields(r, [
-      "previousClose",
-      "prevClose",
-      "PrevClose",
-      "previous_close",
-      "prev_close",
-      "previous_close_price",
-      "previous_close_value",
-      "previousclose",
-      "previous",
-      "yesterdayClose",
-      "previouscloseprice"
-    ]);
-
-    // If prevClose not provided, derive it:
-    if ((prevClose === null || prevClose === undefined) && Number.isFinite(close)) {
-      // If we have an absolute change value, prefer that: prev = close - change
-      if (changeAbs !== null && Number.isFinite(changeAbs)) {
-        prevClose = close - Number(changeAbs);
-      } else if (changePct !== null && Number.isFinite(changePct)) {
-        // If percent is given as, e.g., 1.23 => denom = 1 + pct/100
-        const denom = 1 + Number(changePct) / 100;
-        if (denom !== 0) {
-          prevClose = close / denom;
-        }
+    // If we don't have prevClose but we *do* have changePct, derive it
+    if (
+      prevClose === null &&
+      closeVal !== null &&
+      changePct !== null &&
+      changePct !== -100
+    ) {
+      const denom = 1 + changePct / 100;
+      if (denom !== 0) {
+        const calcPrev = closeVal / denom;
+        if (Number.isFinite(calcPrev)) prevClose = calcPrev;
       }
     }
 
-    // Normalize changePct to a numeric value if still missing but we can compute from close & prevClose
-    if ((changePct === null || changePct === undefined) && Number.isFinite(close) && Number.isFinite(prevClose) && prevClose !== 0) {
-      changePct = ((close - prevClose) / prevClose) * 100;
+    // If we have close + prevClose but no pctChange, derive pctChange
+    if (
+      changePct === null &&
+      closeVal !== null &&
+      prevClose !== null &&
+      prevClose !== 0
+    ) {
+      const pc = ((closeVal - prevClose) / prevClose) * 100;
+      if (Number.isFinite(pc)) changePct = pc;
     }
 
-    // Validate numeric types
-    const pct = Number.isFinite(changePct) ? Number(changePct) : null;
-    const prev = Number.isFinite(prevClose) ? Number(prevClose) : null;
     const volume = Number(r.volume ?? r.Volume ?? NaN);
+    const volVal =
+      typeof volume === "number" && Number.isFinite(volume)
+        ? Number(volume)
+        : null;
 
     rows.push({
       code: base,
       date: r.date || r.Date || null,
-      close: Number.isFinite(close) ? Number(close) : null,
-      prevClose: prev,
-      pctChange: pct,
-      volume:
-        typeof volume === "number" && Number.isFinite(volume)
-          ? Number(volume)
+      close: closeVal,
+      prevClose:
+        typeof prevClose === "number" && Number.isFinite(prevClose)
+          ? Number(prevClose)
           : null,
+      pctChange:
+        typeof changePct === "number" && Number.isFinite(changePct)
+          ? Number(changePct)
+          : null,
+      volume: volVal,
     });
   }
 
