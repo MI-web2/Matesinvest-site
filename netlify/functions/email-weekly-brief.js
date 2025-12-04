@@ -112,6 +112,58 @@ exports.handler = async function () {
       throw new Error("Failed to send weekly email");
     }
   }
+  async function redisGet(key) {
+    const url = `${UPSTASH_URL}/get/` + encodeURIComponent(key);
+    const res = await fetchWithTimeout(
+      url,
+      {
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+      },
+      5000
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("redisGet failed", key, res.status, txt);
+      return null;
+    }
+
+    const j = await res.json().catch(() => null);
+    return j ? j.result : null;
+  }
+
+  async function redisSet(key, value, ttlSeconds) {
+    let url =
+      `${UPSTASH_URL}/set/` +
+      encodeURIComponent(key) +
+      "/" +
+      encodeURIComponent(value);
+    if (ttlSeconds && Number.isFinite(ttlSeconds)) {
+      url += `?EX=${ttlSeconds}`;
+    }
+
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+      },
+      5000
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("redisSet failed", key, res.status, txt);
+    }
+  }
+
+  function chunkArray(arr, size) {
+    const chunks = [];
+    for (let i = 0; i < arr.length; i += size) {
+      chunks.push(arr.slice(i, i + size));
+    }
+    return chunks;
+  }
 
   // Last N *market* days in AEST (skip Sat/Sun).
   function getLastNMarketDaysAest(n = 5) {
@@ -908,21 +960,67 @@ exports.handler = async function () {
 
     const html = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc);
 
-    // Send individually to each subscriber, throttled for Resend (2 req/sec)
-    let sentCount = 0;
-    for (const email of subscribers) {
-      try {
-        await sendEmail(email, subject, html); // one recipient at a time
-        sentCount++;
+    // ---------------------------
+    // Per-recipient idempotency
+    // ---------------------------
+    const aestNow = getAestDate();
+    const yyyy = aestNow.getFullYear();
+    const mm = String(aestNow.getMonth() + 1).padStart(2, "0");
+    const dd = String(aestNow.getDate()).padStart(2, "0");
 
-        // Respect Resend rate limit: max 2 req/sec
-        await sleep(1200); // ~1.6 requests per second
+    const sendKeyPrefix = `email:weekly:${yyyy}-${mm}-${dd}`;
+    const perRecipientTtlSeconds = 60 * 60 * 24 * 21; // 21 days is plenty
+
+    const batchSize = 40; // up to 40 recipients per Resend call
+    const batches = chunkArray(subscribers, batchSize);
+
+    let sentCount = 0;
+
+    for (const batch of batches) {
+      // Filter out addresses that already got this week's brief
+      const pending = [];
+      for (const email of batch) {
+        const personKey = `${sendKeyPrefix}:${email}`;
+        const already = await redisGet(personKey);
+        if (already) {
+          console.log("Already sent weekly brief to", email, "- skipping");
+          continue;
+        }
+        pending.push({ email, personKey });
+      }
+
+      if (!pending.length) {
+        continue;
+      }
+
+      const toList = pending.map((p) => p.email);
+
+      try {
+        await sendEmail(toList, subject, html);
+        sentCount += pending.length;
+
+        // Mark each as sent
+        await Promise.all(
+          pending.map((p) =>
+            redisSet(p.personKey, "sent", perRecipientTtlSeconds)
+          )
+        );
+
+        // Gentle pause between batches
+        await sleep(1500);
       } catch (err) {
-        console.error("Failed sending to", email, err && err.message);
+        console.error(
+          "Failed sending weekly batch to",
+          toList,
+          err && err.message
+        );
+        // continue with next batch
       }
     }
 
-    console.log("Sent weekly brief to subscribers", sentCount);
+    console.log(
+      `Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`
+    );
     return {
       statusCode: 200,
       body: `Sent weekly brief to ${sentCount} subscribers`,
