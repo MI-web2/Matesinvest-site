@@ -6,6 +6,7 @@
 // - Reads latest prices from Upstash:
 //      asx:universe:eod:latest
 // - Optionally can filter by code query (?code=BHP) or inAsx200 flag.
+// - Optional screener-level ETF exclusion via ?excludeETF=1 or env EXCLUDE_ETF_DEFAULT=1
 //
 // This function does *not* call EODHD directly, so it's cheap and fast per request.
 
@@ -53,6 +54,16 @@ function json(statusCode, bodyObj) {
     },
     body: JSON.stringify(bodyObj),
   };
+}
+
+// Helper: detect names that end with "ETF" (case-insensitive, tolerant of punctuation)
+function isEtfName(name) {
+  if (!name || typeof name !== "string") return false;
+  const cleaned = name
+    .replace(/[\u2013\u2014–—\-()]/g, " ")
+    .replace(/[\s\.,;:]+/g, " ")
+    .trim();
+  return /\bETF$/i.test(cleaned);
 }
 
 // ---------------------------
@@ -136,6 +147,13 @@ exports.handler = async function (event) {
   const onlyAsx200 =
     qs.asx200 === "1" || qs.asx200 === "true" || qs.index === "asx200";
 
+  // screener-level ETF exclusion: per-request override or env default
+  const EXCLUDE_ETF_DEFAULT = String(process.env.EXCLUDE_ETF_DEFAULT || "0") === "1";
+  const excludeETF =
+    qs.excludeETF === "1" ||
+    qs.excludeETF === "true" ||
+    EXCLUDE_ETF_DEFAULT;
+
   try {
     // Load fundamentals snapshot
     const fundamentals = await getUniverseFundamentals();
@@ -148,6 +166,11 @@ exports.handler = async function (event) {
     let items = Array.isArray(fundamentals.items)
       ? fundamentals.items.slice()
       : [];
+
+    // Apply screener-level ETF exclusion early (so price merge skips them)
+    if (excludeETF) {
+      items = items.filter((it) => !isEtfName(it.name));
+    }
 
     // Load prices (best-effort; if missing we just fall back to fundamentals)
     let priceMap = null;
@@ -206,11 +229,17 @@ exports.handler = async function (event) {
       items = items.filter((it) => it.inAsx200 === 1);
     }
 
+    // Normalize universeSize field for compatibility
+    const universeSize =
+      fundamentals.universeSize || fundamentals.universeTotal || items.length;
+
     return json(200, {
       generatedAt: fundamentals.generatedAt || null,
-      universeSize: fundamentals.universeSize || items.length,
+      universeSize,
       count: items.length,
       items,
+      // echo the exclusion mode so callers can see it in responses
+      excludeETF: !!excludeETF,
     });
   } catch (err) {
     console.error("equity-screener error", err);
