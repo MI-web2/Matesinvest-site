@@ -12,8 +12,15 @@
         --bg: #f5f7fb;
         --card: #ffffff;
         --muted: #64748b;
+        --muted-2: #94a3b8;
+        --accent: var(--cyan);
+        --accent-strong: #0093cc;
+        --accent-soft: rgba(0, 191, 255, 0.1);
         --border: #e2e8f0;
-        --radius: 16px;
+        --card-border: #e2e8f0;
+        --glass: rgba(255, 255, 255, 0.92);
+        --radius: 18px;
+        --gap: 1rem;
       }
 
       * {
@@ -23,23 +30,24 @@
       body {
         margin: 0;
         font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-        background: var(--bg);
+        background: radial-gradient(circle at top, #dbeafe 0, #f5f7fb 55%);
         color: var(--navy);
       }
 
       .page {
-        max-width: 1200px;
+        max-width: 1240px;
         margin: 0 auto;
-        padding: 1.5rem;
+        padding: 1.5rem 1.25rem 2.5rem;
       }
 
       header {
-        margin-bottom: 1.5rem;
+        margin-bottom: 1.25rem;
       }
 
       h1 {
-        margin: 0 0 0.5rem;
+        margin: 0 0 0.35rem;
         font-size: 1.8rem;
+        letter-spacing: -0.02em;
       }
 
       .muted {
@@ -47,15 +55,19 @@
         font-size: 0.9rem;
       }
 
+      .filters-card {
+        background: var(--glass);
+        border-radius: var(--radius);
+        border: 1px solid var(--card-border);
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+        padding: 0.85rem 0.9rem;
+        margin-bottom: 1rem;
+      }
+
       .filters {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 0.75rem;
-        margin-bottom: 1rem;
-        background: var(--card);
-        padding: 0.75rem;
-        border-radius: var(--radius);
-        border: 1px solid var(--border);
       }
 
       .filter-group {
@@ -66,43 +78,56 @@
 
       .filter-label {
         font-size: 0.8rem;
-        color: var(--muted);
+        color: var(--muted-2);
       }
 
       input,
       select {
         font: inherit;
-        padding: 0.35rem 0.45rem;
+        padding: 0.4rem 0.6rem;
         border-radius: 999px;
         border: 1px solid var(--border);
         outline: none;
+        background: #f8fafc;
       }
 
       input:focus,
       select:focus {
-        border-color: var(--cyan);
+        border-color: var(--accent);
+        background: #ffffff;
       }
 
       .table-wrapper {
-        background: var(--card);
+        background: var(--glass);
         border-radius: var(--radius);
-        border: 1px solid var(--border);
+        border: 1px solid var(--card-border);
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
         overflow: hidden;
+      }
+
+      .table-scroll {
+        width: 100%;
+        max-height: calc(100vh - 260px);
+        overflow: auto;
       }
 
       table {
         width: 100%;
+        min-width: 2200px; /* forces horizontal scroll for all columns */
         border-collapse: collapse;
-        font-size: 0.9rem;
+        font-size: 0.84rem;
       }
 
       thead {
+        position: sticky;
+        top: 0;
+        z-index: 1;
         background: #f1f5f9;
       }
 
       th,
       td {
-        padding: 0.55rem 0.75rem;
+        padding: 0.5rem 0.6rem;
         text-align: right;
         border-bottom: 1px solid var(--border);
         white-space: nowrap;
@@ -114,7 +139,9 @@
       }
 
       th:nth-child(2),
-      td:nth-child(2) {
+      td:nth-child(2),
+      th:nth-child(3),
+      td:nth-child(3) {
         text-align: left;
       }
 
@@ -125,8 +152,8 @@
 
       th.sortable span {
         margin-left: 0.25rem;
-        font-size: 0.7rem;
-        opacity: 0.7;
+        font-size: 0.65rem;
+        opacity: 0.6;
       }
 
       tbody tr:nth-child(even) {
@@ -138,16 +165,16 @@
         padding: 0.1rem 0.5rem;
         border-radius: 999px;
         background: #e0f2fe;
-        font-size: 0.75rem;
+        font-size: 0.72rem;
       }
 
       .status-bar {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         color: var(--muted);
-        padding: 0.4rem 0.75rem;
+        padding: 0.45rem 0.75rem;
         border-top: 1px solid var(--border);
         background: #f8fafc;
       }
@@ -157,9 +184,17 @@
       }
 
       @media (max-width: 768px) {
+        .page {
+          padding-inline: 0.85rem;
+        }
+
         th,
         td {
           padding: 0.45rem 0.4rem;
+        }
+
+        h1 {
+          font-size: 1.5rem;
         }
       }
     </style>
@@ -169,102 +204,192 @@
       <header>
         <h1>ASX Explorer</h1>
         <p class="muted">
-          Filter, sort, and scan through ASX companies and their fundamentals —
-          like a simple Excel view, but in your browser.
+          Scan the ASX 200 with plain-English fundamentals. Use filters and
+          sorting like a simple spreadsheet, without leaving your browser.
         </p>
       </header>
 
-      <section class="filters">
-        <div class="filter-group">
-          <label class="filter-label" for="searchInput">Search</label>
-          <input
-            id="searchInput"
-            type="text"
-            placeholder="Code or name (e.g. BHP, CSL)"
-          />
-        </div>
-
-        <div class="filter-group">
-          <label class="filter-label" for="sectorSelect">Sector</label>
-          <select id="sectorSelect">
-            <option value="">All sectors</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label class="filter-label">P/E (min – max)</label>
-          <div style="display: flex; gap: 0.25rem">
+      <section class="filters-card">
+        <div class="filters">
+          <div class="filter-group">
+            <label class="filter-label" for="searchInput">Search</label>
             <input
-              id="peMin"
-              type="number"
-              step="0.1"
-              placeholder="0"
-              style="flex: 1"
-            />
-            <input
-              id="peMax"
-              type="number"
-              step="0.1"
-              placeholder="50"
-              style="flex: 1"
+              id="searchInput"
+              type="text"
+              placeholder="Code or name (e.g. BHP, CSL)"
             />
           </div>
-        </div>
 
-        <div class="filter-group">
-          <label class="filter-label">Market cap (A$ bn, min – max)</label>
-          <div style="display: flex; gap: 0.25rem">
+          <div class="filter-group">
+            <label class="filter-label" for="sectorSelect">Sector</label>
+            <select id="sectorSelect">
+              <option value="">All sectors</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">P/E (min – max)</label>
+            <div style="display: flex; gap: 0.25rem">
+              <input
+                id="peMin"
+                type="number"
+                step="0.1"
+                placeholder="0"
+                style="flex: 1"
+              />
+              <input
+                id="peMax"
+                type="number"
+                step="0.1"
+                placeholder="50"
+                style="flex: 1"
+              />
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Mkt cap (A$bn, min – max)</label>
+            <div style="display: flex; gap: 0.25rem">
+              <input
+                id="mcMin"
+                type="number"
+                step="1"
+                placeholder="0"
+                style="flex: 1"
+              />
+              <input
+                id="mcMax"
+                type="number"
+                step="1"
+                placeholder="300"
+                style="flex: 1"
+              />
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Div. yield (min %)</label>
             <input
-              id="mcMin"
+              id="dyMin"
               type="number"
-              step="1"
+              step="0.1"
               placeholder="0"
-              style="flex: 1"
-            />
-            <input
-              id="mcMax"
-              type="number"
-              step="1"
-              placeholder="300"
-              style="flex: 1"
             />
           </div>
         </div>
       </section>
 
       <section class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th class="sortable" data-sort="code">
-                Code <span>↕</span>
-              </th>
-              <th class="sortable" data-sort="name">
-                Name <span>↕</span>
-              </th>
-              <th>Sector</th>
-              <th class="sortable" data-sort="price">
-                Price <span>↕</span>
-              </th>
-              <th class="sortable" data-sort="marketCap">
-                Mkt Cap (A$bn) <span>↕</span>
-              </th>
-              <th class="sortable" data-sort="pe">
-                P/E <span>↕</span>
-              </th>
-              <th class="sortable" data-sort="dividendYield">
-                Div. Yield % <span>↕</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody id="tableBody">
-            <tr>
-              <td colspan="7" style="text-align: center; padding: 1rem">
-                Loading companies…
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="code">
+                  Code <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="name">
+                  Name <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="sector">
+                  Sector <span>↕</span>
+                </th>
+
+                <th class="sortable" data-sort="price">
+                  Price (Y'day) <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="marketCap">
+                  Mkt Cap (A$bn) <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="pctChange">
+                  Daily move % <span>↕</span>
+                </th>
+
+                <th class="sortable" data-sort="ebitda">
+                  EBITDA (A$bn) <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="peRatio">
+                  P/E <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="pegRatio">
+                  PEG <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="eps">
+                  EPS <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="bookValue">
+                  Book value <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="dividendPerShare">
+                  Div / share <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="dividendYield">
+                  Div yield % <span>↕</span>
+                </th>
+
+                <th class="sortable" data-sort="profitMargin">
+                  Profit margin % <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="operatingMargin">
+                  Operating margin % <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="returnOnAssets">
+                  ROA % <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="returnOnEquity">
+                  ROE % <span>↕</span>
+                </th>
+
+                <th class="sortable" data-sort="revenue">
+                  Revenue (A$bn) <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="revenuePerShare">
+                  Revenue / share <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="grossProfit">
+                  Gross profit (A$bn) <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="dilutedEps">
+                  Diluted EPS <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="quarterlyRevenueGrowthYoy">
+                  Q rev growth YoY % <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="quarterlyEarningsGrowthYoy">
+                  Q EPS growth YoY % <span>↕</span>
+                </th>
+
+                <th class="sortable" data-sort="trailingPE">
+                  Trailing P/E <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="forwardPE">
+                  Forward P/E <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="priceToSales">
+                  Price / sales <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="priceToBook">
+                  Price / book <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="enterpriseValue">
+                  EV (A$bn) <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="evToRevenue">
+                  EV / revenue <span>↕</span>
+                </th>
+                <th class="sortable" data-sort="evToEbitda">
+                  EV / EBITDA <span>↕</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr>
+                <td colspan="30" style="text-align: center; padding: 1rem">
+                  Loading companies…
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
         <div class="status-bar">
           <span id="statusCount">0 companies</span>
@@ -283,6 +408,7 @@
       const peMaxInput = document.getElementById("peMax");
       const mcMinInput = document.getElementById("mcMin");
       const mcMaxInput = document.getElementById("mcMax");
+      const dyMinInput = document.getElementById("dyMin");
       const statusCount = document.getElementById("statusCount");
       const statusMeta = document.getElementById("statusMeta");
       const ths = document.querySelectorAll("th.sortable");
@@ -310,7 +436,7 @@
         } catch (e) {
           console.error(e);
           tableBody.innerHTML =
-            '<tr><td colspan="7" style="text-align:center;padding:1rem;color:#dc2626">Failed to load data. Refresh to try again.</td></tr>';
+            '<tr><td colspan="30" style="text-align:center;padding:1rem;color:#dc2626">Failed to load data. Refresh to try again.</td></tr>';
         }
       }
 
@@ -338,6 +464,7 @@
         const peMax = parseFloat(peMaxInput.value);
         const mcMinBn = parseFloat(mcMinInput.value);
         const mcMaxBn = parseFloat(mcMaxInput.value);
+        const dyMin = parseFloat(dyMinInput.value);
 
         filteredItems = rawItems.filter((item) => {
           // Search filter
@@ -350,7 +477,7 @@
           if (sector && item.sector !== sector) return false;
 
           // P/E filter
-          const pe = Number(item.pe);
+          const pe = Number(item.peRatio);
           if (!Number.isNaN(pe)) {
             if (!Number.isNaN(peMin) && pe < peMin) return false;
             if (!Number.isNaN(peMax) && pe > peMax) return false;
@@ -362,6 +489,14 @@
           if (!Number.isNaN(mcBn)) {
             if (!Number.isNaN(mcMinBn) && mcBn < mcMinBn) return false;
             if (!Number.isNaN(mcMaxBn) && mcBn > mcMaxBn) return false;
+          }
+
+          // Dividend yield minimum
+          const dy = Number(item.dividendYield);
+          if (!Number.isNaN(dy) && !Number.isNaN(dyMin)) {
+            // fundamentals are typically fractions (0.045 => 4.5%)
+            const dyPct = dy <= 1 && dy >= -1 ? dy * 100 : dy;
+            if (dyPct < dyMin) return false;
           }
 
           return true;
@@ -379,7 +514,6 @@
           const va = a[key];
           const vb = b[key];
 
-          // Handle numeric vs text sorts
           const na = Number(va);
           const nb = Number(vb);
           const bothNumeric =
@@ -402,31 +536,58 @@
       function renderTable() {
         if (!filteredItems.length) {
           tableBody.innerHTML =
-            '<tr><td colspan="7" style="text-align:center;padding:1rem;">No companies match your filters.</td></tr>';
+            '<tr><td colspan="30" style="text-align:center;padding:1rem;">No companies match your filters.</td></tr>';
           statusCount.textContent = "0 companies";
           return;
         }
 
         const rows = filteredItems
           .map((item) => {
-            const mcBn = Number(item.marketCap) / 1_000_000_000;
-            const mcBnStr = Number.isNaN(mcBn)
-              ? "-"
-              : mcBn.toLocaleString(undefined, {
-                  maximumFractionDigits: 1,
-                });
+            const mcBn = toBillions(item.marketCap);
+            const ebitdaBn = toBillions(item.ebitda);
+            const revBn = toBillions(item.revenue);
+            const gpBn = toBillions(item.grossProfit);
+            const evBn = toBillions(item.enterpriseValue);
 
             return `
-            <tr>
-              <td><strong>${item.code}</strong></td>
-              <td>${item.name || ""}</td>
-              <td><span class="pill">${item.sector || "Unknown"}</span></td>
-              <td>${formatNumber(item.price)}</td>
-              <td>${mcBnStr}</td>
-              <td>${formatNumber(item.pe)}</td>
-              <td>${formatNumber(item.dividendYield)}</td>
-            </tr>
-          `;
+              <tr>
+                <td><strong>${item.code}</strong></td>
+                <td>${item.name || ""}</td>
+                <td><span class="pill">${item.sector || "Unknown"}</span></td>
+
+                <td>${formatNumber(item.price)}</td>
+                <td>${mcBn}</td>
+                <td>${formatPercentRaw(item.pctChange)}</td>
+
+                <td>${ebitdaBn}</td>
+                <td>${formatNumber(item.peRatio)}</td>
+                <td>${formatNumber(item.pegRatio)}</td>
+                <td>${formatNumber(item.eps)}</td>
+                <td>${formatNumber(item.bookValue)}</td>
+                <td>${formatNumber(item.dividendPerShare)}</td>
+                <td>${formatPercentFrac(item.dividendYield)}</td>
+
+                <td>${formatPercentFrac(item.profitMargin)}</td>
+                <td>${formatPercentFrac(item.operatingMargin)}</td>
+                <td>${formatPercentFrac(item.returnOnAssets)}</td>
+                <td>${formatPercentFrac(item.returnOnEquity)}</td>
+
+                <td>${revBn}</td>
+                <td>${formatNumber(item.revenuePerShare)}</td>
+                <td>${gpBn}</td>
+                <td>${formatNumber(item.dilutedEps)}</td>
+                <td>${formatPercentFrac(item.quarterlyRevenueGrowthYoy)}</td>
+                <td>${formatPercentFrac(item.quarterlyEarningsGrowthYoy)}</td>
+
+                <td>${formatNumber(item.trailingPE)}</td>
+                <td>${formatNumber(item.forwardPE)}</td>
+                <td>${formatNumber(item.priceToSales)}</td>
+                <td>${formatNumber(item.priceToBook)}</td>
+                <td>${evBn}</td>
+                <td>${formatNumber(item.evToRevenue)}</td>
+                <td>${formatNumber(item.evToEbitda)}</td>
+              </tr>
+            `;
           })
           .join("");
 
@@ -434,6 +595,15 @@
         statusCount.textContent = `${filteredItems.length} compan${
           filteredItems.length === 1 ? "y" : "ies"
         }`;
+      }
+
+      function toBillions(value) {
+        const n = Number(value);
+        if (Number.isNaN(n)) return "-";
+        const bn = n / 1_000_000_000;
+        return bn.toLocaleString(undefined, {
+          maximumFractionDigits: 1,
+        });
       }
 
       function formatNumber(value) {
@@ -444,13 +614,29 @@
         });
       }
 
+      // Treat n as 0.045 => 4.5%
+      function formatPercentFrac(value) {
+        const n = Number(value);
+        if (Number.isNaN(n)) return "-";
+        const pct = Math.abs(n) <= 1 ? n * 100 : n;
+        return `${pct.toFixed(2)}%`;
+      }
+
+      // Treat n as already in percent points (e.g. 1.23 => 1.23%)
+      function formatPercentRaw(value) {
+        const n = Number(value);
+        if (Number.isNaN(n)) return "-";
+        return `${n.toFixed(2)}%`;
+      }
+
       // Event listeners
-      searchInput.addEventListener("input", () => applyFilters());
-      sectorSelect.addEventListener("change", () => applyFilters());
-      peMinInput.addEventListener("input", () => applyFilters());
-      peMaxInput.addEventListener("input", () => applyFilters());
-      mcMinInput.addEventListener("input", () => applyFilters());
-      mcMaxInput.addEventListener("input", () => applyFilters());
+      searchInput.addEventListener("input", applyFilters);
+      sectorSelect.addEventListener("change", applyFilters);
+      peMinInput.addEventListener("input", applyFilters);
+      peMaxInput.addEventListener("input", applyFilters);
+      mcMinInput.addEventListener("input", applyFilters);
+      mcMaxInput.addEventListener("input", applyFilters);
+      dyMinInput.addEventListener("input", applyFilters);
 
       ths.forEach((th) => {
         th.addEventListener("click", () => {
