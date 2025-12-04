@@ -31,3 +31,7 @@
   # Crypto snapshot daily at 20:00 UTC (~6am AEST / 7am AEDT)
   # Used by morning-brief + daily email for BTC/ETH/SOL/ADA
   schedule = "0 20 * * *"
+  
+[functions."snapshot-asx200-fundamentals"]
+  # run overnight Mon–Fri AEST-ish
+  schedule = "30 21 * * 1-5"
