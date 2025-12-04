@@ -1453,7 +1453,6 @@
     padding: 1.6rem 1.8rem;
     box-shadow: 0 10px 30px rgba(15,23,42,0.08);
   ">
-
     <!-- Main heading -->
     <h1 style="margin-top:0; margin-bottom:0.4rem; font-size:1.75rem; font-weight:700; color:var(--navy);">
       MatesFeed — ASX in Plain English
@@ -1468,8 +1467,10 @@
     <!-- CTA buttons -->
     <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-top:0.75rem;">
 
-      <!-- Morning brief button -->
-      <a href="#morningBrief"
+      <!-- Morning brief button now controls the brief -->
+      <button
+        id="openBrief"
+        type="button"
         style="
           padding:0.65rem 1.2rem;
           border-radius:999px;
@@ -1477,12 +1478,12 @@
           font-size:0.95rem;
           color:#001220;
           background:var(--accent);
-          text-decoration:none;
-          box-shadow:0 5px 14px rgba(15,23,42,0.22);
           border:1px solid transparent;
+          box-shadow:0 5px 14px rgba(15,23,42,0.22);
+          cursor:pointer;
         ">
         Read Today’s Morning Brief
-      </a>
+      </button>
 
       <!-- Subscribe button -->
       <a href="/join.html"
@@ -1506,43 +1507,27 @@
       Perfect for Aussie investors who want quick insights before the market opens.
     </p>
 
+    <!-- Morning brief content now lives inside the hero card -->
+    <div id="briefContent" class="brief-content" aria-live="polite">
+      <!-- injected by JS -->
+    </div>
   </div>
 </section>
-
     <!-- HERO (kept for accessibility/SEO but visually hidden) -->
     <h1 class="visually-hidden">MatesFeed</h1>
-    <!-- MORNING BRIEF -->
-    <section id="morningBrief" class="card">
-      <div class="brief-header">
-<div>
-  <h2 style="margin:0">Morning Briefing</h2>
-  <div class="brief-subtitle">
-    A short note on what could move markets in Australia today.
-  </div>
-</div>
 
-<div class="brief-controls">
-  <button id="openBrief" class="brief-toggle primary">Open morning brief</button>
-</div>
-
-      </div>
-
-      <div id="briefContent" class="brief-content" aria-live="polite">
-        <!-- injected by JS -->
-      </div>
-    </section>
-<a href="/join.html"
-   style="
-     font-size:0.9rem;
-     color:var(--navy);
-     text-decoration:none;
-     font-weight:600;
-   ">
-   Subscribe to the Daily Email →
-</a>
-<div class="feedback-inline">
-  <a href="/mates-feedback.html">💬 Give feedback</a>
-</div>
+    <a href="/join.html"
+       style="
+         font-size:0.9rem;
+         color:var(--navy);
+         text-decoration:none;
+         font-weight:600;
+       ">
+       Subscribe to the Daily Email →
+    </a>
+    <div class="feedback-inline">
+      <a href="/mates-feedback.html">💬 Give feedback</a>
+    </div>
 
     <!-- LATEST HEADLINES -->
     <section id="news" class="card" aria-labelledby="latest-headlines">
