@@ -846,7 +846,61 @@
         </div>
       </section>
     </div>
+    <!-- Instrument details modal for screener -->
+<div id="mi-instrument-overlay" class="mi-ins-overlay" aria-hidden="true">
+  <div class="mi-ins-modal" role="dialog" aria-modal="true" aria-labelledby="mi-ins-title">
+    <div class="mi-ins-header">
+      <div>
+        <h2 id="mi-ins-title" class="mi-ins-title">Instrument name</h2>
+        <div id="mi-ins-subtitle" class="mi-ins-subtitle">CODE • Sector</div>
+      </div>
+      <div class="mi-ins-price-block">
+        <div id="mi-ins-price" class="mi-ins-price">$0.00</div>
+        <div id="mi-ins-change" class="mi-ins-change">+0.0% today</div>
+        <div id="mi-ins-date" class="mi-ins-date">as at —</div>
+      </div>
+      <button
+        class="mi-ins-close"
+        type="button"
+        id="mi-ins-close-btn"
+        aria-label="Close"
+      >
+        ✕
+      </button>
+    </div>
 
+    <div id="mi-ins-tags" class="mi-ins-tags"></div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Key stats</h3>
+      <div id="mi-ins-stats" class="mi-ins-stats-grid"></div>
+    </div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Price history</h3>
+      <div class="mi-ins-history">
+        <div id="mi-ins-history-summary" class="mi-ins-history-summary">
+          Showing last 6 months of daily closes.
+        </div>
+        <canvas id="mi-ins-chart" width="600" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Company snapshot</h3>
+      <div id="mi-ins-ai-summary" class="mi-ins-ai-summary">
+        We’re loading a short AI summary for this company…
+      </div>
+    </div>
+
+    <div class="mi-ins-section">
+      <h3 class="mi-ins-section-title">Latest news</h3>
+      <div id="mi-ins-news">
+        Loading headlines for this name…
+      </div>
+    </div>
+  </div>
+</div>
     <script>
       const API_URL = "/.netlify/functions/equity-screener";
 
@@ -1494,60 +1548,6 @@ document.addEventListener("keydown", (e) => {
   }
 });
     </script>
-    <!-- Instrument details modal for screener -->
-<div id="mi-instrument-overlay" class="mi-ins-overlay" aria-hidden="true">
-  <div class="mi-ins-modal" role="dialog" aria-modal="true" aria-labelledby="mi-ins-title">
-    <div class="mi-ins-header">
-      <div>
-        <h2 id="mi-ins-title" class="mi-ins-title">Instrument name</h2>
-        <div id="mi-ins-subtitle" class="mi-ins-subtitle">CODE • Sector</div>
-      </div>
-      <div class="mi-ins-price-block">
-        <div id="mi-ins-price" class="mi-ins-price">$0.00</div>
-        <div id="mi-ins-change" class="mi-ins-change">+0.0% today</div>
-        <div id="mi-ins-date" class="mi-ins-date">as at —</div>
-      </div>
-      <button
-        class="mi-ins-close"
-        type="button"
-        id="mi-ins-close-btn"
-        aria-label="Close"
-      >
-        ✕
-      </button>
-    </div>
 
-    <div id="mi-ins-tags" class="mi-ins-tags"></div>
-
-    <div class="mi-ins-section">
-      <h3 class="mi-ins-section-title">Key stats</h3>
-      <div id="mi-ins-stats" class="mi-ins-stats-grid"></div>
-    </div>
-
-    <div class="mi-ins-section">
-      <h3 class="mi-ins-section-title">Price history</h3>
-      <div class="mi-ins-history">
-        <div id="mi-ins-history-summary" class="mi-ins-history-summary">
-          Showing last 6 months of daily closes.
-        </div>
-        <canvas id="mi-ins-chart" width="600" height="220"></canvas>
-      </div>
-    </div>
-
-    <div class="mi-ins-section">
-      <h3 class="mi-ins-section-title">Company snapshot</h3>
-      <div id="mi-ins-ai-summary" class="mi-ins-ai-summary">
-        We’re loading a short AI summary for this company…
-      </div>
-    </div>
-
-    <div class="mi-ins-section">
-      <h3 class="mi-ins-section-title">Latest news</h3>
-      <div id="mi-ins-news">
-        Loading headlines for this name…
-      </div>
-    </div>
-  </div>
-</div>
   </body>
 </html>
