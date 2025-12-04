@@ -271,9 +271,7 @@ exports.handler = async function (event) {
 
   let idx = 0;
   const total = universeCodes.length;
-  const workers = new Array(
-    Math.min(CONCURRENCY, total)
-  )
+  const workers = new Array(Math.min(CONCURRENCY, total))
     .fill(null)
     .map(async () => {
       while (true) {
@@ -298,15 +296,22 @@ exports.handler = async function (event) {
           // --- Map a compact item shape for the screener ---
           const general = d.General || {};
           const highlights = d.Highlights || {};
-          const ratios = d.ValuationRatios || d.Valuation || {};
-          const sharesStats = d.SharesStats || {};
-          const es = d["Earnings::Annual"] || {};
-          const fsq = d["Financials::Quarterly"] || {};
-          const fl = d["Financials::Annual"] || {};
+          const ratios =
+            d.ValuationRatios || d.Valuation || {};
+          const valuation = d.Valuation || {};
+          const defaultStats = d.DefaultKeyStatistics || {};
 
           const price = Number(
-            highlights.Close || highlights.LastClose || highlights.LatestClose
+            highlights.Close ||
+              highlights.LastClose ||
+              highlights.LatestClose
           );
+
+          // helper to coerce to number but keep null if missing
+          const num = (v) =>
+            v === null || typeof v === "undefined" || v === ""
+              ? null
+              : Number(v);
 
           const item = {
             code: base,
@@ -317,59 +322,132 @@ exports.handler = async function (event) {
 
             // Basic price & size
             price: Number.isFinite(price) ? price : null,
-            marketCap: Number(
+            marketCap: num(
               highlights.MarketCapitalization ||
-                general.MarketCapitalization ||
-                NaN
+                general.MarketCapitalization
             ),
-            pctChange: Number(
-              highlights.ChangePercent || highlights.RelativePriceChange || NaN
+            pctChange: num(
+              highlights.ChangePercent ||
+                highlights.RelativePriceChange
             ),
 
-            // A few fundamentals we know we use in the screener;
-            // anything missing will just render as "—" in the UI.
-            ebitda: Number(highlights.EBITDA || NaN),
-            peRatio: Number(ratios.PERatio || NaN),
-            pegRatio: Number(ratios.PEGRatio || NaN),
-            eps: Number(highlights.EarningsPerShare || NaN),
-            bookValue: Number(highlights.BookValue || NaN),
-            dividendPerShare: Number(
-              highlights.DividendShare ||
-                get(d, "SplitsDividends.LastAnnualDividend", NaN)
+            // Key fundamentals
+            ebitda: num(highlights.EBITDA),
+
+            peRatio: num(
+              ratios.PERatio || highlights.PERatio
             ),
-            dividendYield: Number(
+
+            pegRatio: num(
+              ratios.PEGRatio ||
+                highlights.PEGRatio ||
+                defaultStats.PEGRatio
+            ),
+
+            eps: num(
+              highlights.EarningsPerShare ||
+                highlights.EarningsShare
+            ),
+
+            bookValue: num(highlights.BookValue),
+
+            dividendPerShare: num(
+              highlights.DividendShare ||
+                get(
+                  d,
+                  "SplitsDividends.LastAnnualDividend"
+                )
+            ),
+
+            dividendYield: num(
               get(
                 d,
                 "SplitsDividends.ForwardAnnualDividendYield",
-                highlights.DividendYield ?? NaN
+                highlights.DividendYield
               )
             ),
 
-            profitMargin: Number(highlights.ProfitMargin || NaN),
-            operatingMargin: Number(highlights.OperatingMargin || NaN),
-            returnOnAssets: Number(highlights.ReturnOnAssets || NaN),
-            returnOnEquity: Number(highlights.ReturnOnEquity || NaN),
+            profitMargin: num(highlights.ProfitMargin),
 
-            revenue: Number(highlights.RevenueTTM || NaN),
-            revenuePerShare: Number(
-              highlights.RevenuePerShareTTM || NaN
-            ),
-            grossProfit: Number(highlights.GrossProfitTTM || NaN),
-            dilutedEps: Number(highlights.DilutedEpsTTM || NaN),
-            quarterlyRevenueGrowthYoy: Number(
-              highlights.QuarterlyRevenueGrowthYOY || NaN
-            ),
-            quarterlyEarningsGrowthYoy: Number(
-              highlights.QuarterlyEarningsGrowthYOY || NaN
+            operatingMargin: num(
+              highlights.OperatingMargin ||
+                highlights.OperatingMarginTTM
             ),
 
-            trailingPE: Number(ratios.TrailingPE || ratios.PERatio || NaN),
-            forwardPE: Number(ratios.ForwardPE || NaN),
-            priceToSales: Number(ratios.PriceToSalesRatio || NaN),
-            priceToBook: Number(ratios.PriceToBookRatio || NaN),
-            enterpriseValue: Number(highlights.EnterpriseValue || NaN),
-            evToRevenue: Number(highlights.EnterpriseValueToRevenue || NaN),
-            evToEbitda: Number(highlights.EnterpriseValueToEBITDA || NaN),
+            returnOnAssets: num(
+              highlights.ReturnOnAssets ||
+                highlights.ReturnOnAssetsTTM
+            ),
+
+            returnOnEquity: num(
+              highlights.ReturnOnEquity ||
+                highlights.ReturnOnEquityTTM
+            ),
+
+            revenue: num(highlights.RevenueTTM || highlights.Revenue),
+
+            revenuePerShare: num(
+              highlights.RevenuePerShareTTM ||
+                highlights.RevenuePerShare
+            ),
+
+            grossProfit: num(
+              highlights.GrossProfitTTM ||
+                highlights.GrossProfit
+            ),
+
+            dilutedEps: num(
+              highlights.DilutedEpsTTM ||
+                highlights.DilutedEps
+            ),
+
+            quarterlyRevenueGrowthYoy: num(
+              highlights.QuarterlyRevenueGrowthYOY
+            ),
+
+            quarterlyEarningsGrowthYoy: num(
+              highlights.QuarterlyEarningsGrowthYOY
+            ),
+
+            // Valuation metrics
+            trailingPE: num(
+              ratios.TrailingPE ||
+                valuation.TrailingPE ||
+                highlights.PERatio
+            ),
+
+            forwardPE: num(
+              ratios.ForwardPE || valuation.ForwardPE
+            ),
+
+            priceToSales: num(
+              ratios.PriceSalesTTM ||
+                ratios.PriceToSalesRatio ||
+                valuation.PriceSalesTTM
+            ),
+
+            priceToBook: num(
+              ratios.PriceBookMRQ ||
+                ratios.PriceToBookRatio ||
+                valuation.PriceBookMRQ
+            ),
+
+            enterpriseValue: num(
+              ratios.EnterpriseValue ||
+                valuation.EnterpriseValue
+            ),
+
+            evToRevenue: num(
+              ratios.EnterpriseValueRevenue ||
+                ratios.EnterpriseValueToRevenue ||
+                valuation.EnterpriseValueRevenue
+            ),
+
+            evToEbitda: num(
+              ratios.EnterpriseValueEbitda ||
+                ratios.EnterpriseValueToEBITDA ||
+                valuation.EnterpriseValueEbitda
+            ),
           };
 
           items.push(item);
