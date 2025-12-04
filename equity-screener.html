@@ -306,25 +306,25 @@
         white-space: nowrap;
       }
 
-      /* ---------- STICKY FIRST COLUMN (CODE) ---------- */
+/* ---------- STICKY FIRST COLUMN (CODE) ---------- */
+th.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 6; /* higher than all other header cells */
+  background: #f1f5f9;
+}
 
-      th.sticky-col {
-        position: sticky;
-        left: 0;
-        z-index: 3;
-        background: #f1f5f9;
-      }
+td.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 4; /* lower than header but above body cells */
+  background: #ffffff;
+}
 
-      td.sticky-col {
-        position: sticky;
-        left: 0;
-        z-index: 2;
-        background: #ffffff;
-      }
+tbody tr:nth-child(even) td.sticky-col {
+  background: #f8fafc;
+}
 
-      tbody tr:nth-child(even) td.sticky-col {
-        background: #f8fafc;
-      }
 
       /* ---------- MOBILE TWEAKS ---------- */
 
@@ -353,6 +353,14 @@
           grid-template-columns: 1fr;
         }
       }
+      /* ---------- STICKY HEADER ROW ---------- */
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5; /* higher than sticky column cells */
+  background: #f1f5f9; /* same as your existing header bg */
+}
+
     </style>
   </head>
   <body>
@@ -361,7 +369,7 @@
         <div class="nav-left">
           <a href="/" class="nav-logo">
             <img
-              src="/assets/logo-placeholder.svg"
+              src="/assets/img/logo-placeholder.png" 
               alt="MatesInvest"
               class="nav-logo-img"
             />
