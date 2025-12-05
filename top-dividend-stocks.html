@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Top ASX Dividend Stocks – MatesInvest</title>
+
+    <meta
+      name="description"
+      content="See a plain-English view of the top dividend-paying ASX stocks, filtered from the MatesInvest ASX Explorer. Updated daily using live market data."
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Open Graph / social -->
+    <meta property="og:title" content="Top ASX Dividend Stocks – MatesInvest" />
+    <meta
+      property="og:description"
+      content="Explore high-yield ASX dividend stocks in one simple snapshot, powered by the MatesInvest ASX Explorer."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://matesinvest.com/top-dividend-stocks.html" />
+
+    <style>
+      :root{
+        --navy: #002040;
+        --cyan: #00BFFF;
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --muted: #64748b;
+        --muted-2: #94a3b8;
+        --accent: var(--cyan);
+        --accent-strong: #0093cc;
+        --accent-soft: rgba(0,191,255,0.10);
+        --border: #e2e8f0;
+        --card-border: #e2e8f0;
+        --glass: rgba(255,255,255,0.9);
+        --radius: 18px;
+        --gap: 1rem;
+      }
+
+      *{box-sizing:border-box}
+      html,body{height:100%}
+      body{
+        margin:0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        background: radial-gradient(circle at top left,#e0f2fe,#f8fafc 48%,#fdf2ff);
+        color:#0f172a;
+      }
+
+      a{color:inherit}
+
+      .page-shell{
+        max-width:1100px;
+        margin:0 auto;
+        padding:1.2rem 1.1rem 2.5rem;
+        position:relative;
+      }
+
+      .corner-pattern{
+        position:absolute;
+        inset:0;
+        pointer-events:none;
+        background:
+          radial-gradient(circle at top left, rgba(56,189,248,0.24), transparent 55%),
+          radial-gradient(circle at bottom right, rgba(129,140,248,0.16), transparent 55%);
+        opacity:0.65;
+        z-index:-1;
+      }
+
+      .nav-shell{
+        max-width:1100px;
+        margin:0 auto;
+        padding:0.9rem 1.1rem 0.25rem;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        position:sticky;
+        top:0;
+        z-index:20;
+        backdrop-filter:blur(16px);
+        background:linear-gradient(to bottom,rgba(248,250,252,0.88),rgba(248,250,252,0.58));
+        border-bottom:1px solid rgba(226,232,240,0.8);
+      }
+
+      .nav-left{
+        display:flex;
+        align-items:center;
+        gap:0.5rem;
+      }
+
+      .nav-logo {
+        display:flex;
+        align-items:center;
+        gap:0.55rem;
+        text-decoration:none;
+        color:inherit;
+      }
+
+      .nav-logo-img {
+        width:32px;
+        height:32px;
+        object-fit:contain;
+        display:block;
+      }
+
+      .nav-logo-text {
+        font-weight:700;
+        font-size:1.05rem;
+        letter-spacing:-0.02em;
+      }
+
+      .nav-right{
+        display:flex;
+        align-items:center;
+        gap:0.75rem;
+        white-space:nowrap;
+        font-size:0.9rem;
+      }
+
+      .nav-pill-link{
+        padding:0.45rem 0.85rem;
+        border-radius:999px;
+        border:1px solid rgba(148,163,184,0.55);
+        text-decoration:none;
+        background:rgba(255,255,255,0.9);
+      }
+
+      .nav-home-link{
+        text-decoration:none;
+        color:var(--muted-2);
+      }
+
+      @media (max-width:720px){
+        .nav-shell{
+          padding-inline:0.9rem;
+        }
+        .nav-right{
+          gap:0.45rem;
+          font-size:0.82rem;
+        }
+        .nav-home-link{
+          display:none;
+        }
+      }
+
+      /* Page specific */
+
+      .hero{
+        margin-top:1.2rem;
+        margin-bottom:1.5rem;
+      }
+
+      .hero-card{
+        background:var(--card);
+        border-radius:var(--radius);
+        border:1px solid var(--card-border);
+        padding:1.6rem 1.6rem 1.3rem;
+        box-shadow:0 22px 45px rgba(15,23,42,0.06);
+      }
+
+      .hero-pill{
+        display:inline-flex;
+        align-items:center;
+        gap:0.35rem;
+        padding:0.2rem 0.6rem;
+        font-size:0.78rem;
+        border-radius:999px;
+        background:var(--accent-soft);
+        border:1px solid rgba(56,189,248,0.55);
+        color:#0369a1;
+        text-transform:uppercase;
+        letter-spacing:0.16em;
+      }
+
+      .hero-title{
+        margin:0.6rem 0 0.25rem;
+        font-size:1.85rem;
+        letter-spacing:-0.03em;
+      }
+
+      .hero-sub{
+        margin:0;
+        font-size:0.96rem;
+        color:var(--muted);
+      }
+
+      .hero-footnote{
+        margin-top:0.7rem;
+        font-size:0.8rem;
+        color:var(--muted-2);
+      }
+
+      .layout-grid{
+        display:grid;
+        grid-template-columns:minmax(0,2fr) minmax(0,1.4fr);
+        gap:1.1rem;
+        align-items:flex-start;
+      }
+
+      @media (max-width:900px){
+        .layout-grid{
+          grid-template-columns:minmax(0,1fr);
+        }
+      }
+
+      .card{
+        background:var(--card);
+        border-radius:var(--radius);
+        border:1px solid var(--card-border);
+        padding:1.3rem 1.4rem;
+        box-shadow:0 18px 35px rgba(15,23,42,0.05);
+      }
+
+      .section-caption{
+        font-size:0.78rem;
+        text-transform:uppercase;
+        letter-spacing:0.14em;
+        color:var(--muted-2);
+        margin-bottom:0.4rem;
+      }
+
+      .muted{
+        color:var(--muted);
+      }
+      .muted-2{
+        color:var(--muted-2);
+      }
+
+      table{
+        width:100%;
+        border-collapse:collapse;
+        font-size:0.88rem;
+      }
+
+      thead{
+        background:rgba(248,250,252,0.9);
+      }
+
+      th,td{
+        padding:0.45rem 0.4rem;
+        text-align:left;
+        white-space:nowrap;
+      }
+
+      th{
+        font-weight:600;
+        font-size:0.8rem;
+        color:var(--muted);
+        border-bottom:1px solid var(--border);
+      }
+
+      tbody tr:nth-child(even){
+        background:rgba(248,250,252,0.7);
+      }
+
+      tbody tr:hover{
+        background:rgba(224,242,254,0.7);
+      }
+
+      .code-chip{
+        font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size:0.8rem;
+        padding:0.15rem 0.45rem;
+        border-radius:999px;
+        border:1px solid rgba(148,163,184,0.55);
+        background:white;
+        display:inline-flex;
+        align-items:center;
+      }
+
+      .yield-good{ color:#16a34a; font-weight:600; }
+      .yield-ok{ color:#0f766e; font-weight:600; }
+      .yield-low{ color:var(--muted); }
+
+      .badge{
+        display:inline-flex;
+        align-items:center;
+        padding:0.2rem 0.5rem;
+        border-radius:999px;
+        font-size:0.74rem;
+        background:rgba(148,163,184,0.12);
+        border:1px solid rgba(148,163,184,0.45);
+        margin-right:0.3rem;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- NAV -->
+    <header class="nav-shell">
+      <div class="nav-left">
+        <a href="/" class="nav-logo">
+          <img
+            src="/assets/img/logo-placeholder.png"
+            alt="MatesInvest"
+            class="nav-logo-img"
+          />
+          <div class="nav-logo-text">MatesInvest</div>
+        </a>
+      </div>
+
+      <div class="nav-right">
+        <a href="/equity-screener.html" class="nav-pill-link">ASX Explorer</a>
+        <a href="/mates-summaries" class="nav-home-link">MatesSummaries</a>
+      </div>
+    </header>
+
+    <!-- BODY -->
+    <div class="page-shell">
+      <div class="corner-pattern" aria-hidden="true"></div>
+
+      <!-- HERO -->
+      <section class="hero">
+        <div class="hero-card">
+          <div class="hero-pill">Dividend snapshot</div>
+          <h1 class="hero-title">Top ASX dividend stocks</h1>
+          <p class="hero-sub">
+            A plain-English view of high-yield ASX companies, filtered from the MatesInvest
+            ASX Explorer. This isn’t a recommendation list, just a starting point for your own research.
+          </p>
+          <p class="hero-footnote">
+            Method: we look at the latest ASX universe snapshot, exclude ETFs, then sort companies
+            by indicated dividend yield. Data is delayed and can change; always double-check before acting.
+          </p>
+        </div>
+      </section>
+
+      <section class="layout-grid">
+        <!-- LEFT: table -->
+        <article class="card">
+          <div class="section-caption">High-yield list (live snapshot)</div>
+          <p class="muted" style="font-size:0.85rem;margin-top:0;margin-bottom:0.7rem;">
+            Pulled from the same data that powers the ASX Explorer. We prioritise companies with a
+            higher indicated yield and a reasonable market cap. Not financial advice.
+          </p>
+
+          <div style="overflow:auto; border-radius:12px; border:1px solid var(--border);">
+            <table>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Sector</th>
+                  <th>Dividend yield</th>
+                  <th>Market cap</th>
+                  <th>Last price</th>
+                </tr>
+              </thead>
+              <tbody id="dividendTableBody">
+                <tr>
+                  <td colspan="6" class="muted" style="text-align:center;padding:0.8rem;">
+                    Loading dividend stocks from the ASX Explorer…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <!-- RIGHT: explainer -->
+        <aside class="card">
+          <div class="section-caption">How to use this page</div>
+          <p class="muted" style="font-size:0.9rem;margin-top:0.1rem;">
+            This page is designed as an explainer and research starting point. It should sit nicely
+            alongside the MatesMorning email and the ASX Explorer.
+          </p>
+
+          <ul class="muted" style="font-size:0.86rem;padding-left:1.1rem;margin-top:0.6rem;">
+            <li><strong>Not recommendations:</strong> a high yield can come with higher risk.</li>
+            <li><strong>Look beyond the yield:</strong> check earnings, debt, and sector trends.</li>
+            <li><strong>Mix with other tools:</strong> combine this with your broker, MatesSummaries and company research.</li>
+          </ul>
+
+          <p class="muted-2" style="font-size:0.8rem;margin-top:0.8rem;">
+            If a stock looks interesting here, you can look it up in the ASX Explorer or your broker
+            for deeper detail. Over time, we’ll add sector breakdowns and quick summaries on this page too.
+          </p>
+        </aside>
+      </section>
+
+      <section style="margin-top:1.3rem;">
+        <p class="muted-2" style="font-size:0.8rem;">
+          Information is general in nature and not financial advice. It doesn’t take into account your
+          objectives, financial situation or needs. Always do your own research or chat to a licensed adviser.
+        </p>
+      </section>
+    </div>
+
+    <!-- DATA SCRIPT -->
+    <script>
+      // Adjust this if your screener function lives at a different path.
+      // This assumes you have a Netlify function like netlify/functions/equity-screener.js
+      // which is exposed at /.netlify/functions/equity-screener and returns { items: [...] }.
+      const SCREENER_API = "/.netlify/functions/equity-screener";
+
+      const tableBody = document.getElementById("dividendTableBody");
+
+      function formatMoney(n) {
+        if (n == null) return "–";
+        const num = Number(n);
+        if (!isFinite(num)) return "–";
+        if (num >= 1e9) return (num / 1e9).toFixed(1) + "b";
+        if (num >= 1e6) return (num / 1e6).toFixed(1) + "m";
+        if (num >= 1e3) return (num / 1e3).toFixed(1) + "k";
+        return num.toFixed(2);
+      }
+
+      function formatYield(y) {
+        if (y == null) return { text: "–", cls: "yield-low" };
+        const pct = Number(y) * 100;
+        if (!isFinite(pct)) return { text: "–", cls: "yield-low" };
+        let cls = "yield-low";
+        if (pct >= 6) cls = "yield-good";
+        else if (pct >= 4) cls = "yield-ok";
+        return { text: pct.toFixed(1) + "%", cls };
+      }
+
+      function formatPrice(p) {
+        if (p == null) return "–";
+        const num = Number(p);
+        if (!isFinite(num)) return "–";
+        return "$" + num.toFixed(2);
+      }
+
+      function isEtfName(name) {
+        if (!name) return false;
+        return /etf$/i.test(name.trim());
+      }
+
+      async function loadDividendStocks() {
+        try {
+          const res = await fetch(SCREENER_API);
+          if (!res.ok) {
+            throw new Error("HTTP " + res.status);
+          }
+          const data = await res.json();
+          const items = data.items || data || [];
+
+          // Filter: non-ETF, has dividendYield, yield > ~3%
+          const filtered = items
+            .filter((item) => {
+              if (!item) return false;
+              if (isEtfName(item.name)) return false;
+              const y = Number(item.dividendYield);
+              if (!isFinite(y) || y <= 0.03) return false; // 3%+ indicated yield
+              return true;
+            })
+            .sort((a, b) => {
+              const ay = Number(a.dividendYield) || 0;
+              const by = Number(b.dividendYield) || 0;
+              return by - ay;
+            })
+            .slice(0, 30); // show top 30
+
+          if (!filtered.length) {
+            tableBody.innerHTML = `
+              <tr>
+                <td colspan="6" class="muted" style="text-align:center;padding:0.8rem;">
+                  No dividend stocks found in the latest snapshot. Try again later.
+                </td>
+              </tr>
+            `;
+            return;
+          }
+
+          tableBody.innerHTML = "";
+
+          filtered.forEach((item) => {
+            const code = item.code || item.ticker || "";
+            const name = item.name || "";
+            const sector = item.sector || "–";
+            const { text: yieldText, cls: yieldCls } = formatYield(item.dividendYield);
+            const mc = formatMoney(item.marketCap);
+            const price = formatPrice(item.price);
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td><span class="code-chip">${code}</span></td>
+              <td>${name}</td>
+              <td>${sector}</td>
+              <td><span class="${yieldCls}">${yieldText}</span></td>
+              <td>${mc}</td>
+              <td>${price}</td>
+            `;
+            tableBody.appendChild(tr);
+          });
+        } catch (err) {
+          console.error("Failed to load dividend stocks", err);
+          tableBody.innerHTML = `
+            <tr>
+              <td colspan="6" class="muted" style="text-align:center;padding:0.8rem;">
+                Something went wrong loading the dividend list. Please refresh and try again.
+              </td>
+            </tr>
+          `;
+        }
+      }
+
+      loadDividendStocks();
+    </script>
+  </body>
+</html>
