@@ -1,3 +1,7 @@
+[build]
+  command = "node generate-stock-pages.js"
+  publish = "."
+
 [functions]
   directory = "netlify/functions"
   included_files = [
