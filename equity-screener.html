@@ -990,7 +990,14 @@ let sortState = { key: "marketCap", direction: "desc" };
           }
 
           if (sector && item.sector !== sector) return false;
+  const code = (item.code || "").trim();
+  if (code.length !== 3) return false;
 
+  const pe = Number(item.peRatio);
+  if (!Number.isNaN(pe)) {
+    if (!Number.isNaN(peMin) && pe < peMin) return false;
+    if (!Number.isNaN(peMax) && pe > peMax) return false;
+  }
           const pe = Number(item.peRatio);
           if (!Number.isNaN(pe)) {
             if (!Number.isNaN(peMin) && pe < peMin) return false;
