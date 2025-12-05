@@ -9,6 +9,10 @@
 // - Optional screener-level ETF exclusion via ?excludeETF=1 or env EXCLUDE_ETF_DEFAULT=1
 //
 // This function does *not* call EODHD directly, so it's cheap and fast per request.
+//
+// NOTE: updated to support a "fallback manifest" stored at the latest key that
+// points to per-latest part keys when the merged blob is too large to write
+// as a single Upstash REST /set path value.
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -70,6 +74,11 @@ function isEtfName(name) {
 // Helpers to load snapshots
 // ---------------------------
 
+// Updated: load the universe fundamentals, and support manifest that references parts.
+// The latest key may contain either:
+//  - a merged object with .items (the normal case), or
+//  - a small manifest { fallback: true, parts: [ "asx:universe:fundamentals:latest:part:0", ... ], ... }
+//    in which case we fetch each part and assemble items.
 async function getUniverseFundamentals() {
   const raw = await redisGet(
     UPSTASH_URL,
@@ -77,9 +86,63 @@ async function getUniverseFundamentals() {
     "asx:universe:fundamentals:latest"
   );
   if (!raw) return null;
-  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-  if (!parsed || !Array.isArray(parsed.items)) return null;
-  return parsed;
+
+  let parsed;
+  try {
+    parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch (e) {
+    parsed = raw;
+  }
+
+  // If the latest is already the full merged object with items, return it.
+  if (parsed && Array.isArray(parsed.items)) {
+    return parsed;
+  }
+
+  // Support fallback manifest: { fallback: true, parts: [ "key1", ... ] }
+  const partKeys = Array.isArray(parsed && parsed.parts)
+    ? parsed.parts
+    : Array.isArray(parsed && parsed.partKeys)
+    ? parsed.partKeys
+    : null;
+
+  if (partKeys && partKeys.length > 0) {
+    const items = [];
+    for (const pk of partKeys) {
+      try {
+        const rawPart = await redisGet(UPSTASH_URL, UPSTASH_TOKEN, pk);
+        if (!rawPart) continue;
+        let p;
+        try {
+          p = typeof rawPart === "string" ? JSON.parse(rawPart) : rawPart;
+        } catch (e) {
+          p = rawPart;
+        }
+        if (p && Array.isArray(p.items)) {
+          items.push(...p.items);
+        } else if (Array.isArray(p)) {
+          items.push(...p);
+        } else {
+          // unexpected shape — skip
+          continue;
+        }
+      } catch (e) {
+        console.warn("equity-screener: failed to fetch part", pk, e && e.message);
+      }
+    }
+
+    if (items.length === 0) return null;
+
+    return {
+      generatedAt: (parsed && parsed.generatedAt) || new Date().toISOString(),
+      universeTotal: parsed && parsed.universeTotal ? parsed.universeTotal : items.length,
+      count: items.length,
+      items,
+    };
+  }
+
+  // otherwise unrecognized shape
+  return null;
 }
 
 // Price snapshot is stored as an array of rows:
