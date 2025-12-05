@@ -758,15 +758,15 @@
                 <th class="sortable" data-sort="price">
                   Price (Y'day) <span>↕</span>
                 </th>
-                <th class="sortable" data-sort="marketCap">
-                  Mkt Cap (A$bn) <span>↕</span>
-                </th>
+<th class="sortable" data-sort="marketCap">
+  Mkt Cap (A$m) <span>↕</span>
+</th>
                 <th class="sortable" data-sort="pctChange">
                   Daily move % <span>↕</span>
                 </th>
 
                 <th class="sortable" data-sort="ebitda">
-                  EBITDA (A$bn) <span>↕</span>
+                  EBITDA (A$m) <span>↕</span>
                 </th>
                 <th class="sortable" data-sort="peRatio">
                   P/E <span>↕</span>
@@ -801,13 +801,13 @@
                 </th>
 
                 <th class="sortable" data-sort="revenue">
-                  Revenue (A$bn) <span>↕</span>
+                  Revenue (A$m) <span>↕</span>
                 </th>
                 <th class="sortable" data-sort="revenuePerShare">
                   Revenue / share <span>↕</span>
                 </th>
                 <th class="sortable" data-sort="grossProfit">
-                  Gross profit (A$bn) <span>↕</span>
+                  Gross profit (A$m) <span>↕</span>
                 </th>
                 <th class="sortable" data-sort="dilutedEps">
                   Diluted EPS <span>↕</span>
@@ -832,7 +832,7 @@
                   Price / book <span>↕</span>
                 </th>
                 <th class="sortable" data-sort="enterpriseValue">
-                  EV (A$bn) <span>↕</span>
+                  EV (A$m) <span>↕</span>
                 </th>
                 <th class="sortable" data-sort="evToRevenue">
                   EV / revenue <span>↕</span>
@@ -1075,11 +1075,11 @@ let sortState = { key: "marketCap", direction: "desc" };
 
         const rows = filteredItems
           .map((item) => {
-            const mcBn = toBillions(item.marketCap);
-            const ebitdaBn = toBillions(item.ebitda);
-            const revBn = toBillions(item.revenue);
-            const gpBn = toBillions(item.grossProfit);
-            const evBn = toBillions(item.enterpriseValue);
+const mcM = toMillions(item.marketCap);
+const ebitdaM = toMillions(item.ebitda);
+const revM = toMillions(item.revenue);
+const gpM = toMillions(item.grossProfit);
+const evM = toMillions(item.enterpriseValue);
 
             return `
   <tr data-code="${item.code}" data-type="equity">
@@ -1089,10 +1089,10 @@ let sortState = { key: "marketCap", direction: "desc" };
                 <td><span class="pill">${item.sector || "Unknown"}</span></td>
 
                 <td>${formatNumber(item.price)}</td>
-                <td>${mcBn}</td>
+                <td>${mcM}</td>
                 <td>${formatPercentRaw(item.pctChange)}</td>
 
-                <td>${ebitdaBn}</td>
+                <td>${ebitdaM}</td>
                 <td>${formatNumber(item.peRatio)}</td>
                 <td>${formatNumber(item.pegRatio)}</td>
                 <td>${formatNumber(item.eps)}</td>
@@ -1105,9 +1105,9 @@ let sortState = { key: "marketCap", direction: "desc" };
                 <td>${formatPercentFrac(item.returnOnAssets)}</td>
                 <td>${formatPercentFrac(item.returnOnEquity)}</td>
 
-                <td>${revBn}</td>
+                <td>${revM}</td>
                 <td>${formatNumber(item.revenuePerShare)}</td>
-                <td>${gpBn}</td>
+                <td>${gpM}</td>
                 <td>${formatNumber(item.dilutedEps)}</td>
                 <td>${formatPercentFrac(item.quarterlyRevenueGrowthYoy)}</td>
                 <td>${formatPercentFrac(item.quarterlyEarningsGrowthYoy)}</td>
@@ -1116,7 +1116,7 @@ let sortState = { key: "marketCap", direction: "desc" };
                 <td>${formatNumber(item.forwardPE)}</td>
                 <td>${formatNumber(item.priceToSales)}</td>
                 <td>${formatNumber(item.priceToBook)}</td>
-                <td>${evBn}</td>
+                <td>${evM}</td>
                 <td>${formatNumber(item.evToRevenue)}</td>
                 <td>${formatNumber(item.evToEbitda)}</td>
               </tr>
@@ -1130,14 +1130,15 @@ let sortState = { key: "marketCap", direction: "desc" };
         }`;
       }
 
-      function toBillions(value) {
-        const n = Number(value);
-        if (Number.isNaN(n)) return "-";
-        const bn = n / 1_000_000_000;
-        return bn.toLocaleString(undefined, {
-          maximumFractionDigits: 1,
-        });
-      }
+function toMillions(value) {
+  const n = Number(value);
+  if (Number.isNaN(n)) return "-";
+  const m = n / 1_000_000; // now in A$m
+  return m.toLocaleString(undefined, {
+    maximumFractionDigits: 1,
+  });
+}
+
 
       function formatNumber(value) {
         const n = Number(value);
