@@ -723,6 +723,19 @@
                 placeholder="0"
               />
             </div>
+            <div class="filter-group">
+  <label class="filter-label" for="hideEtfs">
+    <span style="display:flex;align-items:center;gap:0.35rem;">
+      <input
+        id="hideEtfs"
+        type="checkbox"
+        checked
+        style="width:auto;margin:0;"
+      />
+      <span>Hide ETFs (name ends in “ETF”)</span>
+    </span>
+  </label>
+</div>
           </div>
         </div>
       </section>
@@ -914,6 +927,7 @@
       const statusCount = document.getElementById("statusCount");
       const statusMeta = document.getElementById("statusMeta");
       const ths = document.querySelectorAll("th.sortable");
+      const hideEtfsInput = document.getElementById("hideEtfs");
 
       const filtersCard = document.getElementById("filtersCard");
       const filtersToggle = document.getElementById("filtersToggle");
@@ -977,6 +991,8 @@
         const mcMinBn = parseFloat(mcMinInput.value);
         const mcMaxBn = parseFloat(mcMaxInput.value);
         const dyMin = parseFloat(dyMinInput.value);
+        const hideEtfs = hideEtfsInput && hideEtfsInput.checked;
+
 
         filteredItems = rawItems.filter((item) => {
           if (q) {
@@ -999,15 +1015,24 @@
             if (!Number.isNaN(mcMaxBn) && mcBn > mcMaxBn) return false;
           }
 
-          const dy = Number(item.dividendYield);
+                   const dy = Number(item.dividendYield);
           if (!Number.isNaN(dy) && !Number.isNaN(dyMin)) {
             const dyPct = dy <= 1 && dy >= -1 ? dy * 100 : dy;
             if (dyPct < dyMin) return false;
           }
 
+          // NEW: hide ETFs by name
+          if (
+            hideEtfs &&
+            typeof item.name === "string" &&
+            item.name.trim().toUpperCase().endsWith("ETF")
+          ) {
+            return false;
+          }
+
           return true;
         });
-
+        
         applySort();
         renderTable();
       }
@@ -1143,6 +1168,7 @@
       mcMinInput.addEventListener("input", applyFilters);
       mcMaxInput.addEventListener("input", applyFilters);
       dyMinInput.addEventListener("input", applyFilters);
+      hideEtfsInput.addEventListener("change", applyFilters);
 
       ths.forEach((th) => {
         th.addEventListener("click", () => {
