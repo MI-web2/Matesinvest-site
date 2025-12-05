@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{CODE}} – {{NAME}} | MatesInvest</title>
+
+    <meta
+      name="description"
+      content="Plain-English snapshot, key stats and tools for {{NAME}} (ASX:{{CODE}}). Updated daily by the MatesInvest ASX screener."
+    />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Copy your existing CSS links / <style> block from equity-screener.html -->
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+
+  <body>
+    <!-- Copy your existing nav from equity-screener.html -->
+    <header class="nav-shell">
+      <a href="/" class="nav-logo">MatesInvest</a>
+      <nav class="nav-right">
+        <a href="/equity-screener.html" class="nav-pill-link">ASX Explorer</a>
+        <a href="/mates-summaries" class="nav-home-link">MatesSummaries</a>
+      </nav>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero-intro" style="margin-bottom:1.5rem;">
+        <div
+          style="
+            background:var(--card);
+            border:1px solid var(--card-border);
+            border-radius:var(--radius);
+            padding:1.6rem;
+          "
+        >
+          <h1 style="margin-top:0; margin-bottom:0.4rem;">
+            {{NAME}} (ASX: {{CODE}})
+          </h1>
+          <p style="margin:0; color:var(--muted);">
+            Sector: <strong>{{SECTOR}}</strong> · Industry:
+            <strong>{{INDUSTRY}}</strong>
+          </p>
+          <p style="margin:0.6rem 0 0; color:var(--muted-2);">
+            Data refreshed daily from the MatesInvest ASX screener.
+          </p>
+        </div>
+      </section>
+
+      <section style="display:grid; gap:1rem; grid-template-columns: minmax(0,2fr) minmax(0,1.4fr); align-items:start;">
+
+        <!-- LEFT: Price card -->
+        <article
+          style="
+            background:var(--card);
+            border:1px solid var(--card-border);
+            border-radius:var(--radius);
+            padding:1.4rem 1.6rem;
+          "
+        >
+          <h2 style="margin-top:0; margin-bottom:0.5rem;">Price snapshot</h2>
+          <p style="font-size:1.9rem; font-weight:650; margin:0;">
+            ${{PRICE}}
+            <span
+              style="
+                font-size:0.95rem;
+                font-weight:600;
+                margin-left:0.4rem;
+                color:{{PCTCOLOR}};
+              "
+            >
+              {{PCTCHANGE}}%
+            </span>
+          </p>
+
+          <div style="margin-top:0.75rem; font-size:0.9rem; color:var(--muted-2);">
+            <div>Market cap: <strong>{{MARKETCAP}}</strong></div>
+            <div>PE: <strong>{{PE}}</strong> · Yield: <strong>{{YIELD}}</strong></div>
+          </div>
+
+          <p style="margin-top:1.1rem; font-size:0.95rem;">
+            {{SUMMARY}}
+          </p>
+
+          <a href="/equity-screener.html"
+            style="
+              display:inline-flex;
+              align-items:center;
+              margin-top:0.8rem;
+              padding:0.55rem 1.1rem;
+              border-radius:999px;
+              font-weight:600;
+              font-size:0.9rem;
+              text-decoration:none;
+              border:1px solid var(--border);
+              background:var(--bg);
+              color:var(--navy);
+            ">
+            ← Back to ASX Explorer
+          </a>
+        </article>
+
+        <!-- RIGHT: Placeholder for news / related stocks -->
+        <aside
+          style="
+            background:var(--card);
+            border:1px solid var(--card-border);
+            border-radius:var(--radius);
+            padding:1.3rem 1.5rem;
+          "
+        >
+          <h3 style="margin-top:0; margin-bottom:0.4rem;">Latest snapshot</h3>
+          <p style="font-size:0.9rem; color:var(--muted);">
+            News & deeper insights coming soon. For now, this card shows the
+            latest screener snapshot for {{NAME}}.
+          </p>
+
+          <ul style="padding-left:1.1rem; font-size:0.9rem; color:var(--muted-2);">
+            <li>Sector: {{SECTOR}}</li>
+            <li>Industry: {{INDUSTRY}}</li>
+            <li>Updated: {{UPDATED_AT}}</li>
+          </ul>
+        </aside>
+
+      </section>
+
+      <section style="margin-top:1.5rem;">
+        <p style="font-size:0.85rem; color:var(--muted-2);">
+          Not financial advice. Do your own research.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
