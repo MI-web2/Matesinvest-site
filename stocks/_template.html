@@ -244,21 +244,44 @@
         color:var(--muted-2);
         margin-bottom:0.25rem;
       }
+      .nav-logo {
+  display:flex;
+  align-items:center;
+  gap:0.55rem;
+  text-decoration:none;
+  color:inherit;
+}
+
+.nav-logo-img {
+  width:32px;
+  height:32px;
+  object-fit:contain;
+  display:block;
+}
+
+.nav-logo-text {
+  font-weight:700;
+  font-size:1.05rem;
+  letter-spacing:-0.02em;
+}
+
     </style>
   </head>
 
   <body>
     <!-- NAV -->
     <header class="nav-shell">
-      <div class="nav-left">
-        <a href="/" style="display:flex;align-items:center;gap:0.55rem;text-decoration:none;color:inherit;">
-          <div class="nav-logo-mark">Mi</div>
-          <div class="nav-logo-text">
-            <span class="nav-logo-title">MatesInvest</span>
-            <span class="nav-logo-sub">Invest smarter together</span>
-          </div>
-        </a>
-      </div>
+<div class="nav-left">
+  <a href="/" class="nav-logo">
+    <img
+      src="/assets/img/logo-placeholder.png"
+      alt="MatesInvest"
+      class="nav-logo-img"
+    />
+    <div class="nav-logo-text">MatesInvest</div>
+  </a>
+</div>
+
 
       <div class="nav-right">
         <a href="/equity-screener.html" class="nav-pill-link">ASX Explorer</a>
