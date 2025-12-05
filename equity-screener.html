@@ -972,71 +972,67 @@ let sortState = { key: "marketCap", direction: "desc" };
         });
       }
 
-      function applyFilters() {
-        const q = searchInput.value.trim().toLowerCase();
-        const sector = sectorSelect.value;
-        const peMin = parseFloat(peMinInput.value);
-        const peMax = parseFloat(peMaxInput.value);
-        const mcMinBn = parseFloat(mcMinInput.value);
-        const mcMaxBn = parseFloat(mcMaxInput.value);
-        const dyMin = parseFloat(dyMinInput.value);
-        const hideEtfs = hideEtfsInput && hideEtfsInput.checked;
+function applyFilters() {
+  const q = searchInput.value.trim().toLowerCase();
+  const sector = sectorSelect.value;
+  const peMin = parseFloat(peMinInput.value);
+  const peMax = parseFloat(peMaxInput.value);
+  const mcMinBn = parseFloat(mcMinInput.value);
+  const mcMaxBn = parseFloat(mcMaxInput.value);
+  const dyMin = parseFloat(dyMinInput.value);
+  const hideEtfs = hideEtfsInput && hideEtfsInput.checked;
 
+  filteredItems = rawItems.filter((item) => {
+    // Search filter
+    if (q) {
+      const haystack = `${item.code} ${item.name}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
 
-filteredItems = rawItems.filter((item) => {
-  if (q) {
-    const haystack = `${item.code} ${item.name}`.toLowerCase();
-    if (!haystack.includes(q)) return false;
-  }
+    // Sector filter
+    if (sector && item.sector !== sector) return false;
 
-  if (sector && item.sector !== sector) return false;
+    // HIDDEN FILTER: only show exact 3-letter codes
+    const code = (item.code || "").trim();
+    if (!code || code.length !== 3) return false;
 
-  // HIDDEN FILTER: only show 3-letter codes
-  const code = (item.code || "").trim();
-  if (code.length !== 3) return false;
+    // P/E filter
+    const pe = Number(item.peRatio);
+    if (!Number.isNaN(pe)) {
+      if (!Number.isNaN(peMin) && pe < peMin) return false;
+      if (!Number.isNaN(peMax) && pe > peMax) return false;
+    }
 
-  const pe = Number(item.peRatio);
-  if (!Number.isNaN(pe)) {
-    if (!Number.isNaN(peMin) && pe < peMin) return false;
-    if (!Number.isNaN(peMax) && pe > peMax) return false;
-  }
+    // Market cap filter (inputs are in billions, stored value is dollars)
+    const mc = Number(item.marketCap);
+    const mcBn = Number.isNaN(mc) ? NaN : mc / 1_000_000_000;
+    if (!Number.isNaN(mcBn)) {
+      if (!Number.isNaN(mcMinBn) && mcBn < mcMinBn) return false;
+      if (!Number.isNaN(mcMaxBn) && mcBn > mcMaxBn) return false;
+    }
 
-  // ... rest of existing filters (market cap, dividend yield, hideEtfs, etc.)
+    // Dividend yield filter (convert fractional to % if needed)
+    const dy = Number(item.dividendYield);
+    if (!Number.isNaN(dy) && !Number.isNaN(dyMin)) {
+      const dyPct = dy <= 1 && dy >= -1 ? dy * 100 : dy;
+      if (dyPct < dyMin) return false;
+    }
 
-          const pe = Number(item.peRatio);
-          if (!Number.isNaN(pe)) {
-            if (!Number.isNaN(peMin) && pe < peMin) return false;
-            if (!Number.isNaN(peMax) && pe > peMax) return false;
-          }
+    // Hide ETFs by name (but still keep them in rawItems)
+    if (
+      hideEtfs &&
+      typeof item.name === "string" &&
+      item.name.trim().toUpperCase().endsWith("ETF")
+    ) {
+      return false;
+    }
 
-          const mc = Number(item.marketCap);
-          const mcBn = Number.isNaN(mc) ? NaN : mc / 1_000_000_000;
-          if (!Number.isNaN(mcBn)) {
-            if (!Number.isNaN(mcMinBn) && mcBn < mcMinBn) return false;
-            if (!Number.isNaN(mcMaxBn) && mcBn > mcMaxBn) return false;
-          }
+    return true;
+  });
 
-                   const dy = Number(item.dividendYield);
-          if (!Number.isNaN(dy) && !Number.isNaN(dyMin)) {
-            const dyPct = dy <= 1 && dy >= -1 ? dy * 100 : dy;
-            if (dyPct < dyMin) return false;
-          }
-
-          // NEW: hide ETFs by name
-          if (
-            hideEtfs &&
-            typeof item.name === "string" &&
-            item.name.trim().toUpperCase().endsWith("ETF")
-          ) {
-            return false;
-          }
-
-          return true;
-        });
-        
-        applySort();
-        renderTable();
-      }
+  applySort();
+  renderTable();
+}
 
       function applySort() {
         const { key, direction } = sortState;
