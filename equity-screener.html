@@ -1064,51 +1064,47 @@ let sortState = { key: "marketCap", direction: "desc" };
         const rows = filteredItems
           .map((item) => {
 const mcM = toMillions(item.marketCap);
-const ebitdaM = toMillions(item.ebitda);
 const revM = toMillions(item.revenue);
 const gpM = toMillions(item.grossProfit);
 const evM = toMillions(item.enterpriseValue);
 
-            return `
+return `
   <tr data-code="${item.code}" data-type="equity">
     <td class="sticky-col"><strong>${item.code}</strong></td>
 
-                <td>${item.name || ""}</td>
-                <td><span class="pill">${item.sector || "Unknown"}</span></td>
+    <td>${item.name || ""}</td>
+    <td><span class="pill">${item.sector || "Unknown"}</span></td>
 
-                <td>${formatNumber(item.price)}</td>
-                <td>${mcM}</td>
-                <td>${formatPercentRaw(item.pctChange)}</td>
+    <td>${formatNumber(item.price)}</td>
+    <td>${mcM}</td>
 
-                <td>${ebitdaM}</td>
-                <td>${formatNumber(item.peRatio)}</td>
-                <td>${formatNumber(item.pegRatio)}</td>
-                <td>${formatNumber(item.eps)}</td>
-                <td>${formatNumber(item.bookValue)}</td>
-                <td>${formatNumber(item.dividendPerShare)}</td>
-                <td>${formatPercentFrac(item.dividendYield)}</td>
+    <td>${formatNumber(item.peRatio)}</td>
+    <td>${formatNumber(item.eps)}</td>
+    <td>${formatNumber(item.bookValue)}</td>
+    <td>${formatNumber(item.dividendPerShare)}</td>
+    <td>${formatPercentFrac(item.dividendYield)}</td>
 
-                <td>${formatPercentFrac(item.profitMargin)}</td>
-                <td>${formatPercentFrac(item.operatingMargin)}</td>
-                <td>${formatPercentFrac(item.returnOnAssets)}</td>
-                <td>${formatPercentFrac(item.returnOnEquity)}</td>
+    <td>${formatPercentFrac(item.profitMargin)}</td>
+    <td>${formatPercentFrac(item.operatingMargin)}</td>
+    <td>${formatPercentFrac(item.returnOnAssets)}</td>
+    <td>${formatPercentFrac(item.returnOnEquity)}</td>
 
-                <td>${revM}</td>
-                <td>${formatNumber(item.revenuePerShare)}</td>
-                <td>${gpM}</td>
-                <td>${formatNumber(item.dilutedEps)}</td>
-                <td>${formatPercentFrac(item.quarterlyRevenueGrowthYoy)}</td>
-                <td>${formatPercentFrac(item.quarterlyEarningsGrowthYoy)}</td>
+    <td>${revM}</td>
+    <td>${formatNumber(item.revenuePerShare)}</td>
+    <td>${gpM}</td>
+    <td>${formatNumber(item.dilutedEps)}</td>
+    <td>${formatPercentFrac(item.quarterlyRevenueGrowthYoy)}</td>
+    <td>${formatPercentFrac(item.quarterlyEarningsGrowthYoy)}</td>
 
-                <td>${formatNumber(item.trailingPE)}</td>
-                <td>${formatNumber(item.forwardPE)}</td>
-                <td>${formatNumber(item.priceToSales)}</td>
-                <td>${formatNumber(item.priceToBook)}</td>
-                <td>${evM}</td>
-                <td>${formatNumber(item.evToRevenue)}</td>
-                <td>${formatNumber(item.evToEbitda)}</td>
-              </tr>
-            `;
+    <td>${formatNumber(item.trailingPE)}</td>
+    <td>${formatNumber(item.forwardPE)}</td>
+    <td>${formatNumber(item.priceToSales)}</td>
+    <td>${formatNumber(item.priceToBook)}</td>
+    <td>${evM}</td>
+    <td>${formatNumber(item.evToRevenue)}</td>
+  </tr>
+`;
+
           })
           .join("");
 
