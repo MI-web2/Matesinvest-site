@@ -15,6 +15,8 @@ const fetch = (...args) => global.fetch(...args);
 
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const SITE_URL = "https://matesinvest.com"; // change if you use a different domain
+
 
 // 🔧 Adjust these if your key names differ
 const FUND_MASTER_KEY = "asx:universe:fundamentals:latest";
@@ -165,6 +167,7 @@ async function main() {
     loadFundamentals(),
     loadPrices(),
   ]);
+  const sitemapUrls = [];
 
   const fundItems = fundamentals.items;
   const updatedAt =
@@ -240,10 +243,29 @@ async function main() {
 
     const outPath = path.join(OUTPUT_DIR, `${code}.html`);
     fs.writeFileSync(outPath, html, "utf8");
+        sitemapUrls.push(`${SITE_URL}/stocks/${code}.html`);
+
     count++;
   }
 
   console.log(`✅ Generated ${count} stock pages in /stocks`);
+    // Write a dedicated sitemap for stock pages
+  const sitemapXml =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    sitemapUrls
+      .map(
+        (loc) =>
+          `  <url><loc>${loc}</loc><lastmod>${updatedAt.substring(
+            0,
+            10
+          )}</lastmod></url>`
+      )
+      .join("\n") +
+    `\n</urlset>\n`;
+
+  fs.writeFileSync(path.join(__dirname, "stocks-sitemap.xml"), sitemapXml, "utf8");
+
 }
 
 main().catch((err) => {
