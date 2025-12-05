@@ -983,13 +983,15 @@ let sortState = { key: "marketCap", direction: "desc" };
         const hideEtfs = hideEtfsInput && hideEtfsInput.checked;
 
 
-        filteredItems = rawItems.filter((item) => {
-          if (q) {
-            const haystack = `${item.code} ${item.name}`.toLowerCase();
-            if (!haystack.includes(q)) return false;
-          }
+filteredItems = rawItems.filter((item) => {
+  if (q) {
+    const haystack = `${item.code} ${item.name}`.toLowerCase();
+    if (!haystack.includes(q)) return false;
+  }
 
-          if (sector && item.sector !== sector) return false;
+  if (sector && item.sector !== sector) return false;
+
+  // HIDDEN FILTER: only show 3-letter codes
   const code = (item.code || "").trim();
   if (code.length !== 3) return false;
 
@@ -998,6 +1000,9 @@ let sortState = { key: "marketCap", direction: "desc" };
     if (!Number.isNaN(peMin) && pe < peMin) return false;
     if (!Number.isNaN(peMax) && pe > peMax) return false;
   }
+
+  // ... rest of existing filters (market cap, dividend yield, hideEtfs, etc.)
+
           const pe = Number(item.peRatio);
           if (!Number.isNaN(pe)) {
             if (!Number.isNaN(peMin) && pe < peMin) return false;
