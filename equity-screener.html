@@ -394,6 +394,35 @@
           display: none; /* hide long caption on very small screens */
         }
       }
+
+      /* ---------- LANDSCAPE / SHORT-HEIGHT PHONE FIX ---------- */
+      @media screen and (max-height: 500px),
+             screen and (orientation: landscape) and (max-width: 1024px) {
+
+        header {
+          margin-bottom: 0.5rem;
+        }
+
+        h1 {
+          font-size: 1.4rem;
+          margin-bottom: 0.15rem;
+        }
+
+        .muted {
+          font-size: 0.8rem;
+        }
+
+        .filters-card {
+          padding: 0.3rem 0.6rem 0.4rem;
+          margin-bottom: 0.5rem;
+        }
+
+        /* make table area taller in landscape so it's usable */
+        .table-scroll {
+          max-height: calc(100vh - 170px);
+        }
+      }
+
       /* ---------- Instrument modal (shared with mates-summaries) ---------- */
 
 .mi-ins-overlay {
