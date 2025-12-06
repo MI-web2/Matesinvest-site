@@ -685,9 +685,7 @@
           <span class="filters-toggle-icon" id="filtersToggleIcon">▾</span>
         </button>
 
-        <div class="filters-body" id="filtersBody">
-          <div class="filters">
-            <div class="filter-group">
+           <div class="filter-group">
               <label class="filter-label" for="searchInput">Search</label>
               <input
                 id="searchInput"
@@ -696,11 +694,26 @@
               />
             </div>
 
+            <!-- NEW: Code multi-select -->
             <div class="filter-group">
-              <label class="filter-label" for="sectorSelect">Sector</label>
-              <select id="sectorSelect">
-                <option value="">All sectors</option>
+              <label class="filter-label" for="codeSelect">Code(s)</label>
+              <select id="codeSelect" multiple size="8">
+                <!-- options populated from data -->
               </select>
+              <p style="margin-top:0.25rem;font-size:0.75rem;color:var(--muted-2);">
+                Select one or more codes, or leave empty to include all.
+              </p>
+            </div>
+
+            <!-- UPDATED: Sector multi-select -->
+            <div class="filter-group">
+              <label class="filter-label" for="sectorSelect">Sector(s)</label>
+              <select id="sectorSelect" multiple size="8">
+                <!-- options populated from data -->
+              </select>
+              <p style="margin-top:0.25rem;font-size:0.75rem;color:var(--muted-2);">
+                Select one or more sectors, or leave empty to include all.
+              </p>
             </div>
 
             <div class="filter-group">
@@ -933,9 +946,10 @@
     <script>
       const API_URL = "/.netlify/functions/equity-screener";
 
-      const tableBody = document.getElementById("tableBody");
-      const searchInput = document.getElementById("searchInput");
-      const sectorSelect = document.getElementById("sectorSelect");
+const tableBody = document.getElementById("tableBody");
+const searchInput = document.getElementById("searchInput");
+const sectorSelect = document.getElementById("sectorSelect");
+const codeSelect = document.getElementById("codeSelect");
       const peMinInput = document.getElementById("peMin");
       const peMaxInput = document.getElementById("peMax");
       const mcMinInput = document.getElementById("mcMin");
@@ -975,35 +989,64 @@ let sortState = { key: "marketCap", direction: "desc" };
               : "n/a"
           }`;
 
-          populateSectorFilter(rawItems);
-          applyFilters();
+populateSectorFilter(rawItems);
+populateCodeFilter(rawItems);
+applyFilters();
         } catch (e) {
           console.error(e);
           tableBody.innerHTML =
             '<tr><td colspan="30" style="text-align:center;padding:1rem;color:#dc2626">Failed to load data. Refresh to try again.</td></tr>';
         }
       }
+function populateSectorFilter(items) {
+  if (!sectorSelect) return;
+  sectorSelect.innerHTML = "";
+  const sectors = Array.from(
+    new Set(
+      items
+        .map((i) => i.sector || "Unknown")
+        .filter((s) => s && s.trim() !== "")
+    )
+  ).sort();
 
-      function populateSectorFilter(items) {
-        const sectors = Array.from(
-          new Set(
-            items
-              .map((i) => i.sector || "Unknown")
-              .filter((s) => s && s.trim() !== "")
-          )
-        ).sort();
+  sectors.forEach((sector) => {
+    const opt = document.createElement("option");
+    opt.value = sector;
+    opt.textContent = sector;
+    sectorSelect.appendChild(opt);
+  });
+}
 
-        sectors.forEach((sector) => {
-          const opt = document.createElement("option");
-          opt.value = sector;
-          opt.textContent = sector;
-          sectorSelect.appendChild(opt);
-        });
-      }
+function populateCodeFilter(items) {
+  if (!codeSelect) return;
+  codeSelect.innerHTML = "";
+  const codes = Array.from(
+    new Set(
+      items
+        .map((i) => (i.code || "").trim())
+        .filter((c) => c !== "")
+    )
+  ).sort();
+
+  codes.forEach((code) => {
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = code;
+    codeSelect.appendChild(opt);
+  });
+}
+
+function getSelectedValues(selectEl) {
+  if (!selectEl) return [];
+  return Array.from(selectEl.selectedOptions || [])
+    .map((opt) => opt.value)
+    .filter((v) => v !== "");
+}
 
 function applyFilters() {
   const q = searchInput.value.trim().toLowerCase();
-  const sector = sectorSelect.value;
+  const selectedSectors = getSelectedValues(sectorSelect);
+  const selectedCodes = getSelectedValues(codeSelect);
   const peMin = parseFloat(peMinInput.value);
   const peMax = parseFloat(peMaxInput.value);
   const mcMinBn = parseFloat(mcMinInput.value);
@@ -1018,12 +1061,17 @@ function applyFilters() {
       if (!haystack.includes(q)) return false;
     }
 
-    // Sector filter
-    if (sector && item.sector !== sector) return false;
+    // Sector filter (multi-select)
+    if (selectedSectors.length > 0) {
+      const sector = item.sector || "Unknown";
+      if (!selectedSectors.includes(sector)) return false;
+    }
 
-    // HIDDEN FILTER: only show exact 3-letter codes
-    const code = (item.code || "").trim();
-    if (!code || code.length !== 3) return false;
+    // Code filter (multi-select)
+    if (selectedCodes.length > 0) {
+      const code = (item.code || "").trim();
+      if (!selectedCodes.includes(code)) return false;
+    }
 
     // P/E filter
     const pe = Number(item.peRatio);
@@ -1184,8 +1232,9 @@ function toMillions(value) {
         return `${n.toFixed(2)}%`;
       }
 
-      searchInput.addEventListener("input", applyFilters);
-      sectorSelect.addEventListener("change", applyFilters);
+searchInput.addEventListener("input", applyFilters);
+sectorSelect.addEventListener("change", applyFilters);
+codeSelect.addEventListener("change", applyFilters);
       peMinInput.addEventListener("input", applyFilters);
       peMaxInput.addEventListener("input", applyFilters);
       mcMinInput.addEventListener("input", applyFilters);
