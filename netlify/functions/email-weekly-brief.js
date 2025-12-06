@@ -996,7 +996,11 @@ exports.handler = async function () {
       const toList = pending.map((p) => p.email);
 
       try {
-        await sendEmail(toList, subject, html);
+        for (const p of pending) {
+  await sendEmail(p.email, subject, html);
+  await redisSet(p.personKey, "sent", perRecipientTtlSeconds);
+  await sleep(300);   // gentle pacing to avoid rate limit
+}
         sentCount += pending.length;
 
         // Mark each as sent
