@@ -607,51 +607,33 @@ exports.handler = async function () {
     const subject = `MatesMorning – ASX Briefing for ${subjectDate}`;
     const html = buildEmailHtml(payload, morningNote);
 
-    // 5) Batch send, with per-recipient idempotency keys
-    const batchSize = 40; // up to 40 recipients per API call
-    const batches = chunkArray(subscribers, batchSize);
-
+    // 5) Send one email per recipient, with per-recipient idempotency keys
     let sentCount = 0;
 
-    for (const batch of batches) {
-      // Filter out addresses that already got today's brief
-      const pending = [];
-      for (const email of batch) {
-        const personKey = `${sendKeyPrefix}:${email}`;
-        const already = await redisGet(personKey);
-        if (already) {
-          console.log("Already sent to", email, "- skipping");
-          continue;
-        }
-        pending.push({ email, personKey });
-      }
-
-      if (!pending.length) {
+    for (const email of subscribers) {
+      const personKey = `${sendKeyPrefix}:${email}`;
+      const already = await redisGet(personKey);
+      if (already) {
+        console.log("Already sent to", email, "- skipping");
         continue;
       }
 
-      const toList = pending.map((p) => p.email);
-
       try {
-        await sendEmail(toList, subject, html);
-        sentCount += pending.length;
+        // sendEmail now gets a single address -> Resend "to" is just that one
+        await sendEmail(email, subject, html);
+        sentCount += 1;
 
-        // Mark each recipient as sent
-        await Promise.all(
-          pending.map((p) =>
-            redisSet(p.personKey, "sent", perRecipientTtlSeconds)
-          )
-        );
+        await redisSet(personKey, "sent", perRecipientTtlSeconds);
 
-        // Gentle pause between batches to be kind to Resend
-        await sleep(1500);
+        // Small pause to be kind to Resend / avoid rate limiting
+        await sleep(300);
       } catch (err) {
         console.error(
-          "Failed sending batch to",
-          toList,
+          "Failed sending to",
+          email,
           err && err.message
         );
-        // Continue to next batch – partial failure won't kill whole run
+        // Continue with the next subscriber
       }
     }
 
