@@ -420,6 +420,31 @@
         .instrument-hero { padding: 0.85rem 0.85rem 0.9rem; }
         .instrument-main { gap: 0.85rem; }
       }
+      .card-fundamentals.collapsed {
+  padding-bottom: 0.55rem;
+}
+
+.card-fundamentals.collapsed .card-subtitle {
+  display: none;
+}
+
+.card-fundamentals.collapsed {
+  box-shadow: none;
+}
+      .hero-actions {
+  margin-top: -0.5rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.hero-actions .hero-link-btn {
+  flex: 1;
+  text-align: center;
+}
+
+
     </style>
   </head>
   <body data-code="{{CODE}}">
@@ -444,33 +469,35 @@
 
       <main class="instrument-page">
         <!-- HERO -->
-        <section class="instrument-hero" id="hero">
-          <div class="hero-left">
-            <div class="hero-title-row">
-              <h1 class="hero-name" id="hero-name">Loading…</h1>
-              <span class="hero-code-pill" id="hero-code">{{CODE}}</span>
-            </div>
-            <div class="hero-subline" id="hero-subline">
-              ASX equity snapshot.
-            </div>
-            <div class="hero-tags" id="hero-tags"></div>
-            <div class="hero-metrics" id="hero-metrics"></div>
-          </div>
-          <div class="hero-right">
-            <div class="hero-price" id="hero-price">—</div>
-            <div class="hero-change" id="hero-change">Change: —</div>
-            <div class="hero-date" id="hero-date"></div>
+<section class="instrument-hero" id="hero">
+  <div class="hero-left">
+    <div class="hero-title-row">
+      <h1 class="hero-name" id="hero-name">Loading…</h1>
+      <span class="hero-code-pill" id="hero-code">{{CODE}}</span>
+    </div>
 
-            <div class="hero-links">
-              <a href="/equity-screener.html" class="hero-link-btn">
-                View in screener
-              </a>
-              <a href="/mates-summaries.html" class="hero-link-btn primary">
-                Back to daily brief
-              </a>
-            </div>
-          </div>
-        </section>
+    <div class="hero-subline" id="hero-subline">
+      ASX listed • live snapshot from MatesInvest
+    </div>
+
+    <div class="hero-tags" id="hero-tags"></div>
+    <div class="hero-metrics" id="hero-metrics"></div>
+
+    <!-- PRICE BLOCK moved under metrics -->
+    <div class="hero-price-block">
+      <div class="hero-price" id="hero-price">—</div>
+      <div class="hero-change" id="hero-change">Change: —</div>
+      <div class="hero-date" id="hero-date"></div>
+    </div>
+  </div>
+</section>
+
+<!-- NEW: full-width button row -->
+<div class="hero-actions">
+  <a href="/equity-screener.html" class="hero-link-btn">View in screener</a>
+  <a href="/mates-summaries.html" class="hero-link-btn primary">Back to daily brief</a>
+</div>
+
 
         <!-- MAIN GRID -->
         <section class="instrument-main">
@@ -916,17 +943,23 @@
           .join("");
       }
 
-      function setupFundamentalsToggle() {
-        const card = document.getElementById("card-fundamentals");
-        const btn = document.getElementById("fund-toggle-btn");
-        if (!card || !btn) return;
+function setupFundamentalsToggle() {
+  const card = document.getElementById("card-fundamentals");
+  const btn = document.getElementById("fund-toggle-btn");
+  if (!card || !btn) return;
 
-        btn.addEventListener("click", () => {
-          const collapsed = card.classList.toggle("collapsed");
-          btn.textContent = collapsed ? "Show details" : "Hide details";
-          btn.setAttribute("aria-expanded", String(!collapsed));
-        });
-      }
+  // make sure we START expanded
+  card.classList.remove("collapsed");
+  btn.textContent = "Hide details";
+  btn.setAttribute("aria-expanded", "true");
+
+  btn.addEventListener("click", () => {
+    const collapsed = card.classList.toggle("collapsed");
+    btn.textContent = collapsed ? "Show details" : "Hide details";
+    btn.setAttribute("aria-expanded", String(!collapsed));
+  });
+}
+
 
       // ---------- PAGE INIT ----------
 
