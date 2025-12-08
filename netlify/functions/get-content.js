@@ -1,5 +1,5 @@
-const fetch = (...args) =>
-  import("node-fetch").then(({ default: fetch }) => fetch(...args));
+const fetch = (...args) => global.fetch(...args);
+
 
 exports.handler = async function (event) {
   const slug = event.queryStringParameters.slug;
