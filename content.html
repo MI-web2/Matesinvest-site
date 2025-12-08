@@ -284,7 +284,8 @@
         }
 
         try {
-          const res = await fetch(`/content-data/${slug}.json`, {
+          // NEW: load from Netlify function + Upstash, not /content-data
+          const res = await fetch(`/.netlify/functions/get-content?slug=${slug}`, {
             headers: { "Cache-Control": "no-cache" }
           });
 
