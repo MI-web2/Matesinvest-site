@@ -643,6 +643,24 @@
     grid-template-columns: 1fr;
   }
 }
+      .mi-ins-details-btn {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #38bdf8;
+  color: #001220;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  display: block;
+}
+
+.mi-ins-details-btn:hover {
+  background: #0ea5e9;
+}
+
     </style>
   </head>
   <body>
@@ -927,6 +945,16 @@
       <div id="mi-ins-news">
         Loading headlines for this name…
       </div>
+      <div class="mi-ins-section">
+  <button
+    id="mi-ins-details-btn"
+    class="mi-ins-details-btn"
+    type="button"
+  >
+    Deep Dive →
+  </button>
+</div>
+
     </div>
   </div>
 </div>
@@ -952,6 +980,7 @@
 
       let rawItems = [];
       let filteredItems = [];
+      let miCurrentCode = null;
 let sortState = { key: "marketCap", direction: "desc" };
 
 
@@ -1342,6 +1371,7 @@ function miRenderChart(history) {
 // ---------- Modal open/close + populate ----------
 
 function miOpenInstrumentModal(data) {
+    miCurrentCode = data.code || data.ticker || null;
   const overlay = document.getElementById("mi-instrument-overlay");
   if (!overlay) return;
 
@@ -1594,6 +1624,10 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     miCloseInstrumentModal();
   }
+});
+      document.getElementById("mi-ins-details-btn")?.addEventListener("click", () => {
+  if (!miCurrentCode) return;
+  window.location.href = `/stocks/${miCurrentCode}.html`;
 });
     </script>
 
