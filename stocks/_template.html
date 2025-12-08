@@ -443,8 +443,41 @@
   flex: 1;
   text-align: center;
 }
+.nav-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+}
 
+.nav-select-label {
+  font-size: 0.8rem;
+  color: #0f172a;
+}
 
+.nav-select {
+  border: none;
+  background: transparent;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #0f172a;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* tiny dropdown triangle */
+.nav-select-wrap::after {
+  content: "▾";
+  font-size: 0.8rem;
+  color: #0f172a;
+}
     </style>
   </head>
   <body data-code="{{CODE}}">
@@ -459,12 +492,21 @@
             />
             <div class="nav-logo-text">MatesInvest</div>
           </a>
-        </div>
-        <div class="nav-right">
-          <a href="/" class="nav-link">Home</a>
-          <a href="/mates-summaries.html" class="nav-link">ASX Daily Brief</a>
-          <a href="/equity-screener.html" class="nav-pill">ASX Explorer</a>
-        </div>
+<div class="nav-right">
+  <label class="nav-select-wrap">
+    <span class="nav-select-label">Navigate</span>
+    <select
+      class="nav-select"
+      onchange="if (this.value) window.location.href = this.value;"
+    >
+      <option value="">Choose page…</option>
+      <option value="/">Home</option>
+      <option value="/mates-summaries.html">ASX Daily Brief</option>
+      <option value="/equity-screener.html" selected>ASX Explorer</option>
+    </select>
+  </label>
+</div>
+
       </nav>
 
       <main class="instrument-page">
