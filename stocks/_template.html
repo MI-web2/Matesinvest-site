@@ -183,6 +183,24 @@
         border: 1px solid #bae6fd;
       }
 
+      /* NEW: quick metrics under tags */
+      .hero-metrics {
+        margin-top: 0.55rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+      }
+
+      .hero-metric {
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.12);
+        border: 1px solid rgba(148, 163, 184, 0.38);
+        font-size: 0.78rem;
+        color: #0f172a;
+        font-weight: 500;
+      }
+
       .hero-right {
         flex: 1.2 1 220px;
         min-width: 0;
@@ -288,43 +306,42 @@
 
       /* ---------- FUNDAMENTALS GRID ---------- */
 
-.fundamentals-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.6rem 0.8rem;
-}
+      .fundamentals-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.6rem 0.8rem;
+      }
 
-@media (max-width: 500px) {
-  .fundamentals-grid {
-    grid-template-columns: 1fr 1fr; /* still 2 columns even on mobile */
-  }
-}
+      @media (max-width: 500px) {
+        .fundamentals-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
 
-.fundamentals-item {
-  padding: 0.35rem 0.6rem;
-  border-radius: 12px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 64px; /* tighter, uniform height */
-}
+      .fundamentals-item {
+        padding: 0.35rem 0.6rem;
+        border-radius: 12px;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 64px;
+      }
 
-.fund-label {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: #64748b;
-  margin-bottom: 0.15rem;
-}
+      .fund-label {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #64748b;
+        margin-bottom: 0.15rem;
+      }
 
-.fund-value {
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: #0f172a;
-}
-
+      .fund-value {
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: #0f172a;
+      }
 
       /* ---------- CHART ---------- */
 
@@ -349,18 +366,7 @@
         display: block;
       }
 
-      /* ---------- SNAPSHOT + NEWS ---------- */
-
-      .snapshot-text {
-        font-size: 0.85rem;
-        color: var(--muted);
-        line-height: 1.5;
-        margin-top: 0.3rem;
-      }
-
-      .snapshot-placeholder {
-        color: var(--muted-2);
-      }
+      /* ---------- NEWS ---------- */
 
       .news-list {
         display: flex;
@@ -451,6 +457,7 @@
               ASX equity snapshot.
             </div>
             <div class="hero-tags" id="hero-tags"></div>
+            <div class="hero-metrics" id="hero-metrics"></div>
           </div>
           <div class="hero-right">
             <div class="hero-price" id="hero-price">—</div>
@@ -458,16 +465,10 @@
             <div class="hero-date" id="hero-date"></div>
 
             <div class="hero-links">
-              <a
-                href="/equity-screener.html"
-                class="hero-link-btn"
-              >
+              <a href="/equity-screener.html" class="hero-link-btn">
                 View in screener
               </a>
-              <a
-                href="/mates-summaries.html"
-                class="hero-link-btn primary"
-              >
+              <a href="/mates-summaries.html" class="hero-link-btn primary">
                 Back to daily brief
               </a>
             </div>
@@ -499,25 +500,15 @@
             </div>
           </div>
 
-          <!-- RIGHT: SNAPSHOT + NEWS -->
+          <!-- RIGHT: NEWS ONLY -->
           <div class="card">
             <div class="card-header">
               <div>
-                <div class="card-title">Plain-English snapshot</div>
+                <div class="card-title">Latest news</div>
                 <div class="card-subtitle">
-                  Quick context and latest headlines.
+                  Recent headlines mentioning this company.
                 </div>
               </div>
-            </div>
-
-            <div class="snapshot-text">
-              <div id="snapshot-text" class="snapshot-placeholder">
-                We’re loading a short AI summary for this company…
-              </div>
-            </div>
-
-            <div class="card-header" style="margin-top:0.75rem;">
-              <div class="card-title">Latest news</div>
             </div>
 
             <div id="news-list" class="news-list">
@@ -544,16 +535,6 @@
         )}&code=${encodeURIComponent(code)}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("instrument-details failed: " + res.status);
-        return res.json();
-      }
-
-      async function miFetchAiSummary(type, code) {
-        const url = `/.netlify/functions/instrument-ai-summary?type=${encodeURIComponent(
-          type
-        )}&code=${encodeURIComponent(code)}`;
-        const res = await fetch(url);
-        if (!res.ok)
-          throw new Error("instrument-ai-summary failed: " + res.status);
         return res.json();
       }
 
@@ -791,6 +772,21 @@
         }
       }
 
+      function renderHeroMetrics(row) {
+        const wrap = document.getElementById("hero-metrics");
+        if (!wrap || !row) return;
+
+        const mc = toMillions(row.marketCap);
+        const pe = formatNumber(row.peRatio);
+        const dy = formatPercentFrac(row.dividendYield);
+
+        wrap.innerHTML = `
+          <div class="hero-metric">Mkt cap: ${mc} A$m</div>
+          <div class="hero-metric">P/E: ${pe}</div>
+          <div class="hero-metric">Div yield: ${dy}</div>
+        `;
+      }
+
       function renderFundamentals(row) {
         const grid = document.getElementById("fundamentals-grid");
         if (!grid) return;
@@ -856,17 +852,9 @@
         `
           )
           .join("");
-      }
 
-      function renderSnapshot(ai) {
-        const el = document.getElementById("snapshot-text");
-        if (!el) return;
-        if (ai && ai.summary) {
-          el.textContent = ai.summary;
-        } else {
-          el.textContent =
-            "We couldn’t generate a summary right now, but you can still use the numbers and chart on this page for quick context.";
-        }
+        // also fill hero metric chips
+        renderHeroMetrics(row);
       }
 
       function renderNews(articles) {
@@ -918,11 +906,6 @@
           renderHero(details);
           renderFundamentals(screenerRow);
           miRenderChart(details.history);
-
-          // AI summary
-          miFetchAiSummary("equity", CODE)
-            .then(renderSnapshot)
-            .catch(() => renderSnapshot(null));
 
           // News
           miFetchInstrumentNews(CODE)
