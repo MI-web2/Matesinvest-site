@@ -57,3 +57,9 @@
 # Runs daily at 00:05 UTC; second run at 02:05 UTC as a fallback.
 [functions."merge-asx-universe"]
   schedule = "5 0,2 * * *"
+
+  [[redirects]]
+  from = "/content/*"
+  to = "/content.html"
+  status = 200
+
