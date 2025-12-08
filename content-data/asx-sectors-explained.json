@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MatesInvest – Article</title>
+  <meta name="description" content="" id="meta-description">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- your existing nav goes here -->
+
+  <main class="page-shell">
+    <div id="article-container">
+      <p>Loading article…</p>
+    </div>
+  </main>
+
+  <script>
+    // 1. Get slug from URL path: /content/asx-sectors-explained
+    const pathParts = window.location.pathname.split("/").filter(Boolean);
+    // ["content", "asx-sectors-explained"]
+    const slug = pathParts[1];
+
+    async function loadArticle() {
+      try {
+        const res = await fetch(`/content-data/${slug}.json`);
+        if (!res.ok) {
+          document.getElementById("article-container").innerHTML =
+            "<p>Sorry, we couldn't find that article.</p>";
+          return;
+        }
+
+        const data = await res.json();
+
+        // Set meta description (basic)
+        const metaDesc = document.getElementById("meta-description");
+        if (metaDesc && data.meta_description) {
+          metaDesc.setAttribute("content", data.meta_description);
+        }
+        if (data.title) {
+          document.title = data.title + " – MatesInvest";
+        }
+
+        // Inject the HTML
+        document.getElementById("article-container").innerHTML = data.content_html;
+      } catch (err) {
+        console.error(err);
+        document.getElementById("article-container").innerHTML =
+          "<p>Something went wrong loading this article.</p>";
+      }
+    }
+
+    loadArticle();
+  </script>
+</body>
+</html>
