@@ -288,39 +288,43 @@
 
       /* ---------- FUNDAMENTALS GRID ---------- */
 
-      .fundamentals-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.5rem 1rem;
-        font-size: 0.8rem;
-        margin-top: 0.3rem;
-      }
+.fundamentals-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem 0.8rem;
+}
 
-      @media (max-width: 600px) {
-        .fundamentals-grid {
-          grid-template-columns: minmax(0, 1fr);
-        }
-      }
+@media (max-width: 500px) {
+  .fundamentals-grid {
+    grid-template-columns: 1fr 1fr; /* still 2 columns even on mobile */
+  }
+}
 
-      .fundamentals-item {
-        padding: 0.45rem 0.5rem;
-        border-radius: 0.75rem;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-      }
+.fundamentals-item {
+  padding: 0.35rem 0.6rem;
+  border-radius: 12px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 64px; /* tighter, uniform height */
+}
 
-      .fund-label {
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--muted-2);
-        margin-bottom: 0.1rem;
-      }
+.fund-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  margin-bottom: 0.15rem;
+}
 
-      .fund-value {
-        font-size: 0.9rem;
-        font-weight: 500;
-      }
+.fund-value {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
 
       /* ---------- CHART ---------- */
 
