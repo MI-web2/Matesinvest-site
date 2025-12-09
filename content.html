@@ -268,9 +268,10 @@
 
     <script>
       (async function loadArticle() {
-        const pathParts = window.location.pathname.split("/").filter(Boolean);
-        // Expecting /content/[slug]
-        const slug = pathParts[1];
+const pathParts = window.location.pathname.split("/").filter(Boolean);
+// /content            -> ["content"]
+// /content/some-slug  -> ["content", "some-slug"]
+const slug = pathParts[1] || "latest";
 
         const container = document.getElementById("article-container");
         const metaWrap = document.getElementById("article-meta");
