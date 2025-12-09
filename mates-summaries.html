@@ -1554,21 +1554,59 @@
         Read Today’s Morning Brief
       </button>
 
-      <!-- Subscribe button -->
-      <a href="/join.html"
-        style="
-          padding:0.65rem 1.2rem;
-          border-radius:999px;
-          font-weight:600;
-          font-size:0.95rem;
-          color:#0b1220;
-          background:#ffffff;
-          border:1px solid #cfd8e3;
-          text-decoration:none;
-        ">
-        Get the 6:05am Email
-      </a>
-    </div>
+<!-- Inline email signup -->
+<form id="inlineSignup"
+  style="
+    display:flex;
+    flex-wrap:wrap;
+    gap:0.6rem;
+    margin-top:0.75rem;
+    align-items:center;
+  ">
+  <input
+    type="email"
+    id="inlineEmail"
+    name="email"
+    required
+    placeholder="Enter your email for the 6:05am brief"
+    autocomplete="email"
+    style="
+      flex:1 1 180px;
+      min-width:0;
+      padding:0.65rem 1rem;
+      border-radius:999px;
+      border:1px solid #cfd8e3;
+      font-size:0.95rem;
+      background:rgba(15,23,42,0.02);
+      outline:none;
+    "
+  />
+  <button
+    type="submit"
+    style="
+      padding:0.65rem 1.2rem;
+      border-radius:999px;
+      font-weight:600;
+      font-size:0.95rem;
+      color:#001220;
+      background:var(--accent);
+      border:1px solid transparent;
+      box-shadow:0 5px 14px rgba(15,23,42,0.18);
+      cursor:pointer;
+      white-space:nowrap;
+    "
+  >
+    Join free
+  </button>
+</form>
+
+<div id="inlineStatus"
+  style="
+    margin-top:0.4rem;
+    font-size:0.86rem;
+  ">
+</div>
+
 
     <!-- New here? explainer -->
     <p style="margin:0; margin-top:1rem; font-size:0.85rem; color:var(--muted-2);">
@@ -4020,6 +4058,54 @@ async function renderStoriesFeed() {
     }
   })();
 </script>
+<script>
+  (function () {
+    const form = document.getElementById("inlineSignup");
+    if (!form) return;
 
+    const emailInput = document.getElementById("inlineEmail");
+    const statusEl = document.getElementById("inlineStatus");
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const email = emailInput.value.trim();
+
+      if (!email) {
+        statusEl.textContent = "Please enter an email address.";
+        statusEl.style.color = "#dc2626";
+        return;
+      }
+
+      statusEl.textContent = "Joining…";
+      statusEl.style.color = "#4b5563";
+
+      try {
+        const res = await fetch("/.netlify/functions/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && (data.ok === true || data.success === true)) {
+          statusEl.textContent = "You're in! Check your inbox at 6:05am.";
+          statusEl.style.color = "#15803d";
+          emailInput.value = "";
+        } else {
+          statusEl.textContent =
+            data.error ||
+            data.message ||
+            "Something went wrong. Please try again.";
+          statusEl.style.color = "#dc2626";
+        }
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Network error. Please try again.";
+        statusEl.style.color = "#dc2626";
+      }
+    });
+  })();
+</script>
 </body>
 </html>
