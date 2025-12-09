@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MatesInvest – ASX Explainers Library</title>
+    <meta
+      name="description"
+      content="Browse plain-English ASX explainers from MatesInvest – sectors, interest rates, ETFs, and more."
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <style>
+      :root {
+        --navy: #002040;
+        --cyan: #00bfff;
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --muted: #64748b;
+        --muted-2: #94a3b8;
+        --accent: var(--cyan);
+        --accent-strong: #0093cc;
+        --accent-soft: rgba(0, 191, 255, 0.1);
+        --border: #e2e8f0;
+        --card-border: #e2e8f0;
+        --glass: rgba(255, 255, 255, 0.96);
+        --radius: 18px;
+        --gap: 1rem;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        max-width: 100%;
+        overflow-x: hidden;
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top, #dbeafe 0, #f5f7fb 55%);
+        color: var(--navy);
+      }
+
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 1.5rem 1.25rem 2.5rem;
+      }
+
+      /* NAV (same as content.html) */
+
+      .top-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+      }
+
+      .nav-left {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .nav-logo-img {
+        height: 32px;
+        width: auto;
+        display: block;
+      }
+
+      .nav-logo-text {
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        font-size: 1rem;
+      }
+
+      .nav-right {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .nav-select-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        background: #e0f2fe;
+        border: 1px solid #bae6fd;
+      }
+
+      .nav-select-label {
+        font-size: 0.8rem;
+        color: #0f172a;
+      }
+
+      .nav-select {
+        border: none;
+        background: transparent;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #0f172a;
+        outline: none;
+        padding: 0;
+        margin: 0;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+      }
+
+      .nav-select-wrap::after {
+        content: "▾";
+        font-size: 0.8rem;
+        color: #0f172a;
+      }
+
+      /* PAGE LAYOUT */
+
+      .library-hero {
+        background: var(--glass);
+        border-radius: var(--radius);
+        border: 1px solid var(--card-border);
+        padding: 1.2rem 1.3rem;
+        box-shadow: 0 16px 32px rgba(15, 23, 42, 0.14);
+        margin-bottom: 1rem;
+      }
+
+      .library-tagline {
+        font-size: 0.8rem;
+        color: var(--muted-2);
+        margin-bottom: 0.2rem;
+      }
+
+      .library-title {
+        font-size: 1.4rem;
+        margin: 0.2rem 0 0.3rem;
+        letter-spacing: -0.02em;
+      }
+
+      .library-sub {
+        font-size: 0.95rem;
+        color: var(--muted);
+        margin: 0;
+      }
+
+      .library-list {
+        margin-top: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .article-card {
+        background: var(--card);
+        border-radius: var(--radius);
+        border: 1px solid var(--card-border);
+        padding: 0.9rem 1rem;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+      }
+
+      .article-card-title {
+        font-size: 1rem;
+        margin: 0 0 0.25rem;
+      }
+
+      .article-card-title a {
+        text-decoration: none;
+        color: #0f172a;
+      }
+
+      .article-card-title a:hover {
+        text-decoration: underline;
+      }
+
+      .article-card-excerpt {
+        font-size: 0.9rem;
+        color: #475569;
+        margin: 0 0 0.3rem;
+      }
+
+      .article-card-meta {
+        font-size: 0.8rem;
+        color: #64748b;
+      }
+
+      .list-status {
+        font-size: 0.9rem;
+        color: var(--muted);
+        margin-top: 0.75rem;
+      }
+
+      @media (max-width: 768px) {
+        .library-title {
+          font-size: 1.25rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <nav class="top-nav">
+        <div class="nav-left">
+          <a href="/" class="nav-logo">
+            <img
+              src="/assets/img/logo-placeholder.png"
+              alt="MatesInvest"
+              class="nav-logo-img"
+            />
+            <div class="nav-logo-text">MatesInvest</div>
+          </a>
+        </div>
+
+        <div class="nav-right">
+          <label class="nav-select-wrap">
+            <span class="nav-select-label">Navigate</span>
+            <select
+              class="nav-select"
+              onchange="if (this.value) window.location.href = this.value;"
+            >
+              <option value="">Choose page…</option>
+              <option value="/">Home</option>
+              <option value="/mates-summaries.html">ASX Daily Brief</option>
+              <option value="/equity-screener.html">ASX Explorer</option>
+              <option value="/content/">Latest explainer</option>
+            </select>
+          </label>
+        </div>
+      </nav>
+
+      <main>
+        <section class="library-hero">
+          <div class="library-tagline">MatesInvest • Explainers library</div>
+          <h1 class="library-title">ASX explainers in plain English</h1>
+          <p class="library-sub">
+            A growing collection of simple guides on sectors, interest rates,
+            ETFs, and what actually moves the ASX.
+          </p>
+          <p class="library-sub">
+            New articles are added over time and each one links to tools like
+            the ASX Explorer and our daily email.
+          </p>
+        </section>
+
+        <section id="articles-section">
+          <div id="articles-list" class="library-list">
+            <p class="list-status">Loading articles…</p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      (async function loadArticles() {
+        const listEl = document.getElementById("articles-list");
+
+        try {
+          const res = await fetch("/.netlify/functions/list-content", {
+            headers: { "Cache-Control": "no-cache" },
+          });
+
+          if (!res.ok) {
+            listEl.innerHTML =
+              '<p class="list-status">Could not load articles right now.</p>';
+            return;
+          }
+
+          const payload = await res.json();
+          const articles = payload.articles || [];
+
+          if (!articles.length) {
+            listEl.innerHTML =
+              '<p class="list-status">No explainers are available yet. Check back soon.</p>';
+            return;
+          }
+
+          listEl.innerHTML = articles
+            .map((a) => {
+              const slug = a.slug || "";
+              const href = slug ? `/content/${slug}` : "#";
+              const title =
+                a.title || "Untitled MatesInvest article";
+              const excerpt = a.excerpt || "";
+
+              return `
+              <article class="article-card">
+                <h2 class="article-card-title">
+                  <a href="${href}">${title}</a>
+                </h2>
+                ${
+                  excerpt
+                    ? `<p class="article-card-excerpt">${excerpt}</p>`
+                    : ""
+                }
+                <div class="article-card-meta">
+                  Read in a few minutes · General information only, not personal advice.
+                </div>
+              </article>
+            `;
+            })
+            .join("");
+        } catch (err) {
+          console.error("Error loading articles list", err);
+          listEl.innerHTML =
+            '<p class="list-status">Something went wrong fetching the articles.</p>';
+        }
+      })();
+    </script>
+  </body>
+</html>
