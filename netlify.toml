@@ -58,8 +58,14 @@
 [functions."merge-asx-universe"]
   schedule = "5 0,2 * * *"
 
-  [[redirects]]
+[[redirects]]
+  from = "/content/articles"
+  to = "/content-index.html"
+  status = 200
+
+[[redirects]]
   from = "/content/*"
   to = "/content.html"
   status = 200
+
 
