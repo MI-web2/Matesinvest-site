@@ -426,156 +426,218 @@
         </div>
       `;
     }
+function renderMorningBrief(payload) {
+  if (!payload) {
+    briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
+    return;
+  }
 
-    function renderMorningBrief(payload) {
-      if (!payload) {
-        briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
-        return;
-      }
+  // Wire hero snapshot text
+  if (todaySummaryEl && payload.topLine) {
+    todaySummaryEl.textContent = payload.topLine;
+  }
+  if (todayBulletsEl && Array.isArray(payload.bullets) && payload.bullets.length) {
+    todayBulletsEl.innerHTML = payload.bullets
+      .map((b) => `<li>${escapeHtml(b)}</li>`)
+      .join("");
+  }
 
-      // Simple hero snapshot wiring
-      if (todaySummaryEl && payload.topLine) {
-        todaySummaryEl.textContent = payload.topLine;
-      }
-      if (todayBulletsEl && Array.isArray(payload.bullets) && payload.bullets.length) {
-        todayBulletsEl.innerHTML = payload.bullets
-          .map(b => `<li>${escapeHtml(b)}</li>`).join("");
-      }
+  if (snapshotTimeEl && payload.generatedAt) {
+    snapshotTimeEl.textContent = "Updated " + formatTime(payload.generatedAt);
+  }
 
-      if (snapshotTimeEl && payload.generatedAt) {
-        snapshotTimeEl.textContent = "Updated " + formatTime(payload.generatedAt);
-      }
+  if (futuresEl && payload.asxFuturesText) futuresEl.textContent = payload.asxFuturesText;
+  if (overnightEl && payload.usSessionText) overnightEl.textContent = payload.usSessionText;
+  if (themeEl && payload.themeOfDay) themeEl.textContent = payload.themeOfDay;
+  if (volEl && payload.volatilityLabel) volEl.textContent = payload.volatilityLabel;
 
-      // If payload has simple fields for hero stats, wire them too
-      if (futuresEl && payload.asxFuturesText) futuresEl.textContent = payload.asxFuturesText;
-      if (overnightEl && payload.usSessionText) overnightEl.textContent = payload.usSessionText;
-      if (themeEl && payload.themeOfDay) themeEl.textContent = payload.themeOfDay;
-      if (volEl && payload.volatilityLabel) volEl.textContent = payload.volatilityLabel;
+  // ---------- Build compact board data ----------
 
-      // Metals snapshot (kept but fairly compact)
-      const metalsObj =
-        payload.metals && typeof payload.metals === "object"
-          ? payload.metals
-          : payload.symbols && typeof payload.symbols === "object"
-          ? payload.symbols
-          : null;
+  // Commodities (metals etc.)
+  const metalsObj =
+    payload.metals && typeof payload.metals === "object"
+      ? payload.metals
+      : payload.symbols && typeof payload.symbols === "object"
+      ? payload.symbols
+      : null;
 
-      let metalsHtml = "";
-      if (metalsObj) {
-        const entries = Object.entries(metalsObj).slice(0, 4);
-        metalsHtml = `
-          <div class="metals-header-row">
-            <div class="metals-title">Commodities snapshot</div>
-          </div>
-          <div class="metals-grid">
-            ${entries
-              .map(([key, val]) => {
-                if (!val || typeof val !== "object") return "";
-                const name = val.name || key.toUpperCase();
-                const price = typeof val.price === "number"
-                  ? "$" + formatMoney(val.price)
-                  : (val.price || "—");
-                const pct = typeof val.changePct === "number" ? val.changePct : val.changePct;
-                const pctStr = pct != null ? (Number(pct) > 0 ? "+" + pct : pct) : "";
-                const pctBadge =
-                  pctStr !== ""
-                    ? `<span class="brief-badge ${Number(pct) > 0 ? "up" : Number(pct) < 0 ? "down" : "neutral"}">${pctStr}%</span>`
-                    : `<span class="brief-badge neutral">—</span>`;
+  const metalRows = [];
+  if (metalsObj) {
+    Object.entries(metalsObj)
+      .slice(0, 4)
+      .forEach(([key, val]) => {
+        if (!val || typeof val !== "object") return;
 
-                return `
-                  <button class="card-metal" type="button">
-                    <div class="metal-head">
-                      <div>
-                        <div class="metal-name">${escapeHtml(name)}</div>
-                        <div class="metal-price">${escapeHtml(price.toString())}</div>
-                      </div>
-                      <div>${pctBadge}</div>
-                    </div>
-                    <div class="metal-sub">${escapeHtml(val.oneLiner || "")}</div>
-                  </button>
-                `;
-              })
-              .join("")}
-          </div>
-        `;
-      }
+        const label = val.name || key.toUpperCase();
+        const price =
+          typeof val.price === "number"
+            ? "$" + formatMoney(val.price)
+            : val.price || "—";
 
-      // Top performers (if present)
-      let topPerfHtml = "";
-      if (Array.isArray(payload.topPerformers) && payload.topPerformers.length) {
-        const items = payload.topPerformers.map(tp => {
-          const pct = typeof tp.pctGain === "number"
-            ? tp.pctGain
-            : tp.pctGain ? Number(tp.pctGain) : null;
-          const pctClass =
-            pct === null ? "perf-pct neutral" :
-            pct > 0 ? "perf-pct up" :
-            pct < 0 ? "perf-pct down" : "perf-pct neutral";
-          const lastClose =
-            typeof tp.lastClose === "number"
-              ? "$" + formatMoney(tp.lastClose)
-              : (tp.lastClose || "");
-          return `
-            <div class="perf-card">
-              <div class="perf-top">
-                <div>
-                  <div class="perf-symbol">${escapeHtml(tp.symbol || "")}</div>
-                  <div class="perf-exch">${escapeHtml(tp.exchange || "ASX")}</div>
-                </div>
-                <div class="perf-last">${escapeHtml(lastClose.toString())}</div>
-              </div>
-              <div class="${pctClass}">
-                ${pct !== null ? (pct > 0 ? "+" + pct : pct) + "%" : "n/a"}
-              </div>
-            </div>
-          `;
+        let pctDisplay = "";
+        let pctClass = "brief-pct-flat";
+
+        if (val.changePct != null) {
+          const pctNum = Number(val.changePct);
+          if (!isNaN(pctNum)) {
+            pctDisplay = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+            if (pctNum > 0) pctClass = "brief-pct-up";
+            else if (pctNum < 0) pctClass = "brief-pct-down";
+          } else {
+            pctDisplay = String(val.changePct);
+          }
+        }
+
+        metalRows.push({
+          label,
+          price,
+          pctDisplay,
+          pctClass,
         });
+      });
+  }
 
-        topPerfHtml = `
-          <div class="top-performers">
-            ${items.join("")}
-          </div>
-        `;
+  // Top performers
+  const perfRows = [];
+  if (Array.isArray(payload.topPerformers)) {
+    payload.topPerformers.slice(0, 6).forEach((tp) => {
+      const symbol = tp.symbol || "";
+      const last =
+        typeof tp.lastClose === "number"
+          ? "$" + formatMoney(tp.lastClose)
+          : tp.lastClose || "";
+
+      let pctDisplay = "";
+      let pctClass = "brief-pct-flat";
+
+      if (tp.pctGain != null) {
+        const pctNum = Number(tp.pctGain);
+        if (!isNaN(pctNum)) {
+          pctDisplay = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+          if (pctNum > 0) pctClass = "brief-pct-up";
+          else if (pctNum < 0) pctClass = "brief-pct-down";
+        } else {
+          pctDisplay = String(tp.pctGain);
+        }
       }
 
-      // Morning note & stock placeholders
-      const noteHtml = `
-        <div id="matesMorningNote" class="mates-note" style="display:none;margin-top:1rem;">
-          <div class="mates-note-header">
-            <span class="pill">Mates Morning Note</span>
-            <span class="timestamp" id="matesNoteTimestamp"></span>
-          </div>
-          <div class="mates-note-body" id="matesNoteText">Loading…</div>
+      perfRows.push({
+        label: symbol,
+        price: last,
+        pctDisplay,
+        pctClass,
+      });
+    });
+  }
+
+  let boardHtml = "";
+  if (metalRows.length || perfRows.length) {
+    boardHtml = `
+      <div class="brief-snapshot-board">
+        <div class="brief-board-grid">
+          ${
+            metalRows.length
+              ? `
+            <div>
+              <div class="brief-section-label">Commodities</div>
+              <table class="brief-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Last</th>
+                    <th style="text-align:right;">24h</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${metalRows
+                    .map(
+                      (r) => `
+                    <tr>
+                      <td>${escapeHtml(r.label)}</td>
+                      <td>${escapeHtml(r.price)}</td>
+                      <td class="${r.pctClass}">
+                        ${escapeHtml(r.pctDisplay || "")}
+                      </td>
+                    </tr>`
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>`
+              : ""
+          }
+          ${
+            perfRows.length
+              ? `
+            <div>
+              <div class="brief-section-label">Top moves</div>
+              <table class="brief-table">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Last</th>
+                    <th style="text-align:right;">Day</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${perfRows
+                    .map(
+                      (r) => `
+                    <tr>
+                      <td>${escapeHtml(r.label)}</td>
+                      <td>${escapeHtml(r.price)}</td>
+                      <td class="${r.pctClass}">
+                        ${escapeHtml(r.pctDisplay || "")}
+                      </td>
+                    </tr>`
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>`
+              : ""
+          }
         </div>
-      `;
+      </div>
+    `;
+  }
 
-      const sotdHtml = `
-        <div id="stockOfDay" class="sotd-card" style="display:none;margin-top:1rem;" data-symbol="ASX:VAS" data-name="Vanguard Australian Shares">
-          <div class="sotd-header">
-            <div class="sotd-title-left">
-              <span class="sotd-pill">Stock of the day</span>
-              <span class="sotd-ticker" id="sotdTicker">ASX:VAS</span>
-            </div>
-            <div style="text-align:right">
-              <div class="sotd-name" id="sotdName">Vanguard Australian Shares</div>
-              <div class="sotd-exchange" id="sotdExchange">ASX</div>
-            </div>
-          </div>
-          <div class="sotd-summary" id="sotdSummary">Loading...</div>
-          <div class="sotd-disclaimer">
-            Not financial advice. Just a simple snapshot to help you learn.
-          </div>
+  // Morning note & stock of the day (unchanged)
+  const noteHtml = `
+    <div id="matesMorningNote" class="mates-note" style="display:none;margin-top:1rem;">
+      <div class="mates-note-header">
+        <span class="pill">Mates Morning Note</span>
+        <span class="timestamp" id="matesNoteTimestamp"></span>
+      </div>
+      <div class="mates-note-body" id="matesNoteText">Loading…</div>
+    </div>
+  `;
+
+  const sotdHtml = `
+    <div id="stockOfDay" class="sotd-card" style="display:none;margin-top:1rem;" data-symbol="ASX:VAS" data-name="Vanguard Australian Shares">
+      <div class="sotd-header">
+        <div class="sotd-title-left">
+          <span class="sotd-pill">Stock of the day</span>
+          <span class="sotd-ticker" id="sotdTicker">ASX:VAS</span>
         </div>
-      `;
+        <div style="text-align:right">
+          <div class="sotd-name" id="sotdName">Vanguard Australian Shares</div>
+          <div class="sotd-exchange" id="sotdExchange">ASX</div>
+        </div>
+      </div>
+      <div class="sotd-summary" id="sotdSummary">Loading...</div>
+      <div class="sotd-disclaimer">
+        Not financial advice. Just a simple snapshot to help you learn.
+      </div>
+    </div>
+  `;
 
-      briefContent.innerHTML = `
-        ${noteHtml}
-        ${metalsHtml}
-        ${topPerfHtml}
-        ${sotdHtml}
-      `;
-    }
-
+  briefContent.innerHTML = `
+    ${noteHtml}
+    ${boardHtml}
+    ${sotdHtml}
+  `;
+}
     /* ---------- Morning Brief button behaviour ---------- */
 
     (function wireMorningBrief() {
