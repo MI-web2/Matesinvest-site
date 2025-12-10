@@ -810,37 +810,10 @@ async function loadMorningBriefInitial() {
       });
     })();
 
-    /* ---------- Simple placeholder movers (for now) ---------- */
-
-    function loadPlaceholderMovers() {
-      if (moversBigEl) {
-        moversBigEl.innerHTML = `
-          <li><span>BHP</span><span class="ms-move-up">▲ +1.8%</span></li>
-          <li><span>CBA</span><span class="ms-move-up">▲ +1.2%</span></li>
-          <li><span>WES</span><span class="ms-move-down">▼ -1.0%</span></li>
-        `;
-      }
-      if (moversSectorsEl) {
-        moversSectorsEl.innerHTML = `
-          <li><span>Resources</span><span class="ms-move-up">Stronger</span></li>
-          <li><span>Banks</span><span class="ms-move-flat">Steady</span></li>
-          <li><span>Tech</span><span class="ms-move-down">Softer</span></li>
-        `;
-      }
-      if (moversThemesEl) {
-        moversThemesEl.innerHTML = `
-          <li><span>Gold</span><span class="ms-move-up">Benefiting from higher prices</span></li>
-          <li><span>Lithium</span><span class="ms-move-flat">Sideways after recent falls</span></li>
-          <li><span>Dividends</span><span class="ms-move-flat">Focus on quality names</span></li>
-        `;
-      }
-    }
-
     /* ---------- Init ---------- */
 
 (function init() {
   loadNewsInitial();
-  loadPlaceholderMovers();
   loadMorningBriefInitial();  // <- now auto-load the brief
 })();
   </script>
