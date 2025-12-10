@@ -580,27 +580,25 @@ function renderMorningBrief(payload) {
                   </tr>
                 </thead>
                 <tbody>
-                  ${perfRows
-                    .map(
-                      (r) => `
-                    <tr>
-                      <td>
-                        ${escapeHtml(r.symbol)}
-                        ${
-                          r.name
-                            ? `<div style="font-size:0.76rem;color:var(--muted-2);">
-                                 ${escapeHtml(r.name)}
-                               </div>`
-                            : ""
-                        }
-                      </td>
-                      <td>${escapeHtml(r.price)}</td>
-                      <td class="${r.pctClass}">
-                        ${escapeHtml(r.pctDisplay || "")}
-                      </td>
-                    </tr>`
-                    )
-                    .join("")}
+${perfRows
+  .map(
+    (r) => `
+  <tr>
+    <td>
+      <span class="brief-code">${escapeHtml(r.symbol)}</span>
+      ${
+        r.name
+          ? `<span class="brief-name">${escapeHtml(r.name)}</span>`
+          : ""
+      }
+    </td>
+    <td>${escapeHtml(r.price)}</td>
+    <td class="${r.pctClass}">
+      ${escapeHtml(r.pctDisplay || "")}
+    </td>
+  </tr>`
+  )
+  .join("")}
                 </tbody>
               </table>
             </div>`
