@@ -757,7 +757,7 @@ function isAusArticle(a) {
     }
 
     /* ---------- News rendering: Market mode only ---------- */
- // Return true if an article is clearly AU / ASX related
+// Return true if an article is clearly AU / ASX related
 function isAusArticle(a) {
   if (!a) return false;
 
@@ -883,12 +883,11 @@ function isAusArticle(a) {
     function renderMoreNews() {
       if (!allArticles.length) return;
 
-      // Prevent concurrent loads
-      if (isNewsLoadingMore) return;
-      isNewsLoadingMore = true;
-
       const start = visibleNewsCount;
-      const end = Math.min(visibleNewsCount + NEWS_PAGE_SIZE, allArticles.length);
+      const end = Math.min(
+        visibleNewsCount + NEWS_PAGE_SIZE,
+        allArticles.length
+      );
 
       for (let i = start; i < end; i++) {
         const a = allArticles[i];
@@ -898,62 +897,6 @@ function isAusArticle(a) {
 
       visibleNewsCount = end;
       isNewsLoadingMore = false;
-
-      // If we've rendered everything, remove sentinel (if any) and append an end note
-      if (visibleNewsCount >= allArticles.length) {
-        const sentinel = document.getElementById("newsSentinel");
-        if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
-        const endNote = document.createElement("div");
-        endNote.className = "headline";
-        endNote.innerHTML = `<small style="color:var(--muted)">End of feed</small>`;
-        newsList.appendChild(endNote);
-      } else {
-        // ensure sentinel exists at the end so the observer can see it
-        let sentinel = document.getElementById("newsSentinel");
-        if (!sentinel) {
-          sentinel = document.createElement("div");
-          sentinel.id = "newsSentinel";
-          sentinel.style.height = "1px";
-          sentinel.style.width = "100%";
-          newsList.appendChild(sentinel);
-        } else {
-          // move sentinel to end
-          newsList.appendChild(sentinel);
-        }
-      }
-    }
-
-    function setupNewsInfiniteScroll() {
-      // If IntersectionObserver isn't supported, do nothing (the page will still show first page)
-      if (typeof IntersectionObserver === "undefined") return;
-
-      let sentinel = document.getElementById("newsSentinel");
-      if (!sentinel) {
-        sentinel = document.createElement("div");
-        sentinel.id = "newsSentinel";
-        sentinel.style.height = "1px";
-        sentinel.style.width = "100%";
-        newsList.appendChild(sentinel);
-      }
-
-      const observer = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            if (entry.isIntersecting) {
-              if (isNewsLoadingMore) return;
-              if (visibleNewsCount >= allArticles.length) return;
-              renderMoreNews();
-            }
-          }
-        },
-        {
-          root: null,
-          rootMargin: "300px",
-          threshold: 0.01,
-        }
-      );
-
-      observer.observe(sentinel);
     }
 
     async function loadNewsInitial() {
@@ -975,7 +918,6 @@ allArticles = allArticles.slice(0, MAX_NEWS_ITEMS);
         }
 
         renderNews(); // will render first 5
-        setupNewsInfiniteScroll();
         feedStatus.textContent = "Live";
       } catch (err) {
         console.error(err);
@@ -1056,4 +998,193 @@ function loadPlaceholderMoversFallback() {
   }
   if (moversThemesEl) {
     moversThemesEl.innerHTML = `
-[...]
+      <li><span>Gold</span><span class="ms-move-up">Benefiting from higher prices</span></li>
+      <li><span>Lithium</span><span class="ms-move-flat">Sideways after recent falls</span></li>
+      <li><span>Dividends</span><span class="ms-move-flat">Focus on quality names</span></li>
+    `;
+  }
+}
+
+/* Load "What’s moving today?" from asx200:latest */
+async function loadMoversFromAsx200() {
+  if (!moversBigEl && !moversSectorsEl && !moversThemesEl) return;
+
+  try {
+    const res = await fetch("/.netlify/functions/asx200-latest");
+    if (!res.ok) {
+      throw new Error(await res.text());
+    }
+    const data = await res.json();
+    const rowsRaw = data.items || data.stocks || data || [];
+    const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
+
+    if (!rows.length) {
+      throw new Error("No ASX200 rows");
+    }
+
+    const withPct = rows.filter(
+      (r) => r.pctChange != null && !isNaN(Number(r.pctChange))
+    );
+
+    // ---------- BIGGEST FALLERS ----------
+    if (moversBigEl) {
+      const losers = [...withPct]
+        .sort((a, b) => Number(a.pctChange) - Number(b.pctChange)) // most negative first
+        .slice(0, 5);
+
+       moversBigEl.innerHTML = losers
+    .map((r) => {
+      const code = r.code || r.symbol || "";
+      const name = r.name || "";
+
+      const pctNum = Number(r.pctChange);
+      const pctStr =
+        (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+
+      let cls = "ms-move-flat";
+      if (pctNum > 0) cls = "ms-move-up";
+      else if (pctNum < 0) cls = "ms-move-down";
+
+      return `
+        <li>
+          <span class="ms-mover-name-wrap">
+            <span class="brief-code">${escapeHtml(code)}</span>
+            ${
+              name
+                ? `<span class="ms-mover-name">${escapeHtml(name)}</span>`
+                : ""
+            }
+          </span>
+          <span class="${cls}">${escapeHtml(pctStr)}</span>
+        </li>
+      `;
+    })
+    .join("");
+    }
+
+    // ---------- SECTORS ON THE MOVE ----------
+    if (moversSectorsEl) {
+      const sectorAgg = {};
+
+      withPct.forEach((r) => {
+        const sec = r.sector || r.gicSector;
+        if (!sec) return;
+        const pctNum = Number(r.pctChange);
+        if (isNaN(pctNum)) return;
+
+        if (!sectorAgg[sec]) {
+          sectorAgg[sec] = { sum: 0, count: 0 };
+        }
+        sectorAgg[sec].sum += pctNum;
+        sectorAgg[sec].count += 1;
+      });
+
+      const sectorsArr = Object.entries(sectorAgg).map(([sec, v]) => ({
+        sec,
+        avg: v.sum / v.count,
+      }));
+
+      sectorsArr.sort((a, b) => Math.abs(b.avg) - Math.abs(a.avg));
+
+      const topSecs = sectorsArr.slice(0, 3);
+
+      moversSectorsEl.innerHTML = topSecs
+        .map((s) => {
+          let label = "Steady";
+          let cls = "ms-move-flat";
+
+          if (s.avg > 0.15) {
+            label = "Stronger";
+            cls = "ms-move-up";
+          } else if (s.avg < -0.15) {
+            label = "Softer";
+            cls = "ms-move-down";
+          }
+
+          return `
+            <li>
+              <span>${escapeHtml(s.sec)}</span>
+              <span class="${cls}">${escapeHtml(label)}</span>
+            </li>
+          `;
+        })
+        .join("");
+    }
+
+    // ---------- THEMES TO WATCH (from GIC industries) ----------
+    if (moversThemesEl) {
+      const themeAgg = {};
+
+      withPct.forEach((r) => {
+        const theme = r.gicIndustry || r.gicGroup;
+        if (!theme) return;
+        const pctNum = Number(r.pctChange);
+        if (isNaN(pctNum)) return;
+
+        if (!themeAgg[theme]) {
+          themeAgg[theme] = { sum: 0, count: 0 };
+        }
+        themeAgg[theme].sum += pctNum;
+        themeAgg[theme].count += 1;
+      });
+
+      const themesArr = Object.entries(themeAgg).map(([theme, v]) => ({
+        theme,
+        avg: v.sum / v.count,
+      }));
+
+      themesArr.sort((a, b) => Math.abs(b.avg) - Math.abs(a.avg));
+
+      const topThemes = themesArr.slice(0, 3);
+
+      moversThemesEl.innerHTML = topThemes
+        .map((t) => {
+          let text = "Sideways";
+          let cls = "ms-move-flat";
+
+          if (t.avg > 0.15) {
+            text = "Gainers";
+            cls = "ms-move-up";
+          } else if (t.avg < -0.15) {
+            text = "Under pressure";
+            cls = "ms-move-down";
+          }
+
+          return `
+            <li>
+              <span>${escapeHtml(t.theme)}</span>
+              <span class="${cls}">${escapeHtml(text)}</span>
+            </li>
+          `;
+        })
+        .join("");
+    }
+  } catch (err) {
+    console.error("loadMoversFromAsx200 failed", err);
+    loadPlaceholderMoversFallback();
+  }
+}
+
+    /* ---------- Init ---------- */
+
+(function init() {
+  loadNewsInitial();
+  loadMoversFromAsx200();
+  loadMorningBriefInitial();
+
+  // Infinite scroll for news – load 5 more when page is near bottom
+  window.addEventListener("scroll", () => {
+    if (
+      window.innerHeight + window.scrollY >=
+        document.body.offsetHeight - 400 &&
+      !isNewsLoadingMore &&
+      visibleNewsCount < allArticles.length
+    ) {
+      isNewsLoadingMore = true;
+      renderMoreNews();
+    }
+  });
+})();
+  </script>
+</body>
+</html>
