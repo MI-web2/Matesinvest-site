@@ -513,6 +513,22 @@ body{
 .brief-pct-flat {
   color: #475569;
 }
+  .brief-code {
+  font-weight: 600;
+}
+
+.brief-name {
+  font-size: 0.76rem;
+  color: var(--muted-2);
+  margin-left: 0.3rem;
+  display: inline-block;
+  max-width: 8.5rem;       /* tweak if you want longer/shorter */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: baseline;
+}
+
 /* Instrument modal styles (existing) */
 .mi-ins-overlay{
   position:fixed;
