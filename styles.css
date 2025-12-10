@@ -451,6 +451,68 @@ body{
   .brief-grid{grid-template-columns:1fr;}
   .metal-sub.usd{display:none;}
 }
+  /* Compact snapshot board for Morning Brief */
+.brief-snapshot-board {
+  margin-top: 0.9rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #f9fbff;
+}
+
+.brief-board-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem 1.25rem;
+}
+
+@media (max-width: 700px) {
+  .brief-board-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.brief-section-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-2);
+  margin-bottom: 0.15rem;
+}
+
+.brief-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.brief-table th {
+  text-align: left;
+  font-weight: 600;
+  padding: 0.25rem 0.1rem;
+  color: var(--muted);
+}
+
+.brief-table td {
+  padding: 0.2rem 0.1rem;
+}
+
+.brief-table td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.brief-pct-up {
+  color: #15803d;
+}
+
+.brief-pct-down {
+  color: #b91c1c;
+}
+
+.brief-pct-flat {
+  color: #475569;
+}
 
 /* Instrument modal styles (existing) */
 .mi-ins-overlay{
