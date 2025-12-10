@@ -2915,4 +2915,43 @@ body{
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Mobile spacing tidy-up */
+@media (max-width: 768px) {
+  /* Hero area – less top/bottom padding */
+  .hero {
+    padding-top: 2.5rem;
+    padding-bottom: 2rem;
+  }
+
+  /* General sections – reduce vertical padding */
+  main .section {
+    padding-top: 2.25rem;
+    padding-bottom: 2.25rem;
+  }
+
+  /* Today’s ASX snapshot section – pull it closer to the hero */
+  #today.section {
+    padding-top: 1.25rem;
+  }
+
+  /* Card spacing inside the snapshot area */
+  .ms-main {
+    gap: 1.25rem;
+  }
+
+  .ms-hero {
+    padding: 1.25rem 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .ms-hero .ms-hero-title {
+    margin-bottom: 0.5rem;
+  }
+
+  /* Reduce gap between snapshot + “We want investing to feel normal” */
+  #about.section.alt {
+    padding-top: 2rem;
+  }
+}
+
 
