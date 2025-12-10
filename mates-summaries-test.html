@@ -120,16 +120,16 @@
 
       <!-- MIDDLE ROW: What's moving today + headlines -->
       <section class="ms-row">
-        <!-- WHAT'S MOVING TODAY -->
+        <!-- WHAT MOVED YESTERDAY -->
         <section class="card ms-movers">
           <header class="ms-section-head">
-            <h2>What’s moving today?</h2>
+            <h2>What moved yesterday?</h2>
             <p>Not a full screener – just a quick feel for where the action is.</p>
           </header>
 
           <div class="ms-movers-grid">
             <div>
-              <h3 class="ms-movers-heading">Biggest moves</h3>
+              <h3 class="ms-movers-heading">Biggest fallers</h3>
               <ul class="ms-movers-list" id="msBigMoves">
                 <li><span>Loading…</span><span></span></li>
               </ul>
@@ -860,37 +860,191 @@
 
     /* ---------- Simple placeholder movers (initial) ---------- */
 
-    function loadPlaceholderMovers() {
-      if (moversBigEl) {
-        moversBigEl.innerHTML = `
-          <li><span>BHP</span><span class="ms-move-up">▲ +1.8%</span></li>
-          <li><span>CBA</span><span class="ms-move-up">▲ +1.2%</span></li>
-          <li><span>WES</span><span class="ms-move-down">▼ -1.0%</span></li>
-        `;
-      }
-      if (moversSectorsEl) {
-        moversSectorsEl.innerHTML = `
-          <li><span>Resources</span><span class="ms-move-up">Stronger</span></li>
-          <li><span>Banks</span><span class="ms-move-flat">Steady</span></li>
-          <li><span>Tech</span><span class="ms-move-down">Softer</span></li>
-        `;
-      }
-      if (moversThemesEl) {
-        moversThemesEl.innerHTML = `
-          <li><span>Gold</span><span class="ms-move-up">Benefiting from higher prices</span></li>
-          <li><span>Lithium</span><span class="ms-move-flat">Sideways after recent falls</span></li>
-          <li><span>Dividends</span><span class="ms-move-flat">Focus on quality names</span></li>
-        `;
-      }
+// Simple fallback if Upstash fails
+function loadPlaceholderMoversFallback() {
+  if (moversBigEl) {
+    moversBigEl.innerHTML = `
+      <li><span>ASX200</span><span class="ms-move-down">-0.5% to -1.5%</span></li>
+      <li><span>Mid caps</span><span class="ms-move-down">Under pressure</span></li>
+      <li><span>Small caps</span><span class="ms-move-flat">Choppy</span></li>
+      <li><span>Property</span><span class="ms-move-flat">Steady</span></li>
+      <li><span>Cash</span><span class="ms-move-flat">No change</span></li>
+    `;
+  }
+  if (moversSectorsEl) {
+    moversSectorsEl.innerHTML = `
+      <li><span>Resources</span><span class="ms-move-up">Stronger</span></li>
+      <li><span>Banks</span><span class="ms-move-flat">Steady</span></li>
+      <li><span>Tech</span><span class="ms-move-down">Softer</span></li>
+    `;
+  }
+  if (moversThemesEl) {
+    moversThemesEl.innerHTML = `
+      <li><span>Gold</span><span class="ms-move-up">Benefiting from higher prices</span></li>
+      <li><span>Lithium</span><span class="ms-move-flat">Sideways after recent falls</span></li>
+      <li><span>Dividends</span><span class="ms-move-flat">Focus on quality names</span></li>
+    `;
+  }
+}
+
+/* Load "What’s moving today?" from asx200:latest */
+async function loadMoversFromAsx200() {
+  if (!moversBigEl && !moversSectorsEl && !moversThemesEl) return;
+
+  try {
+    const res = await fetch("/.netlify/functions/asx200-latest");
+    if (!res.ok) {
+      throw new Error(await res.text());
     }
+    const data = await res.json();
+    const rowsRaw = data.items || data.stocks || data || [];
+    const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
+
+    if (!rows.length) {
+      throw new Error("No ASX200 rows");
+    }
+
+    const withPct = rows.filter(
+      (r) => r.pctChange != null && !isNaN(Number(r.pctChange))
+    );
+
+    // ---------- BIGGEST FALLERS ----------
+    if (moversBigEl) {
+      const losers = [...withPct]
+        .sort((a, b) => Number(a.pctChange) - Number(b.pctChange)) // most negative first
+        .slice(0, 5);
+
+      moversBigEl.innerHTML = losers
+        .map((r) => {
+          const code = r.code || r.symbol || "";
+          const pctNum = Number(r.pctChange);
+          const pctStr =
+            (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+
+          let cls = "ms-move-flat";
+          if (pctNum > 0) cls = "ms-move-up";
+          else if (pctNum < 0) cls = "ms-move-down";
+
+          return `
+            <li>
+              <span>${escapeHtml(code)}</span>
+              <span class="${cls}">${escapeHtml(pctStr)}</span>
+            </li>
+          `;
+        })
+        .join("");
+    }
+
+    // ---------- SECTORS ON THE MOVE ----------
+    if (moversSectorsEl) {
+      const sectorAgg = {};
+
+      withPct.forEach((r) => {
+        const sec = r.sector || r.gicSector;
+        if (!sec) return;
+        const pctNum = Number(r.pctChange);
+        if (isNaN(pctNum)) return;
+
+        if (!sectorAgg[sec]) {
+          sectorAgg[sec] = { sum: 0, count: 0 };
+        }
+        sectorAgg[sec].sum += pctNum;
+        sectorAgg[sec].count += 1;
+      });
+
+      const sectorsArr = Object.entries(sectorAgg).map(([sec, v]) => ({
+        sec,
+        avg: v.sum / v.count,
+      }));
+
+      sectorsArr.sort((a, b) => Math.abs(b.avg) - Math.abs(a.avg));
+
+      const topSecs = sectorsArr.slice(0, 3);
+
+      moversSectorsEl.innerHTML = topSecs
+        .map((s) => {
+          let label = "Steady";
+          let cls = "ms-move-flat";
+
+          if (s.avg > 0.15) {
+            label = "Stronger";
+            cls = "ms-move-up";
+          } else if (s.avg < -0.15) {
+            label = "Softer";
+            cls = "ms-move-down";
+          }
+
+          return `
+            <li>
+              <span>${escapeHtml(s.sec)}</span>
+              <span class="${cls}">${escapeHtml(label)}</span>
+            </li>
+          `;
+        })
+        .join("");
+    }
+
+    // ---------- THEMES TO WATCH (from GIC industries) ----------
+    if (moversThemesEl) {
+      const themeAgg = {};
+
+      withPct.forEach((r) => {
+        const theme = r.gicIndustry || r.gicGroup;
+        if (!theme) return;
+        const pctNum = Number(r.pctChange);
+        if (isNaN(pctNum)) return;
+
+        if (!themeAgg[theme]) {
+          themeAgg[theme] = { sum: 0, count: 0 };
+        }
+        themeAgg[theme].sum += pctNum;
+        themeAgg[theme].count += 1;
+      });
+
+      const themesArr = Object.entries(themeAgg).map(([theme, v]) => ({
+        theme,
+        avg: v.sum / v.count,
+      }));
+
+      themesArr.sort((a, b) => Math.abs(b.avg) - Math.abs(a.avg));
+
+      const topThemes = themesArr.slice(0, 3);
+
+      moversThemesEl.innerHTML = topThemes
+        .map((t) => {
+          let text = "Sideways after recent moves";
+          let cls = "ms-move-flat";
+
+          if (t.avg > 0.15) {
+            text = "Benefiting from higher prices";
+            cls = "ms-move-up";
+          } else if (t.avg < -0.15) {
+            text = "Under pressure after falls";
+            cls = "ms-move-down";
+          }
+
+          return `
+            <li>
+              <span>${escapeHtml(t.theme)}</span>
+              <span class="${cls}">${escapeHtml(text)}</span>
+            </li>
+          `;
+        })
+        .join("");
+    }
+  } catch (err) {
+    console.error("loadMoversFromAsx200 failed", err);
+    loadPlaceholderMoversFallback();
+  }
+}
 
     /* ---------- Init ---------- */
 
-    (function init() {
-      loadNewsInitial();
-      loadPlaceholderMovers();    // quick fake data so it’s not empty
-      loadMorningBriefInitial();  // loads real brief + overrides movers
-    })();
+(function init() {
+  loadNewsInitial();
+  loadMoversFromAsx200();     // now uses Upstash ASX200
+  loadMorningBriefInitial();  // auto-load the brief
+})();
   </script>
 </body>
 </html>
