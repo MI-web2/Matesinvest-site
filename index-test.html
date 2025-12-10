@@ -1187,34 +1187,34 @@
 
       /* ---------- News rendering: Market mode only ---------- */
 
-      function buildNewsItem(a) {
-        const item = document.createElement("article");
-        item.className = "headline";
+function buildNewsItem(a) {
+  const item = document.createElement("article");
+  item.className = "headline";
 
-        const title = a.title || "Untitled headline";
-        const source = a.source || a.source_name || "Source";
-        const publishedRaw = a.publishedAt || a.published || a.time;
-        const timeStr = publishedRaw ? formatTimeAgo(publishedRaw) : "";
+  const title = a.title || "Untitled headline";
+  const source = a.source || a.source_name || "Source";
+  const publishedRaw = a.publishedAt || a.published || a.time;
+  const timeStr = publishedRaw ? formatTimeAgo(publishedRaw) : "";
 
-        item.innerHTML = `
-          <div class="headline-top">
-            <span class="headline-source">${escapeHtml(source)}</span>
-            ${timeStr ? `<span class="headline-time">${escapeHtml(timeStr)}</span>` : ""}
-          </div>
-          <h3 class="headline-title">${escapeHtml(title)}</h3>
-          ${
-            a.description
-              ? `<p class="headline-summary">${escapeHtml(a.description)}</p>`
-              : ""
-          }
-          <div class="meta-actions">
-            <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">
-              Read original
-            </a>
-            <button class="btn" type="button">MatesInvest summary</button>
-          </div>
-          <div class="summary-output"></div>
-        ";
+  item.innerHTML = `
+    <div class="headline-top">
+      <span class="headline-source">${escapeHtml(source)}</span>
+      ${timeStr ? `<span class="headline-time">${escapeHtml(timeStr)}</span>` : ""}
+    </div>
+    <h3 class="headline-title">${escapeHtml(title)}</h3>
+    ${
+      a.description
+        ? `<p class="headline-summary">${escapeHtml(a.description)}</p>`
+        : ""
+    }
+    <div class="meta-actions">
+      <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">
+        Read original
+      </a>
+      <button class="btn" type="button">MatesInvest summary</button>
+    </div>
+    <div class="summary-output"></div>
+  `; // <-- fixed: backtick closes the template literal
 
         const btn = item.querySelector("button");
         const output = item.querySelector(".summary-output");
