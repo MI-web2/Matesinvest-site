@@ -2953,5 +2953,45 @@ body{
     padding-top: 2rem;
   }
 }
+/* Mobile-only quick links next to burger */
+.nav-mobile-links {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .nav-mobile-links {
+    display: flex;
+    gap: 0.4rem;
+    margin-left: auto;
+    margin-right: 0.25rem;
+  }
+
+  .nav-mobile-links a {
+    font-size: 0.78rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.8);
+    text-decoration: none;
+    background: #ffffff;
+    color: #0f172a;
+    white-space: nowrap;
+  }
+
+  /* If your CSS hides the main nav on mobile, keep that behaviour */
+  /* (body:not(.open) .nav nav { display:none; } etc stays as-is) */
+}
+
+@media (min-width: 769px) {
+  .nav-mobile-links {
+    display: none;
+  }
+}
 
 
