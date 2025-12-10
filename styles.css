@@ -1441,3 +1441,406 @@ body{
     font-size: 0.82rem;
   }
 }
+
+/* ---------------- Mates summaries TEST page (ms-*) ---------------- */
+
+.ms-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* HERO */
+
+.ms-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: stretch;
+  position: relative;
+}
+
+@media (max-width: 900px) {
+  .ms-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ms-hero-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.ms-hero-title {
+  margin: 0;
+  font-size: 1.7rem;
+  line-height: 1.2;
+  color: var(--navy);
+}
+
+.ms-hero-subtitle {
+  margin: 0;
+  font-size: 0.98rem;
+  color: var(--muted);
+}
+
+.ms-hero-today {
+  margin-top: 0.4rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: 14px;
+  background: #f9fbff;
+  border: 1px solid #e2e8f0;
+}
+
+.ms-hero-today-heading {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.ms-hero-today-body {
+  margin: 0 0 0.4rem;
+  font-size: 0.92rem;
+  color: #0b1220;
+}
+
+.ms-hero-bullets {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.ms-hero-cta-row {
+  margin-top: 0.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+/* Buttons for test page */
+
+.btn-primary {
+  padding: 0.65rem 1.3rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #001220;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 5px 14px rgba(15,23,42,0.22);
+}
+
+.btn-primary:hover {
+  background: var(--accent-strong);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.2rem;
+  border-radius: 999px;
+  border: 1px solid #cfd8e3;
+  background: #ffffff;
+  color: #0b1220;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.btn-ghost:hover {
+  background: #f8fafc;
+}
+
+/* Pills */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.18rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.pill-soft {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border: 1px solid rgba(0,191,255,0.35);
+}
+
+.pill-outline {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid #cbd5e1;
+}
+
+/* HERO RIGHT SNAPSHOT */
+
+.ms-hero-right {
+  display: flex;
+  align-items: stretch;
+}
+
+.ms-hero-statcard {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid #dbeafe;
+  background: radial-gradient(circle at top left, #eff6ff 0, #ffffff 45%, #f8fafc 100%);
+  padding: 0.9rem 1rem;
+  font-size: 0.86rem;
+  color: #0b1220;
+}
+
+.ms-hero-stathead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.ms-hero-stat-time {
+  font-size: 0.78rem;
+  color: var(--muted-2);
+}
+
+.ms-hero-statgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 1.1rem;
+  margin: 0.4rem 0 0.4rem;
+}
+
+.ms-hero-statgrid dt {
+  font-size: 0.78rem;
+  color: var(--muted-2);
+}
+
+.ms-hero-statgrid dd {
+  margin: 0.05rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ms-hero-footnote {
+  margin: 0.4rem 0 0;
+  font-size: 0.76rem;
+  color: var(--muted-2);
+}
+
+/* LEARNING STRIP */
+
+.ms-learn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.ms-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ms-section-head h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--navy);
+}
+
+.ms-section-head p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.ms-learn-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+@media (max-width: 960px) {
+  .ms-learn-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ms-learn-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  color: var(--navy);
+}
+
+.ms-learn-card p {
+  margin: 0 0 0.55rem;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.ms-learn-link {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.ms-learn-link:hover {
+  text-decoration: underline;
+}
+
+/* ROW: movers + news */
+
+.ms-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.4fr);
+  gap: 1.2rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 1000px) {
+  .ms-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Movers card */
+
+.ms-movers-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .ms-movers-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ms-movers-heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.96rem;
+  color: var(--navy);
+}
+
+.ms-movers-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.86rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ms-movers-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.ms-movers-list span:last-child {
+  font-weight: 600;
+}
+
+.ms-movers-footnote {
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--muted-2);
+}
+
+/* Move labels */
+
+.ms-move-up {
+  color: #15803d;
+}
+
+.ms-move-down {
+  color: #b91c1c;
+}
+
+.ms-move-flat {
+  color: #475569;
+}
+
+/* News card */
+
+.ms-news-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.ms-news-head h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  color: var(--navy);
+}
+
+.ms-news-subtitle {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.ms-news-controls {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.ms-news-status {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--muted-2);
+}
+
+.ms-news-list {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Headline bits for test page */
+
+.headline-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.15rem;
+}
+
+.headline-source {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.headline-time {
+  font-size: 0.78rem;
+  color: var(--muted-2);
+}
+
+.headline-title {
+  margin: 0 0 0.2rem;
+  font-size: 0.94rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.headline-summary {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #475569;
+}
