@@ -974,6 +974,21 @@ body{
 .ms-move-up{color:#15803d;}
 .ms-move-down{color:#b91c1c;}
 .ms-move-flat{color:#475569;}
+/* "What moved yesterday?" – code + name combo */
+.ms-mover-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 70%;          /* leaves room for % on the right */
+}
+
+.ms-mover-name {
+  font-size: 0.8rem;
+  color: var(--muted-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* News module */
 .ms-news-head{
