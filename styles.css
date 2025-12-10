@@ -2886,3 +2886,18 @@ body{
   font-size: 0.86rem;
   color: #475569;
 }
+.brief-code-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.brief-name {
+  font-size: 0.78rem;
+  color: var(--muted-2);
+  max-width: 7rem; /* adjust to fit mobile */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
