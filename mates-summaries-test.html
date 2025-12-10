@@ -881,6 +881,7 @@ function isAusArticle(a) {
     }
 
 /* --- Replace the existing renderMoreNews() function with this code --- */
+/* Replace the existing renderMoreNews() with this implementation */
 function renderMoreNews() {
   if (!allArticles.length) return;
 
@@ -900,16 +901,17 @@ function renderMoreNews() {
   visibleNewsCount = end;
   isNewsLoadingMore = false;
 
-  // If we've rendered everything, remove sentinel (if any) and append an end note
+  // Ensure a sentinel exists at the end so observer can see it (or remove it if finished)
   if (visibleNewsCount >= allArticles.length) {
     const sentinel = document.getElementById("newsSentinel");
     if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
+
+    // optional: show end of feed
     const endNote = document.createElement("div");
     endNote.className = "headline";
     endNote.innerHTML = `<small style="color:var(--muted)">End of feed</small>`;
     newsList.appendChild(endNote);
   } else {
-    // ensure sentinel exists at the end so the observer can see it
     let sentinel = document.getElementById("newsSentinel");
     if (!sentinel) {
       sentinel = document.createElement("div");
@@ -918,15 +920,15 @@ function renderMoreNews() {
       sentinel.style.width = "100%";
       newsList.appendChild(sentinel);
     } else {
-      // move sentinel to end
+      // move sentinel to the end
       newsList.appendChild(sentinel);
     }
   }
 }
 
-/* --- Add this function (anywhere in the same script scope) --- */
+/* Add this function to set up infinite scroll via IntersectionObserver */
 function setupNewsInfiniteScroll() {
-  // If IntersectionObserver isn't supported, do nothing (page still shows first page)
+  // Don't crash on old browsers; first page will still show
   if (typeof IntersectionObserver === "undefined") return;
 
   let sentinel = document.getElementById("newsSentinel");
@@ -950,7 +952,7 @@ function setupNewsInfiniteScroll() {
     },
     {
       root: null,
-      rootMargin: "300px", // start loading before the bottom hits viewport
+      rootMargin: "300px", // start loading early
       threshold: 0.01,
     }
   );
@@ -976,8 +978,8 @@ allArticles = allArticles.slice(0, MAX_NEWS_ITEMS);
           return;
         }
 
-        renderNews(); // will render first 5
-            setupNewsInfiniteScroll();
+renderNews(); // will render first 5
+setupNewsInfiniteScroll();
         feedStatus.textContent = "Live";
       } catch (err) {
         console.error(err);
