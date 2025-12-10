@@ -59,13 +59,12 @@
     <main class="ms-main">
       <!-- HERO: Today in 20 seconds -->
       <section class="card ms-hero">
-        <div class="ms-hero-left">
-          <div class="pill pill-soft">Built for new investors</div>
-          <h1 class="ms-hero-title">Today in plain English</h1>
-          <p class="ms-hero-subtitle">
-            A quick ASX snapshot every morning at <strong>6:05am AEST</strong>.
-            No jargon. No hype. Just what actually moved the market.
-          </p>
+<div class="ms-hero-left">
+  <div class="pill pill-soft">Built for new investors</div>
+  <h1 class="ms-hero-title">Your daily ASX snapshot</h1>
+  <p class="ms-hero-subtitle">
+    See what actually moved the market today, in simple language – even if you’ve never invested before.
+  </p>
 
           <div class="ms-hero-today">
             <h2 class="ms-hero-today-heading">Today in 20 seconds</h2>
@@ -79,14 +78,30 @@
             </ul>
           </div>
 
-          <div class="ms-hero-cta-row">
-            <button id="openBrief" type="button" class="btn-primary">
-              Read today’s full Morning Brief
-            </button>
-            <a href="/join.html" class="btn-ghost">
-              Get the 6:05am email
-            </a>
-          </div>
+<div class="ms-hero-cta-row">
+  <button id="openBrief" type="button" class="btn-primary">
+    Read today’s full Morning Brief
+  </button>
+  <a href="/join.html" class="btn-ghost">
+    Get the 6:05am email
+  </a>
+</div>
+
+<!-- Inline email signup -->
+<form id="inlineSignup">
+  <input
+    type="email"
+    id="inlineEmail"
+    name="email"
+    required
+    placeholder="Enter your email"
+    autocomplete="email"
+  />
+  <button type="submit" class="btn-primary">
+    Join the 6:05am email
+  </button>
+</form>
+<div id="inlineStatus"></div>
         </div>
 
         <div class="ms-hero-right">
@@ -358,7 +373,51 @@
         });
       });
     }
+function wireInlineSignup() {
+  const form = document.getElementById("inlineSignup");
+  if (!form) return;
 
+  const emailInput = document.getElementById("inlineEmail");
+  const statusEl = document.getElementById("inlineStatus");
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const email = emailInput.value.trim();
+
+    if (!email) {
+      statusEl.textContent = "Please enter an email address.";
+      statusEl.style.color = "#dc2626";
+      return;
+    }
+
+    statusEl.textContent = "Joining…";
+    statusEl.style.color = "#4b5563";
+
+    try {
+      const res = await fetch("/.netlify/functions/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        statusEl.textContent = "You’re in. Check your inbox in the morning.";
+        statusEl.style.color = "#15803d";
+        emailInput.value = "";
+      } else {
+        statusEl.textContent =
+          data.message || "Something went wrong. Please try again.";
+        statusEl.style.color = "#dc2626";
+      }
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "Network error. Please try again.";
+      statusEl.style.color = "#dc2626";
+    }
+  });
+}
     (function init() {
       loadTodaySnapshot();
       loadWhatsMoving();
