@@ -50,65 +50,35 @@
     <div class="corner-pattern" aria-hidden="true"></div>
 
     <main class="ms-main">
-      <!-- HERO: two-column snapshot -->
+      <!-- HERO: snapshot + email -->
       <section class="card ms-hero">
-<div class="ms-hero-left">
-  <div class="pill pill-soft">Built for new investors</div>
-  <h1 class="ms-hero-title">Your daily ASX snapshot</h1>
+        <div class="ms-hero-left">
+          <div class="pill pill-soft">Built for new investors</div>
+          <h1 class="ms-hero-title">Your daily ASX snapshot</h1>
 
-  <!-- Morning Brief content (loads automatically) -->
-  <div
-    id="briefContent"
-    class="brief-content"
-    aria-live="polite"
-    style="margin-top:0.4rem;"
-  ></div>
+          <!-- Morning Brief content (loads automatically) -->
+          <div
+            id="briefContent"
+            class="brief-content"
+            aria-live="polite"
+            style="margin-top:0.4rem;"
+          ></div>
 
-  <!-- Inline email signup directly after brief -->
-  <form id="inlineSignup" style="margin-top:1rem;">
-    <input
-      type="email"
-      id="inlineEmail"
-      name="email"
-      required
-      placeholder="Email"
-      autocomplete="email"
-    />
-    <button type="submit" class="btn-primary">
-      Join the 6:05am crew
-    </button>
-  </form>
-  <div id="inlineStatus"></div>
-</div>
-
-        <div class="ms-hero-right">
-          <div class="ms-hero-statcard">
-            <div class="ms-hero-stathead">
-              <span class="pill pill-outline">Snapshot</span>
-              <span class="ms-hero-stat-time" id="msSnapshotTime">Updated just now</span>
-            </div>
-            <dl class="ms-hero-statgrid">
-              <div>
-                <dt>ASX futures</dt>
-                <dd id="msFutures">Loading…</dd>
-              </div>
-              <div>
-                <dt>Overnight US</dt>
-                <dd id="msOvernightUs">Loading…</dd>
-              </div>
-              <div>
-                <dt>Theme of the day</dt>
-                <dd id="msTheme">TBA</dd>
-              </div>
-              <div>
-                <dt>Volatility</dt>
-                <dd id="msVol">Normal</dd>
-              </div>
-            </dl>
-            <p class="ms-hero-footnote">
-              Data is delayed and for education only. Not financial advice.
-            </p>
-          </div>
+          <!-- Inline email signup directly after brief -->
+          <form id="inlineSignup" style="margin-top:1rem;">
+            <input
+              type="email"
+              id="inlineEmail"
+              name="email"
+              required
+              placeholder="Email"
+              autocomplete="email"
+            />
+            <button type="submit" class="btn-primary">
+              Join the 6:05am crew
+            </button>
+          </form>
+          <div id="inlineStatus"></div>
         </div>
       </section>
 
@@ -150,7 +120,7 @@
 
       <!-- MIDDLE ROW: What's moving today + headlines -->
       <section class="ms-row">
-        <!-- WHAT'S MOVING TODAY (still simple for now) -->
+        <!-- WHAT'S MOVING TODAY -->
         <section class="card ms-movers">
           <header class="ms-section-head">
             <h2>What’s moving today?</h2>
@@ -208,19 +178,15 @@
   </div>
 
   <script>
-    /* ---------- Globals ----------
-       (MatesMode, categories & sports are deliberately NOT included) */
+    /* ---------- Globals ---------- */
     const newsList = document.getElementById("newsList");
     const feedStatus = document.getElementById("feedStatus");
     const briefContent = document.getElementById("briefContent");
 
+    // These may be null now (we removed the '20 seconds' block),
+    // but the guards in renderMorningBrief handle that.
     const todaySummaryEl = document.getElementById("msTodaySummary");
     const todayBulletsEl = document.getElementById("msTodayBullets");
-    const futuresEl = document.getElementById("msFutures");
-    const overnightEl = document.getElementById("msOvernightUs");
-    const themeEl = document.getElementById("msTheme");
-    const volEl = document.getElementById("msVol");
-    const snapshotTimeEl = document.getElementById("msSnapshotTime");
 
     const moversBigEl = document.getElementById("msBigMoves");
     const moversSectorsEl = document.getElementById("msSectors");
@@ -347,11 +313,11 @@
       const container = document.getElementById("stockOfDay");
       if (!container) return;
 
-const tickerEl = document.getElementById("sotdTicker");
-const nameEl = document.getElementById("sotdName");
-const summaryEl = document.getElementById("sotdSummary");
+      const tickerEl = document.getElementById("sotdTicker");
+      const nameEl = document.getElementById("sotdName");
+      const summaryEl = document.getElementById("sotdSummary");
 
-if (!tickerEl || !nameEl || !summaryEl) return;
+      if (!tickerEl || !nameEl || !summaryEl) return;
 
       let candidate = window._mates_sotd || null;
       if (!candidate || !candidate.symbol) {
@@ -408,271 +374,353 @@ if (!tickerEl || !nameEl || !summaryEl) return;
         </div>
       `;
     }
-function renderMorningBrief(payload) {
-  if (!payload) {
-    briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
-    return;
-  }
 
-  // --- Wire hero snapshot text (safe even if we removed the 20s block) ---
-  if (todaySummaryEl && payload.topLine) {
-    todaySummaryEl.textContent = payload.topLine;
-  }
-  if (todayBulletsEl && Array.isArray(payload.bullets) && payload.bullets.length) {
-    todayBulletsEl.innerHTML = payload.bullets
-      .map((b) => `<li>${escapeHtml(b)}</li>`)
-      .join("");
-  }
+    // Use morning-brief payload to drive the movers rows
+    function updateMoversFromBrief(payload) {
+      if (!payload) return;
 
-  if (snapshotTimeEl && payload.generatedAt) {
-    snapshotTimeEl.textContent = "Updated " + formatTime(payload.generatedAt);
-  }
+      // Biggest moves: from topPerformers
+      if (moversBigEl && Array.isArray(payload.topPerformers) && payload.topPerformers.length) {
+        const html = payload.topPerformers.slice(0, 5).map(tp => {
+          const sym = tp.symbol || "";
+          const pctNum = tp.pctGain != null ? Number(tp.pctGain) : NaN;
+          let label = "";
+          let cls = "ms-move-flat";
 
-  if (futuresEl && payload.asxFuturesText) futuresEl.textContent = payload.asxFuturesText;
-  if (overnightEl && payload.usSessionText) overnightEl.textContent = payload.usSessionText;
-  if (themeEl && payload.themeOfDay) themeEl.textContent = payload.themeOfDay;
-  if (volEl && payload.volatilityLabel) volEl.textContent = payload.volatilityLabel;
+          if (!isNaN(pctNum)) {
+            label = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+            if (pctNum > 0) cls = "ms-move-up";
+            else if (pctNum < 0) cls = "ms-move-down";
+          } else if (tp.pctGain != null) {
+            label = String(tp.pctGain);
+          }
 
-  // ---------- Commodities (priceAUD, full dollars, no decimals) ----------
+          return `
+            <li>
+              <span>${escapeHtml(sym)}</span>
+              <span class="${cls}">${escapeHtml(label)}</span>
+            </li>
+          `;
+        }).join("");
 
-  const metalsObj =
-    payload.metals && typeof payload.metals === "object"
-      ? payload.metals
-      : payload.symbols && typeof payload.symbols === "object"
-      ? payload.symbols
-      : null;
+        if (html) moversBigEl.innerHTML = html;
+      }
 
-  const metalRows = [];
-  if (metalsObj) {
-    const metalSymbols = Object.keys(metalsObj);
-    const friendlyMetals = {
-      XAU: "Gold",
-      XAG: "Silver",
-      IRON: "Iron Ore 62% Fe",
-      "LITH-CAR": "Lithium Carbonate",
-      NI: "Nickel",
-      URANIUM: "Uranium",
-    };
+      // Sectors on the move: payload.sectorMoves if present
+      if (moversSectorsEl) {
+        const sectors = payload.sectorMoves && typeof payload.sectorMoves === "object"
+          ? payload.sectorMoves
+          : null;
 
-    metalSymbols.slice(0, 4).forEach((sym) => {
-      const m = metalsObj[sym] || {};
+        if (sectors) {
+          const html = Object.entries(sectors).slice(0, 5).map(([key, val]) => {
+            const name = (val && (val.label || val.name)) || key;
+            const pctNum = val && val.pctChange != null ? Number(val.pctChange) : NaN;
+            let label = "";
+            let cls = "ms-move-flat";
 
-      const priceAUDraw = typeof m.priceAUD === "number" ? m.priceAUD : null;
+            if (!isNaN(pctNum)) {
+              label = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+              if (pctNum > 0) cls = "ms-move-up";
+              else if (pctNum < 0) cls = "ms-move-down";
+            } else if (val && val.note) {
+              label = val.note;
+            }
 
-      // Full dollar amount, no decimals, with thousand separators
-      const price =
-        priceAUDraw !== null
-          ? "$" + Math.round(priceAUDraw).toLocaleString()
-          : "—";
+            return `
+              <li>
+                <span>${escapeHtml(name)}</span>
+                <span class="${cls}">${escapeHtml(label)}</span>
+              </li>
+            `;
+          }).join("");
 
-      let pctDisplay = "";
-      let pctClass = "brief-pct-flat";
-
-      if (m.pctChange != null) {
-        const pctNum = Number(m.pctChange);
-        if (!isNaN(pctNum)) {
-          pctDisplay = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
-          if (pctNum > 0) pctClass = "brief-pct-up";
-          else if (pctNum < 0) pctClass = "brief-pct-down";
-        } else {
-          pctDisplay = String(m.pctChange);
+          if (html) moversSectorsEl.innerHTML = html;
         }
       }
 
-      metalRows.push({
-        label: friendlyMetals[sym] || sym,
-        price,
-        pctDisplay,
-        pctClass,
-      });
-    });
-  }
+      // Themes to watch: payload.themesOfDay / themes / storylines
+      if (moversThemesEl) {
+        const themes =
+          Array.isArray(payload.themesOfDay) && payload.themesOfDay.length ? payload.themesOfDay :
+          Array.isArray(payload.themes) && payload.themes.length ? payload.themes :
+          Array.isArray(payload.storylines) && payload.storylines.length ? payload.storylines :
+          null;
 
-  // ---------- Top performers (add company name) ----------
-
-  const perfRows = [];
-  if (Array.isArray(payload.topPerformers)) {
-    payload.topPerformers.slice(0, 6).forEach((tp) => {
-      const symbol = tp.symbol || "";
-      const name =
-        tp.companyName || tp.name || tp.company || "";
-
-      const last =
-        typeof tp.lastClose === "number"
-          ? "$" + formatMoney(tp.lastClose)
-          : tp.lastClose || "";
-
-      let pctDisplay = "";
-      let pctClass = "brief-pct-flat";
-
-      if (tp.pctGain != null) {
-        const pctNum = Number(tp.pctGain);
-        if (!isNaN(pctNum)) {
-          pctDisplay = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
-          if (pctNum > 0) pctClass = "brief-pct-up";
-          else if (pctNum < 0) pctClass = "brief-pct-down";
-        } else {
-          pctDisplay = String(tp.pctGain);
+        if (themes) {
+          const html = themes.slice(0, 5).map(t => {
+            const name = typeof t === "string" ? t : (t.name || t.label || "");
+            const note = typeof t === "string" ? "" : (t.note || t.summary || "");
+            return `
+              <li>
+                <span>${escapeHtml(name)}</span>
+                <span class="ms-move-flat">${escapeHtml(note)}</span>
+              </li>
+            `;
+          }).join("");
+          if (html) moversThemesEl.innerHTML = html;
         }
       }
-
-      perfRows.push({
-        symbol,
-        name,
-        price: last,
-        pctDisplay,
-        pctClass,
-      });
-    });
-  }
-
-  // ---------- Build the compact board HTML ----------
-
-  let boardHtml = "";
-  if (metalRows.length || perfRows.length) {
-    boardHtml = `
-      <div class="brief-snapshot-board">
-        <div class="brief-board-grid">
-          ${
-            metalRows.length
-              ? `
-            <div>
-              <div class="brief-section-label">Commodities</div>
-              <table class="brief-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Last</th>
-                    <th style="text-align:right;">24h</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${metalRows
-                    .map(
-                      (r) => `
-                    <tr>
-                      <td>${escapeHtml(r.label)}</td>
-                      <td>${escapeHtml(r.price)}</td>
-                      <td class="${r.pctClass}">
-                        ${escapeHtml(r.pctDisplay || "")}
-                      </td>
-                    </tr>`
-                    )
-                    .join("")}
-                </tbody>
-              </table>
-            </div>`
-              : ""
-          }
-          ${
-            perfRows.length
-              ? `
-            <div>
-              <div class="brief-section-label">Top moves</div>
-              <table class="brief-table">
-                <thead>
-                  <tr>
-                    <th>Code</th>
-                    <th>Last</th>
-                    <th style="text-align:right;">Day</th>
-                  </tr>
-                </thead>
-<tbody>
-  ${perfRows
-    .map(
-      (r) => `
-    <tr>
-      <td class="brief-code-name-cell">
-        <span class="brief-code">${escapeHtml(r.symbol)}</span>
-        ${
-          r.name
-            ? `<span class="brief-name">${escapeHtml(r.name)}</span>`
-            : ""
-        }
-      </td>
-      <td>${escapeHtml(r.price)}</td>
-      <td class="${r.pctClass}">
-        ${escapeHtml(r.pctDisplay || "")}
-      </td>
-    </tr>`
-    )
-    .join("")}
-</tbody>
-
-
-              </table>
-            </div>`
-              : ""
-          }
-        </div>
-      </div>
-    `;
-  }
-
-  // ---------- Morning Note + Stock of the Day ----------
-
-  const noteHtml = `
-    <div id="matesMorningNote" class="mates-note" style="display:none;margin-top:0.35rem;">
-      <div class="mates-note-header">
-        <span class="pill">Mates Morning Note</span>
-        <span class="timestamp" id="matesNoteTimestamp"></span>
-      </div>
-      <div class="mates-note-body" id="matesNoteText">Loading…</div>
-    </div>
-  `;
-
-  const sotdHtml = `
-    <div id="stockOfDay" class="sotd-card" style="display:none;margin-top:1rem;" data-symbol="ASX:VAS" data-name="Vanguard Australian Shares">
-      <div class="sotd-header">
-        <div class="sotd-title-left">
-          <span class="sotd-pill">Stock of the day</span>
-          <span class="sotd-ticker" id="sotdTicker">ASX:VAS</span>
-        </div>
-        <div style="text-align:right">
-          <div class="sotd-name" id="sotdName">Vanguard Australian Shares</div>
-        </div>
-      </div>
-      <div class="sotd-summary" id="sotdSummary">Loading...</div>
-      <div class="sotd-disclaimer">
-        Not financial advice. Just a simple snapshot to help you learn.
-      </div>
-    </div>
-  `;
-
-  briefContent.innerHTML = `
-    ${noteHtml}
-    ${boardHtml}
-    ${sotdHtml}
-  `;
-}
-
-/* ---------- Morning Brief: load on page load (no button) ---------- */
-
-async function loadMorningBriefInitial() {
-  if (!briefContent) return;
-  const region = "au";
-
-  briefContent.style.display = "block";
-  briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
-
-  try {
-    const res = await fetch(
-      `/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`
-    );
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(t || "Brief fetch failed");
     }
-    const payload = await res.json();
-    renderMorningBrief(payload);
-    loadMatesMorningNote();
-    loadStockOfTheDay();
-  } catch (err) {
-    console.error(err);
-    briefContent.innerHTML =
-      `<div class="brief-loading">Unable to load today’s brief.</div>`;
-  }
-}
+
+    function renderMorningBrief(payload) {
+      if (!payload) {
+        briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
+        return;
+      }
+
+      // --- Snapshot text (if those elements exist) ---
+      if (todaySummaryEl && payload.topLine) {
+        todaySummaryEl.textContent = payload.topLine;
+      }
+      if (todayBulletsEl && Array.isArray(payload.bullets) && payload.bullets.length) {
+        todayBulletsEl.innerHTML = payload.bullets
+          .map((b) => `<li>${escapeHtml(b)}</li>`)
+          .join("");
+      }
+
+      // ---------- Commodities (priceAUD, full dollars, no decimals) ----------
+
+      const metalsObj =
+        payload.metals && typeof payload.metals === "object"
+          ? payload.metals
+          : payload.symbols && typeof payload.symbols === "object"
+          ? payload.symbols
+          : null;
+
+      const metalRows = [];
+      if (metalsObj) {
+        const metalSymbols = Object.keys(metalsObj);
+        const friendlyMetals = {
+          XAU: "Gold",
+          XAG: "Silver",
+          IRON: "Iron Ore 62% Fe",
+          "LITH-CAR": "Lithium Carbonate",
+          NI: "Nickel",
+          URANIUM: "Uranium",
+        };
+
+        metalSymbols.slice(0, 4).forEach((sym) => {
+          const m = metalsObj[sym] || {};
+
+          const priceAUDraw = typeof m.priceAUD === "number" ? m.priceAUD : null;
+
+          // Full dollar amount, no decimals, with thousand separators
+          const price =
+            priceAUDraw !== null
+              ? "$" + Math.round(priceAUDraw).toLocaleString()
+              : "—";
+
+          let pctDisplay = "";
+          let pctClass = "brief-pct-flat";
+
+          if (m.pctChange != null) {
+            const pctNum = Number(m.pctChange);
+            if (!isNaN(pctNum)) {
+              pctDisplay = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+              if (pctNum > 0) pctClass = "brief-pct-up";
+              else if (pctNum < 0) pctClass = "brief-pct-down";
+            } else {
+              pctDisplay = String(m.pctChange);
+            }
+          }
+
+          metalRows.push({
+            label: friendlyMetals[sym] || sym,
+            price,
+            pctDisplay,
+            pctClass,
+          });
+        });
+      }
+
+      // ---------- Top performers (with company name) ----------
+
+      const perfRows = [];
+      if (Array.isArray(payload.topPerformers)) {
+        payload.topPerformers.slice(0, 6).forEach((tp) => {
+          const symbol = tp.symbol || "";
+          const name =
+            tp.companyName || tp.name || tp.company || "";
+
+          const last =
+            typeof tp.lastClose === "number"
+              ? "$" + formatMoney(tp.lastClose)
+              : tp.lastClose || "";
+
+          let pctDisplay = "";
+          let pctClass = "brief-pct-flat";
+
+          if (tp.pctGain != null) {
+            const pctNum = Number(tp.pctGain);
+            if (!isNaN(pctNum)) {
+              pctDisplay = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+              if (pctNum > 0) pctClass = "brief-pct-up";
+              else if (pctNum < 0) pctClass = "brief-pct-down";
+            } else {
+              pctDisplay = String(tp.pctGain);
+            }
+          }
+
+          perfRows.push({
+            symbol,
+            name,
+            price: last,
+            pctDisplay,
+            pctClass,
+          });
+        });
+      }
+
+      // ---------- Build the compact board HTML ----------
+
+      let boardHtml = "";
+      if (metalRows.length || perfRows.length) {
+        boardHtml = `
+          <div class="brief-snapshot-board">
+            <div class="brief-board-grid">
+              ${
+                metalRows.length
+                  ? `
+                <div>
+                  <div class="brief-section-label">Commodities</div>
+                  <table class="brief-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Last</th>
+                        <th style="text-align:right;">24h</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${metalRows
+                        .map(
+                          (r) => `
+                        <tr>
+                          <td>${escapeHtml(r.label)}</td>
+                          <td>${escapeHtml(r.price)}</td>
+                          <td class="${r.pctClass}">
+                            ${escapeHtml(r.pctDisplay || "")}
+                          </td>
+                        </tr>`
+                        )
+                        .join("")}
+                    </tbody>
+                  </table>
+                </div>`
+                  : ""
+              }
+              ${
+                perfRows.length
+                  ? `
+                <div>
+                  <div class="brief-section-label">Top moves</div>
+                  <table class="brief-table">
+                    <thead>
+                      <tr>
+                        <th>Code</th>
+                        <th>Last</th>
+                        <th style="text-align:right;">Day</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${perfRows
+                        .map(
+                          (r) => `
+                        <tr>
+                          <td class="brief-code-name-cell">
+                            <span class="brief-code">${escapeHtml(r.symbol)}</span>
+                            ${
+                              r.name
+                                ? `<span class="brief-name">${escapeHtml(r.name)}</span>`
+                                : ""
+                            }
+                          </td>
+                          <td>${escapeHtml(r.price)}</td>
+                          <td class="${r.pctClass}">
+                            ${escapeHtml(r.pctDisplay || "")}
+                          </td>
+                        </tr>`
+                        )
+                        .join("")}
+                    </tbody>
+                  </table>
+                </div>`
+                  : ""
+              }
+            </div>
+          </div>
+        `;
+      }
+
+      // ---------- Morning Note + Stock of the Day ----------
+
+      const noteHtml = `
+        <div id="matesMorningNote" class="mates-note" style="display:none;margin-top:0.35rem;">
+          <div class="mates-note-header">
+            <span class="pill">Mates Morning Note</span>
+            <span class="timestamp" id="matesNoteTimestamp"></span>
+          </div>
+          <div class="mates-note-body" id="matesNoteText">Loading…</div>
+        </div>
+      `;
+
+      const sotdHtml = `
+        <div id="stockOfDay" class="sotd-card" style="display:none;margin-top:1rem;" data-symbol="ASX:VAS" data-name="Vanguard Australian Shares">
+          <div class="sotd-header">
+            <div class="sotd-title-left">
+              <span class="sotd-pill">Stock of the day</span>
+              <span class="sotd-ticker" id="sotdTicker">ASX:VAS</span>
+            </div>
+            <div style="text-align:right">
+              <div class="sotd-name" id="sotdName">Vanguard Australian Shares</div>
+            </div>
+          </div>
+          <div class="sotd-summary" id="sotdSummary">Loading...</div>
+          <div class="sotd-disclaimer">
+            Not financial advice. Just a simple snapshot to help you learn.
+          </div>
+        </div>
+      `;
+
+      briefContent.innerHTML = `
+        ${noteHtml}
+        ${boardHtml}
+        ${sotdHtml}
+      `;
+
+      // Use the same payload to update the "What's moving" rows
+      updateMoversFromBrief(payload);
+    }
+
+    /* ---------- Morning Brief: load on page load (no button) ---------- */
+
+    async function loadMorningBriefInitial() {
+      if (!briefContent) return;
+      const region = "au";
+
+      briefContent.style.display = "block";
+      briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
+
+      try {
+        const res = await fetch(
+          `/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`
+        );
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || "Brief fetch failed");
+        }
+        const payload = await res.json();
+        renderMorningBrief(payload);
+        loadMatesMorningNote();
+        loadStockOfTheDay();
+      } catch (err) {
+        console.error(err);
+        briefContent.innerHTML =
+          `<div class="brief-loading">Unable to load today’s brief.</div>`;
+      }
+    }
+
     /* ---------- News rendering: Market mode only ---------- */
 
     function renderNews() {
@@ -810,12 +858,39 @@ async function loadMorningBriefInitial() {
       });
     })();
 
+    /* ---------- Simple placeholder movers (initial) ---------- */
+
+    function loadPlaceholderMovers() {
+      if (moversBigEl) {
+        moversBigEl.innerHTML = `
+          <li><span>BHP</span><span class="ms-move-up">▲ +1.8%</span></li>
+          <li><span>CBA</span><span class="ms-move-up">▲ +1.2%</span></li>
+          <li><span>WES</span><span class="ms-move-down">▼ -1.0%</span></li>
+        `;
+      }
+      if (moversSectorsEl) {
+        moversSectorsEl.innerHTML = `
+          <li><span>Resources</span><span class="ms-move-up">Stronger</span></li>
+          <li><span>Banks</span><span class="ms-move-flat">Steady</span></li>
+          <li><span>Tech</span><span class="ms-move-down">Softer</span></li>
+        `;
+      }
+      if (moversThemesEl) {
+        moversThemesEl.innerHTML = `
+          <li><span>Gold</span><span class="ms-move-up">Benefiting from higher prices</span></li>
+          <li><span>Lithium</span><span class="ms-move-flat">Sideways after recent falls</span></li>
+          <li><span>Dividends</span><span class="ms-move-flat">Focus on quality names</span></li>
+        `;
+      }
+    }
+
     /* ---------- Init ---------- */
 
-(function init() {
-  loadNewsInitial();
-  loadMorningBriefInitial();  // <- now auto-load the brief
-})();
+    (function init() {
+      loadNewsInitial();
+      loadPlaceholderMovers();    // quick fake data so it’s not empty
+      loadMorningBriefInitial();  // loads real brief + overrides movers
+    })();
   </script>
 </body>
 </html>
