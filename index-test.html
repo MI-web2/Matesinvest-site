@@ -101,13 +101,6 @@
       <a href="/equity-screener.html">Equity Screener</a>
       <a href="/mates-feedback.html">Feedback</a>
     </nav>
-
-    <!-- NEW: always-visible mobile links -->
-    <div class="nav-mobile-links">
-      <a href="/equity-screener.html">Screener</a>
-      <a href="/mates-feedback.html">Feedback</a>
-    </div>
-
     <button class="menu-btn" aria-label="Toggle navigation">☰</button>
   </div>
 </header>
@@ -528,14 +521,15 @@
     <!-- Existing small scripts (nav + year) -->
     <script>
       // Mobile nav toggle (matches your existing CSS: body.open .nav nav { ... })
-      (function () {
-        const btn = document.querySelector('.menu-btn');
-        const body = document.body;
-        if (!btn) return;
-        btn.addEventListener('click', function () {
-          body.classList.toggle('open');
-        });
-      })();
+(function () {
+  const btn = document.querySelector('.menu-btn');
+  const body = document.body;
+  if (!btn) return;
+
+  btn.addEventListener('click', function () {
+    body.classList.toggle('nav-open');
+  });
+})();
 
       // Footer year
       (function () {
@@ -937,11 +931,10 @@ const metalRows = [];
             const priceAUDraw = typeof m.priceAUD === "number" ? m.priceAUD : null;
 
             // Full dollar amount, no decimals, with thousand separators
-            const price =
-              priceAUDraw !== null
-                ? "$" + Math.round(priceAUDraw).toLocaleString()
-                : "—";
-
+const price =
+  priceAUDraw !== null
+    ? "$" + priceAUDraw.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "—";
             let pctDisplay = "";
             let pctClass = "brief-pct-flat";
 
@@ -982,10 +975,10 @@ if (cryptoObj) {
     const priceAUDraw =
       typeof c.priceAUD === "number" ? c.priceAUD : null;
 
-    const price =
-      priceAUDraw !== null
-        ? "$" + Math.round(priceAUDraw).toLocaleString()
-        : "—";
+const price =
+  priceAUDraw !== null
+    ? "$" + priceAUDraw.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "—";
 
     let pctDisplay = "";
     let pctClass = "brief-pct-flat";
