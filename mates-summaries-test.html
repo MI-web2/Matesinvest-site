@@ -24,9 +24,51 @@
 
   <!-- Main site styles -->
   <link rel="stylesheet" href="/styles.css?v=1">
+
+  <!-- Full-screen loading overlay styles -->
+  <style>
+    #pageLoadingOverlay {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      opacity: 1;
+      transition: opacity 0.35s ease;
+    }
+    #pageLoadingOverlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #pageLoadingOverlay .loading-inner {
+      text-align: center;
+    }
+    #pageLoadingOverlay .loading-logo {
+      width: 130px;
+      max-width: 60vw;
+      margin-bottom: 1rem;
+      opacity: 0.95;
+    }
+    #pageLoadingOverlay p {
+      font-size: 0.95rem;
+      color: var(--muted, #4b5563);
+    }
+  </style>
 </head>
 
 <body class="mi-body">
+  <!-- FULL SCREEN LOADING OVERLAY -->
+  <div id="pageLoadingOverlay">
+    <div class="loading-inner">
+      <img src="/assets/img/logo-placeholder.png" alt="MatesInvest" class="loading-logo" />
+      <p>Loading your daily brief…</p>
+    </div>
+  </div>
+
   <!-- NAV -->
   <div class="nav">
     <div class="nav-inner">
@@ -248,6 +290,7 @@ let isNewsLoadingMore = false;
         return "";
       }
     }
+
     // Keep only Australian / ASX-related stories
 function isAusArticle(a) {
   if (!a) return false;
@@ -285,7 +328,6 @@ function isAusArticle(a) {
   return false;
 }
 
-
     function showSkeleton(count = 4) {
       newsList.innerHTML = "";
       for (let i = 0; i < count; i++) {
@@ -302,6 +344,19 @@ function isAusArticle(a) {
         `;
         newsList.appendChild(div);
       }
+    }
+
+    /* ---------- Loader helper ---------- */
+    function hidePageLoader() {
+      const overlay = document.getElementById("pageLoadingOverlay");
+      if (!overlay) return;
+      overlay.classList.add("hidden");
+      // Remove from DOM after fade-out
+      setTimeout(() => {
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay);
+        }
+      }, 400);
     }
 
     /* ---------- Backend calls ---------- */
@@ -731,7 +786,10 @@ function isAusArticle(a) {
     /* ---------- Morning Brief: load on page load (no button) ---------- */
 
     async function loadMorningBriefInitial() {
-      if (!briefContent) return;
+      if (!briefContent) {
+        hidePageLoader();
+        return;
+      }
       const region = "au";
 
       briefContent.style.display = "block";
@@ -753,6 +811,9 @@ function isAusArticle(a) {
         console.error(err);
         briefContent.innerHTML =
           `<div class="brief-loading">Unable to load today’s brief.</div>`;
+      } finally {
+        // Always hide the full-screen loader once the Brief has resolved
+        hidePageLoader();
       }
     }
 
