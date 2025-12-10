@@ -32,40 +32,6 @@
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
     <link rel="stylesheet" href="/styles.css" />
-
-    <!-- Full-screen loading overlay styles (from mates-summaries-test) -->
-    <style>
-      #pageLoadingOverlay {
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        background: #ffffff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        opacity: 1;
-        transition: opacity 0.35s ease;
-      }
-      #pageLoadingOverlay.hidden {
-        opacity: 0;
-        pointer-events: none;
-      }
-      #pageLoadingOverlay .loading-inner {
-        text-align: center;
-      }
-      #pageLoadingOverlay .loading-logo {
-        width: 130px;
-        max-width: 60vw;
-        margin-bottom: 1rem;
-        opacity: 0.95;
-      }
-      #pageLoadingOverlay p {
-        font-size: 0.95rem;
-        color: var(--muted, #4b5563);
-      }
-    </style>
   </head>
 
   <body class="mi-body">
@@ -541,14 +507,23 @@
 
     <!-- Existing small scripts (nav + year) -->
     <script>
-      // Mobile nav toggle (matches your existing CSS: body.open .nav nav { ... })
+// Mobile nav toggle + close-on-link-click
 (function () {
-  const btn = document.querySelector('.menu-btn');
+  const btn  = document.querySelector(".menu-btn");
   const body = document.body;
-  if (!btn) return;
+  const nav  = document.querySelector("header.nav nav");
+  if (!btn || !nav) return;
 
-  btn.addEventListener('click', function () {
-    body.classList.toggle('nav-open');
+  btn.addEventListener("click", function () {
+    body.classList.toggle("nav-open");
+  });
+
+  // When a nav link is tapped, close the menu (mobile)
+  nav.addEventListener("click", function (evt) {
+    const target = evt.target;
+    if (target && target.tagName.toLowerCase() === "a") {
+      body.classList.remove("nav-open");
+    }
   });
 })();
 
@@ -1310,6 +1285,7 @@ function buildNewsItem(a) {
       }
 
 function renderNews() {
+  // Start fresh and render the first page
   newsList.innerHTML = "";
 
   if (!filteredArticles.length) {
@@ -1320,7 +1296,7 @@ function renderNews() {
   }
 
   visibleNewsCount = 0;
-  renderMoreNews();
+  renderMoreNews(); // first 5
 }
 
 function renderMoreNews() {
@@ -1344,69 +1320,16 @@ function renderMoreNews() {
   visibleNewsCount = end;
   isNewsLoadingMore = false;
 
-  // Sentinel handling for infinite scroll
-  if (visibleNewsCount >= filteredArticles.length) {
-    const sentinel = document.getElementById("newsSentinel");
-    if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
-
-    const endNote = document.createElement("div");
-    endNote.className = "headline";
-    endNote.innerHTML = `<small style="color:var(--muted)">End of feed</small>`;
-    newsList.appendChild(endNote);
-
-    if (loadMoreBtn) loadMoreBtn.style.display = "none";
-  } else {
-    let sentinel = document.getElementById("newsSentinel");
-    if (!sentinel) {
-      sentinel = document.createElement("div");
-      sentinel.id = "newsSentinel";
-      sentinel.style.height = "1px";
-      sentinel.style.width = "100%";
-      newsList.appendChild(sentinel);
-    } else {
-      newsList.appendChild(sentinel);
-    }
-
-    if (loadMoreBtn) loadMoreBtn.style.display = "block";
+  // Show or hide the button depending on whether we have more
+  if (loadMoreBtn) {
+    loadMoreBtn.style.display =
+      visibleNewsCount < filteredArticles.length ? "block" : "none";
   }
 }
-      function setupNewsInfiniteScroll() {
-        // Don't crash on old browsers; first page will still show
-        if (typeof IntersectionObserver === "undefined") return;
-
-        let sentinel = document.getElementById("newsSentinel");
-        if (!sentinel) {
-          sentinel = document.createElement("div");
-          sentinel.id = "newsSentinel";
-          sentinel.style.height = "1px";
-          sentinel.style.width = "100%";
-          newsList.appendChild(sentinel);
-        }
-
-        const observer = new IntersectionObserver(
-          (entries) => {
-            for (const entry of entries) {
-              if (entry.isIntersecting) {
-                if (isNewsLoadingMore) return;
-                if (visibleNewsCount >= allArticles.length) return;
-                renderMoreNews();
-              }
-            }
-          },
-          {
-            root: null,
-            rootMargin: "300px", // start loading early
-            threshold: 0.01,
-          }
-        );
-
-        observer.observe(sentinel);
-      }
 function applyNewsFilter(term) {
   const q = term.trim().toLowerCase();
 
   if (!q) {
-    // No search: show all articles again
     filteredArticles = allArticles.slice();
   } else {
     filteredArticles = allArticles.filter((a) => {
@@ -1421,9 +1344,6 @@ function applyNewsFilter(term) {
 
   visibleNewsCount = 0;
   newsList.innerHTML = "";
-  const sentinel = document.getElementById("newsSentinel");
-  if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
-
   renderNews();
 }
 
@@ -1459,8 +1379,7 @@ async function loadNewsInitial() {
       return;
     }
 
-    renderNews(); // will render first 5
-    setupNewsInfiniteScroll();
+    renderNews(); // renders first 5, button decides if more exist
     feedStatus.textContent = "Live";
   } catch (err) {
     console.error(err);
@@ -1714,7 +1633,7 @@ async function loadNewsInitial() {
   loadMoversFromAsx200();
   loadMorningBriefInitial();
 
-  wireNewsSearch(); // <-- NEW
+  wireNewsSearch();
 
   if (loadMoreBtn) {
     loadMoreBtn.addEventListener("click", () => {
@@ -1723,19 +1642,6 @@ async function loadNewsInitial() {
       }
     });
   }
-
-  // Extra scroll-based top-up (kept from original; IntersectionObserver handles most)
-  window.addEventListener("scroll", () => {
-    if (
-      window.innerHeight + window.scrollY >=
-        document.body.offsetHeight - 400 &&
-      !isNewsLoadingMore &&
-      visibleNewsCount < filteredArticles.length
-    ) {
-      isNewsLoadingMore = true;
-      renderMoreNews();
-    }
-  });
 })();
     </script>
   </body>
