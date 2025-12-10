@@ -584,18 +584,14 @@ ${perfRows
   .map(
     (r) => `
   <tr>
-    <td>
-      <span class="brief-code">${escapeHtml(r.symbol)}</span>
-      ${
-        r.name
-          ? `<span class="brief-name">${escapeHtml(r.name)}</span>`
-          : ""
-      }
-    </td>
-    <td>${escapeHtml(r.price)}</td>
-    <td class="${r.pctClass}">
-      ${escapeHtml(r.pctDisplay || "")}
-    </td>
+<td class="brief-code-name-cell">
+  <span class="brief-code">${escapeHtml(r.symbol)}</span>
+  ${
+    r.name
+      ? `<span class="brief-name">${escapeHtml(r.name)}</span>`
+      : ""
+  }
+</td>
   </tr>`
   )
   .join("")}
@@ -630,7 +626,6 @@ ${perfRows
         </div>
         <div style="text-align:right">
           <div class="sotd-name" id="sotdName">Vanguard Australian Shares</div>
-          <div class="sotd-exchange" id="sotdExchange">ASX</div>
         </div>
       </div>
       <div class="sotd-summary" id="sotdSummary">Loading...</div>
