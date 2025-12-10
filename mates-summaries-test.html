@@ -52,46 +52,35 @@
     <main class="ms-main">
       <!-- HERO: two-column snapshot -->
       <section class="card ms-hero">
-        <div class="ms-hero-left">
-          <div class="pill pill-soft">Built for new investors</div>
-          <h1 class="ms-hero-title">Your daily ASX snapshot</h1>
-          <p class="ms-hero-subtitle">
-            See what actually moved the market today, in simple language – even if you’ve never invested before.
-          </p>
+<div class="ms-hero-left">
+  <div class="pill pill-soft">Built for new investors</div>
+  <h1 class="ms-hero-title">Your daily ASX snapshot</h1>
 
-          <div class="ms-hero-today">
-            <h2 class="ms-hero-today-heading">Today in 20 seconds</h2>
-            <p id="msTodaySummary" class="ms-hero-today-body">
-              Loading snapshot…
-            </p>
-            <ul class="ms-hero-bullets" id="msTodayBullets">
-              <li>We’ll pull in a short overview once the morning brief loads.</li>
-            </ul>
-          </div>
+  <!-- Morning Brief content (loads automatically) -->
+  <div
+    id="briefContent"
+    class="brief-content"
+    aria-live="polite"
+    style="margin-top:1rem;"
+  ></div>
 
-          <!-- Inline email signup -->
-          <form id="inlineSignup">
-            <input
-              type="email"
-              id="inlineEmail"
-              name="email"
-              required
-              placeholder="Email"
-              autocomplete="email"
-            />
-            <button type="submit" class="btn-primary">
-              Join the 6:05am crew
-            </button>
-          </form>
-          <div id="inlineStatus"></div>
+  <!-- Inline email signup directly after brief -->
+  <form id="inlineSignup" style="margin-top:1rem;">
+    <input
+      type="email"
+      id="inlineEmail"
+      name="email"
+      required
+      placeholder="Email"
+      autocomplete="email"
+    />
+    <button type="submit" class="btn-primary">
+      Join the 6:05am crew
+    </button>
+  </form>
+  <div id="inlineStatus"></div>
+</div>
 
-          <!-- Morning Brief content (condensed-ish cards, rendered by JS) -->
-<div
-  id="briefContent"
-  class="brief-content"
-  aria-live="polite"
-  style="display:block"
-></div>
         <div class="ms-hero-right">
           <div class="ms-hero-statcard">
             <div class="ms-hero-stathead">
