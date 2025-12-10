@@ -188,6 +188,9 @@
     const moversThemesEl = document.getElementById("msThemes");
 
     let allArticles = [];
+let visibleNewsCount = 0;
+const NEWS_PAGE_SIZE = 5;
+let isNewsLoadingMore = false;
 
     /* ---------- Helpers ---------- */
 
@@ -242,6 +245,43 @@
         return "";
       }
     }
+    // Keep only Australian / ASX-related stories
+function isAusArticle(a) {
+  if (!a) return false;
+
+  const title = (a.title || "").toLowerCase();
+  const desc = (a.description || "").toLowerCase();
+  const source = (a.source || a.source_name || "").toLowerCase();
+  const url = (a.url || "").toLowerCase();
+  const country =
+    (a.country || a.region || a.locale || "").toLowerCase();
+
+  const tags = []
+    .concat(a.tags || [], a.tickers || [], a.symbols || [])
+    .join(" ")
+    .toLowerCase();
+
+  if (country === "au" || country === "australia") return true;
+  if (url.includes(".com.au") || url.includes(".gov.au")) return true;
+  if (
+    title.includes("asx") ||
+    desc.includes("asx") ||
+    tags.includes("asx:") ||
+    tags.includes(".ax")
+  ) return true;
+  if (title.includes("australia") || desc.includes("australia")) return true;
+
+  if (
+    source.includes("afr") ||
+    source.includes("australian") ||
+    source.includes("sydney morning herald") ||
+    source.includes("abc news") ||
+    source.includes("asx")
+  ) return true;
+
+  return false;
+}
+
 
     function showSkeleton(count = 4) {
       newsList.innerHTML = "";
@@ -763,6 +803,67 @@ function isAusArticle(a) {
   // Otherwise, treat as global / non-AU
   return false;
 }
+    function buildNewsItem(a) {
+      const item = document.createElement("article");
+      item.className = "headline";
+
+      const title = a.title || "Untitled headline";
+      const source = a.source || a.source_name || "Source";
+      const publishedRaw = a.publishedAt || a.published || a.time;
+      const timeStr = publishedRaw ? formatTimeAgo(publishedRaw) : "";
+
+      item.innerHTML = `
+        <div class="headline-top">
+          <span class="headline-source">${escapeHtml(source)}</span>
+          ${timeStr ? `<span class="headline-time">${escapeHtml(timeStr)}</span>` : ""}
+        </div>
+        <h3 class="headline-title">${escapeHtml(title)}</h3>
+        ${
+          a.description
+            ? `<p class="headline-summary">${escapeHtml(a.description)}</p>`
+            : ""
+        }
+        <div class="meta-actions">
+          <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">
+            Read original
+          </a>
+          <button class="btn" type="button">MatesInvest summary</button>
+        </div>
+        <div class="summary-output"></div>
+      `;
+
+      const btn = item.querySelector("button");
+      const output = item.querySelector(".summary-output");
+      let busy = false;
+
+      btn.addEventListener("click", async () => {
+        if (busy) return;
+        busy = true;
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.textContent = "Summarising…";
+        output.textContent = "";
+
+        try {
+          const summary = await callMatesSummary({
+            text: `${title}\n\n${a.description || ""}`,
+            sourceType: "news_article",
+            headline: title,
+          });
+          output.innerHTML = renderSummaryBlock(summary);
+        } catch (err) {
+          console.error(err);
+          output.textContent = "Summary failed.";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = origText;
+          busy = false;
+        }
+      });
+
+      return item;
+    }
+
     function renderNews() {
       newsList.innerHTML = "";
 
@@ -772,94 +873,53 @@ function isAusArticle(a) {
         return;
       }
 
-      allArticles.forEach(a => {
-        const item = document.createElement("article");
-        item.className = "headline";
+      visibleNewsCount = 0;
+      renderMoreNews();
+    }
 
-        const title = a.title || "Untitled headline";
-        const source = a.source || a.source_name || "Source";
-        const publishedRaw = a.publishedAt || a.published || a.time;
-        const timeStr = publishedRaw ? formatTimeAgo(publishedRaw) : "";
+    function renderMoreNews() {
+      if (!allArticles.length) return;
 
-        item.innerHTML = `
-          <div class="headline-top">
-            <span class="headline-source">${escapeHtml(source)}</span>
-            ${timeStr ? `<span class="headline-time">${escapeHtml(timeStr)}</span>` : ""}
-          </div>
-          <h3 class="headline-title">${escapeHtml(title)}</h3>
-          ${
-            a.description
-              ? `<p class="headline-summary">${escapeHtml(a.description)}</p>`
-              : ""
-          }
-          <div class="meta-actions">
-            <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">
-              Read original
-            </a>
-            <button class="btn" type="button">MatesInvest summary</button>
-          </div>
-          <div class="summary-output"></div>
-        `;
+      const start = visibleNewsCount;
+      const end = Math.min(
+        visibleNewsCount + NEWS_PAGE_SIZE,
+        allArticles.length
+      );
 
-        const btn = item.querySelector("button");
-        const output = item.querySelector(".summary-output");
-        let busy = false;
-
-        btn.addEventListener("click", async () => {
-          if (busy) return;
-          busy = true;
-          btn.disabled = true;
-          const origText = btn.textContent;
-          btn.textContent = "Summarising…";
-          output.textContent = "";
-
-          try {
-            const summary = await callMatesSummary({
-              text: `${title}\n\n${a.description || ""}`,
-              sourceType: "news_article",
-              headline: title,
-            });
-            output.innerHTML = renderSummaryBlock(summary);
-          } catch (err) {
-            console.error(err);
-            output.textContent = "Summary failed.";
-          } finally {
-            btn.disabled = false;
-            btn.textContent = origText;
-            busy = false;
-          }
-        });
-
+      for (let i = start; i < end; i++) {
+        const a = allArticles[i];
+        const item = buildNewsItem(a);
         newsList.appendChild(item);
-      });
+      }
+
+      visibleNewsCount = end;
+      isNewsLoadingMore = false;
     }
 
-async function loadNewsInitial() {
-  try {
-    feedStatus.textContent = "Loading…";
-    showSkeleton(4);
+    async function loadNewsInitial() {
+      try {
+        feedStatus.textContent = "Loading…";
+        showSkeleton(4);
 
-    const raw = await getMarketFeed();
-    // Keep only Australian / ASX related articles
-    allArticles = Array.isArray(raw) ? raw.filter(isAusArticle) : [];
+        const raw = await getMarketFeed();
+        allArticles = Array.isArray(raw) ? raw.filter(isAusArticle) : [];
 
-    // If nothing matches, fall back to a simple message
-    if (!allArticles.length) {
-      newsList.innerHTML =
-        `<div class="headline"><small style="color:var(--muted)">No Australian headlines yet.</small></div>`;
-      feedStatus.textContent = "Live";
-      return;
+        if (!allArticles.length) {
+          newsList.innerHTML =
+            `<div class="headline"><small style="color:var(--muted)">No Australian headlines yet.</small></div>`;
+          feedStatus.textContent = "Live";
+          return;
+        }
+
+        renderNews(); // will render first 5
+        feedStatus.textContent = "Live";
+      } catch (err) {
+        console.error(err);
+        newsList.innerHTML =
+          `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
+        feedStatus.textContent = "Offline";
+      }
     }
-
-    renderNews();
-    feedStatus.textContent = "Live";
-  } catch (err) {
-    console.error(err);
-    newsList.innerHTML =
-      `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
-    feedStatus.textContent = "Offline";
-  }
-}
 
     /* ---------- Inline email signup ---------- */
 
@@ -1103,8 +1163,21 @@ async function loadMoversFromAsx200() {
 
 (function init() {
   loadNewsInitial();
-  loadMoversFromAsx200();     // now uses Upstash ASX200
-  loadMorningBriefInitial();  // auto-load the brief
+  loadMoversFromAsx200();
+  loadMorningBriefInitial();
+
+  // Infinite scroll for news – load 5 more when near bottom
+  window.addEventListener("scroll", () => {
+    if (
+      window.innerHeight + window.scrollY >=
+        document.body.offsetHeight - 400 &&
+      !isNewsLoadingMore &&
+      visibleNewsCount < allArticles.length
+    ) {
+      isNewsLoadingMore = true;
+      renderMoreNews();
+    }
+  });
 })();
   </script>
 </body>
