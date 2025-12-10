@@ -174,9 +174,10 @@
 
   <script>
     /* ---------- Globals ---------- */
-    const newsList = document.getElementById("newsList");
-    const feedStatus = document.getElementById("feedStatus");
-    const briefContent = document.getElementById("briefContent");
+const newsList = document.getElementById("newsList");
+const feedStatus = document.getElementById("feedStatus");
+const briefContent = document.getElementById("briefContent");
+const newsSection = document.getElementById("news");
 
     // These may be null now (we removed the '20 seconds' block),
     // but the guards in renderMorningBrief handle that.
@@ -1172,10 +1173,30 @@ async function loadMoversFromAsx200() {
   loadMorningBriefInitial();
 
   // Infinite scroll for news – load 5 more when near bottom
-  window.addEventListener("scroll", () => {
+  const scroller = newsSection || window;
+
+  scroller.addEventListener("scroll", () => {
+    // If we're using the window, use document height.
+    if (scroller === window) {
+      if (
+        window.innerHeight + window.scrollY >=
+          document.body.offsetHeight - 400 &&
+        !isNewsLoadingMore &&
+        visibleNewsCount < allArticles.length
+      ) {
+        isNewsLoadingMore = true;
+        renderMoreNews();
+      }
+      return;
+    }
+
+    // If we're using the news card itself, use its own scroll metrics.
+    const nearBottom =
+      scroller.scrollTop + scroller.clientHeight >=
+      scroller.scrollHeight - 80;
+
     if (
-      window.innerHeight + window.scrollY >=
-        document.body.offsetHeight - 400 &&
+      nearBottom &&
       !isNewsLoadingMore &&
       visibleNewsCount < allArticles.length
     ) {
