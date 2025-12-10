@@ -1014,14 +1014,14 @@ async function loadMoversFromAsx200() {
 
       moversThemesEl.innerHTML = topThemes
         .map((t) => {
-          let text = "Sideways after recent moves";
+          let text = "Sideways";
           let cls = "ms-move-flat";
 
           if (t.avg > 0.15) {
-            text = "Benefiting from higher prices";
+            text = "Gainers";
             cls = "ms-move-up";
           } else if (t.avg < -0.15) {
-            text = "Under pressure after falls";
+            text = "Under pressure";
             cls = "ms-move-down";
           }
 
