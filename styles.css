@@ -3026,6 +3026,44 @@ body{
       z-index: 1000;
     }
   }
+#pageLoadingOverlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center; /* <-- centers vertically */
+  z-index: 9999;
+  opacity: 1;
+  transition: opacity 0.35s ease;
+}
+
+#pageLoadingOverlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#pageLoadingOverlay .loading-inner {
+  text-align: center;
+  max-width: 80%;
+}
+
+#pageLoadingOverlay .loading-logo {
+  width: 130px;
+  max-width: 60vw;
+  margin-bottom: 1rem;
+  opacity: 0.95;
+}
+
+#pageLoadingOverlay p {
+  font-size: 1rem;
+  line-height: 1.45;
+  color: #4b5563; /* softer muted grey */
+  margin: 0.35rem 0;
+}
 
 
 
