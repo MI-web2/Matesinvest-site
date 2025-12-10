@@ -1172,31 +1172,11 @@ async function loadMoversFromAsx200() {
   loadMoversFromAsx200();
   loadMorningBriefInitial();
 
-  // Infinite scroll for news – load 5 more when near bottom
-  const scroller = newsSection || window;
-
-  scroller.addEventListener("scroll", () => {
-    // If we're using the window, use document height.
-    if (scroller === window) {
-      if (
-        window.innerHeight + window.scrollY >=
-          document.body.offsetHeight - 400 &&
-        !isNewsLoadingMore &&
-        visibleNewsCount < allArticles.length
-      ) {
-        isNewsLoadingMore = true;
-        renderMoreNews();
-      }
-      return;
-    }
-
-    // If we're using the news card itself, use its own scroll metrics.
-    const nearBottom =
-      scroller.scrollTop + scroller.clientHeight >=
-      scroller.scrollHeight - 80;
-
+  // Infinite scroll for news – load 5 more when page is near bottom
+  window.addEventListener("scroll", () => {
     if (
-      nearBottom &&
+      window.innerHeight + window.scrollY >=
+        document.body.offsetHeight - 400 &&
       !isNewsLoadingMore &&
       visibleNewsCount < allArticles.length
     ) {
