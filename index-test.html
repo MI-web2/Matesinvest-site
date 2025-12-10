@@ -259,24 +259,43 @@
                 </div>
               </section>
 
-              <!-- LATEST HEADLINES – AU / ASX only -->
-              <section id="news" class="card ms-news" aria-labelledby="latest-headlines">
-                <div class="ms-news-head">
-                  <div>
-                    <h2 id="latest-headlines">Latest headlines</h2>
-                    <p class="ms-news-subtitle">
-                      The latest Australian business news.
-                    </p>
-                  </div>
-                  <div style="font-size:0.86rem;color:var(--muted);">
-                    <span id="feedStatus">Loading…</span>
-                  </div>
-                </div>
+<section id="news" class="card ms-news" aria-labelledby="latest-headlines">
+  <div class="ms-news-head">
+    <div>
+      <h2 id="latest-headlines">Latest headlines</h2>
+      <p class="ms-news-subtitle">
+        The latest Australian business news.
+      </p>
+    </div>
+    <div style="font-size:0.86rem;color:var(--muted);text-align:right;">
+      <span id="feedStatus">Loading…</span>
+    </div>
+  </div>
 
-                <div id="newsList" class="ms-news-list">
-                  <!-- filled by JS -->
-                </div>
-              </section>
+  <!-- Simple, clean news search -->
+  <div class="news-search" style="margin-bottom:0.75rem;">
+    <input
+      type="search"
+      id="newsSearch"
+      placeholder="Search headlines or tickers"
+      style="width:100%;padding:0.5rem 0.75rem;border-radius:999px;border:1px solid #cbd5e1;font-size:0.9rem;"
+    />
+  </div>
+
+  <div id="newsList" class="ms-news-list">
+    <!-- filled by JS -->
+  </div>
+
+  <!-- Explicit load more button -->
+  <button
+    id="newsLoadMoreBtn"
+    type="button"
+    class="btn"
+    style="width:100%;margin-top:0.75rem;display:none;"
+  >
+    Show more headlines
+  </button>
+</section>
             </section>
           </div>
         </div>
@@ -547,6 +566,7 @@
       const feedStatus = document.getElementById("feedStatus");
       const briefContent = document.getElementById("briefContent");
       const newsSection = document.getElementById("news");
+      const loadMoreBtn = document.getElementById("newsLoadMoreBtn");
 
       // These may be null (we don't use them on this page),
       // but the guards in renderMorningBrief handle that.
@@ -557,11 +577,12 @@
       const moversSectorsEl = document.getElementById("msSectors");
       const moversThemesEl = document.getElementById("msThemes");
 
-      let allArticles = [];
-      let visibleNewsCount = 0;
-      const NEWS_PAGE_SIZE = 5;
-      const MAX_NEWS_ITEMS = 20;
-      let isNewsLoadingMore = false;
+let allArticles = [];
+let filteredArticles = [];
+let visibleNewsCount = 0;
+const NEWS_PAGE_SIZE = 5;
+const MAX_NEWS_ITEMS = 20;
+let isNewsLoadingMore = false;
 
       /* ---------- Helpers ---------- */
 
@@ -1288,63 +1309,67 @@ function buildNewsItem(a) {
         return item;
       }
 
-      function renderNews() {
-        newsList.innerHTML = "";
+function renderNews() {
+  newsList.innerHTML = "";
 
-        if (!allArticles.length) {
-          newsList.innerHTML =
-            `<div class="headline"><small style="color:var(--muted)">No market headlines yet.</small></div>`;
-          return;
-        }
+  if (!filteredArticles.length) {
+    newsList.innerHTML =
+      `<div class="headline"><small style="color:var(--muted)">No market headlines yet.</small></div>`;
+    if (loadMoreBtn) loadMoreBtn.style.display = "none";
+    return;
+  }
 
-        visibleNewsCount = 0;
-        renderMoreNews();
-      }
+  visibleNewsCount = 0;
+  renderMoreNews();
+}
 
-      function renderMoreNews() {
-        if (!allArticles.length) return;
+function renderMoreNews() {
+  if (!filteredArticles.length) return;
+  if (isNewsLoadingMore) return;
 
-        // Prevent concurrent loads
-        if (isNewsLoadingMore) return;
-        isNewsLoadingMore = true;
+  isNewsLoadingMore = true;
 
-        const start = visibleNewsCount;
-        const end = Math.min(visibleNewsCount + NEWS_PAGE_SIZE, allArticles.length);
+  const start = visibleNewsCount;
+  const end = Math.min(
+    visibleNewsCount + NEWS_PAGE_SIZE,
+    filteredArticles.length
+  );
 
-        for (let i = start; i < end; i++) {
-          const a = allArticles[i];
-          const item = buildNewsItem(a);
-          newsList.appendChild(item);
-        }
+  for (let i = start; i < end; i++) {
+    const a = filteredArticles[i];
+    const item = buildNewsItem(a);
+    newsList.appendChild(item);
+  }
 
-        visibleNewsCount = end;
-        isNewsLoadingMore = false;
+  visibleNewsCount = end;
+  isNewsLoadingMore = false;
 
-        // Ensure a sentinel exists at the end so observer can see it (or remove it if finished)
-        if (visibleNewsCount >= allArticles.length) {
-          const sentinel = document.getElementById("newsSentinel");
-          if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
+  // Sentinel handling for infinite scroll
+  if (visibleNewsCount >= filteredArticles.length) {
+    const sentinel = document.getElementById("newsSentinel");
+    if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
 
-          // optional: show end of feed
-          const endNote = document.createElement("div");
-          endNote.className = "headline";
-          endNote.innerHTML = `<small style="color:var(--muted)">End of feed</small>`;
-          newsList.appendChild(endNote);
-        } else {
-          let sentinel = document.getElementById("newsSentinel");
-          if (!sentinel) {
-            sentinel = document.createElement("div");
-            sentinel.id = "newsSentinel";
-            sentinel.style.height = "1px";
-            sentinel.style.width = "100%";
-            newsList.appendChild(sentinel);
-          } else {
-            // move sentinel to the end
-            newsList.appendChild(sentinel);
-          }
-        }
-      }
+    const endNote = document.createElement("div");
+    endNote.className = "headline";
+    endNote.innerHTML = `<small style="color:var(--muted)">End of feed</small>`;
+    newsList.appendChild(endNote);
 
+    if (loadMoreBtn) loadMoreBtn.style.display = "none";
+  } else {
+    let sentinel = document.getElementById("newsSentinel");
+    if (!sentinel) {
+      sentinel = document.createElement("div");
+      sentinel.id = "newsSentinel";
+      sentinel.style.height = "1px";
+      sentinel.style.width = "100%";
+      newsList.appendChild(sentinel);
+    } else {
+      newsList.appendChild(sentinel);
+    }
+
+    if (loadMoreBtn) loadMoreBtn.style.display = "block";
+  }
+}
       function setupNewsInfiniteScroll() {
         // Don't crash on old browsers; first page will still show
         if (typeof IntersectionObserver === "undefined") return;
@@ -1377,35 +1402,74 @@ function buildNewsItem(a) {
 
         observer.observe(sentinel);
       }
+function applyNewsFilter(term) {
+  const q = term.trim().toLowerCase();
 
-      async function loadNewsInitial() {
-        try {
-          feedStatus.textContent = "Loading…";
-          showSkeleton(4);
+  if (!q) {
+    // No search: show all articles again
+    filteredArticles = allArticles.slice();
+  } else {
+    filteredArticles = allArticles.filter((a) => {
+      const title = (a.title || "");
+      const desc = (a.description || "");
+      const tickers = (a.tickers || []).join(" ");
+      const symbols = (a.symbols || []).join(" ");
+      const haystack = `${title} ${desc} ${tickers} ${symbols}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }
 
-          const raw = await getMarketFeed();
+  visibleNewsCount = 0;
+  newsList.innerHTML = "";
+  const sentinel = document.getElementById("newsSentinel");
+  if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
 
-          // AU / ASX only, then hard-cap to first 20
-          allArticles = Array.isArray(raw) ? raw.filter(isAusArticle) : [];
-          allArticles = allArticles.slice(0, MAX_NEWS_ITEMS);
+  renderNews();
+}
 
-          if (!allArticles.length) {
-            newsList.innerHTML =
-              `<div class="headline"><small style="color:var(--muted)">No Australian headlines yet.</small></div>`;
-            feedStatus.textContent = "Live";
-            return;
-          }
+function wireNewsSearch() {
+  const input = document.getElementById("newsSearch");
+  if (!input) return;
 
-          renderNews(); // will render first 5
-          setupNewsInfiniteScroll();
-          feedStatus.textContent = "Live";
-        } catch (err) {
-          console.error(err);
-          newsList.innerHTML =
-            `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
-          feedStatus.textContent = "Offline";
-        }
-      }
+  let debounceTimer = null;
+  input.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      applyNewsFilter(input.value);
+    }, 250);
+  });
+}
+async function loadNewsInitial() {
+  try {
+    feedStatus.textContent = "Loading…";
+    showSkeleton(4);
+
+    const raw = await getMarketFeed();
+
+    // AU / ASX only, then hard-cap to first 20
+    allArticles = Array.isArray(raw) ? raw.filter(isAusArticle) : [];
+    allArticles = allArticles.slice(0, MAX_NEWS_ITEMS);
+    filteredArticles = allArticles.slice(); // <-- NEW
+
+    if (!filteredArticles.length) {
+      newsList.innerHTML =
+        `<div class="headline"><small style="color:var(--muted)">No Australian headlines yet.</small></div>`;
+      feedStatus.textContent = "Live";
+      if (loadMoreBtn) loadMoreBtn.style.display = "none";
+      return;
+    }
+
+    renderNews(); // will render first 5
+    setupNewsInfiniteScroll();
+    feedStatus.textContent = "Live";
+  } catch (err) {
+    console.error(err);
+    newsList.innerHTML =
+      `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
+    feedStatus.textContent = "Offline";
+    if (loadMoreBtn) loadMoreBtn.style.display = "none";
+  }
+}
 
       /* ---------- Inline email signup ---------- */
 
@@ -1645,24 +1709,34 @@ function buildNewsItem(a) {
 
       /* ---------- Init ---------- */
 
-      (function init() {
-        loadNewsInitial();
-        loadMoversFromAsx200();
-        loadMorningBriefInitial();
+(function init() {
+  loadNewsInitial();
+  loadMoversFromAsx200();
+  loadMorningBriefInitial();
 
-        // Extra scroll-based top-up (kept from original; IntersectionObserver handles most)
-        window.addEventListener("scroll", () => {
-          if (
-            window.innerHeight + window.scrollY >=
-              document.body.offsetHeight - 400 &&
-            !isNewsLoadingMore &&
-            visibleNewsCount < allArticles.length
-          ) {
-            isNewsLoadingMore = true;
-            renderMoreNews();
-          }
-        });
-      })();
+  wireNewsSearch(); // <-- NEW
+
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener("click", () => {
+      if (!isNewsLoadingMore && visibleNewsCount < filteredArticles.length) {
+        renderMoreNews();
+      }
+    });
+  }
+
+  // Extra scroll-based top-up (kept from original; IntersectionObserver handles most)
+  window.addEventListener("scroll", () => {
+    if (
+      window.innerHeight + window.scrollY >=
+        document.body.offsetHeight - 400 &&
+      !isNewsLoadingMore &&
+      visibleNewsCount < filteredArticles.length
+    ) {
+      isNewsLoadingMore = true;
+      renderMoreNews();
+    }
+  });
+})();
     </script>
   </body>
 </html>
