@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>MatesFeed – Daily snapshot (Test) | MatesInvest</title>
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="MatesFeed – Daily snapshot for new investors | MatesInvest" />
+  <meta property="og:description" content="Plain-English daily ASX snapshot for people who are just getting started." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://matesinvest.com/mates-summaries-test" />
+  <meta property="og:image" content="https://matesinvest.com/assets/img/matesfeed-og.png" />
+  <meta property="og:image:width" content="945" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name" content="MatesInvest" />
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="MatesFeed – Daily snapshot for new investors | MatesInvest" />
+  <meta name="twitter:description" content="Plain-English daily ASX snapshot for people who are just getting started." />
+  <meta name="twitter:image" content="https://matesinvest.com/assets/img/matesfeed-og.png" />
+
+  <!-- Main site styles (move page-specific stuff into style.css) -->
+  <link rel="stylesheet" href="/assets/css/style.css?v=20251210">
+</head>
+
+<body class="mi-body">
+  <!-- NAV -->
+  <div class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <img src="/assets/img/logo-placeholder.png" class="nav-logo" alt="MatesInvest logo">
+        <div>
+          <div class="nav-title">MatesInvest</div>
+          <div class="nav-pill">MatesFeed · Prototype</div>
+        </div>
+      </div>
+
+      <div class="nav-right">
+        <span class="nav-tagline nav-tagline-full">
+          Live AI summaries · Not financial advice
+        </span>
+        <span class="nav-tagline nav-tagline-short">
+          Live AI · NFA
+        </span>
+
+        <a href="/" class="nav-home-link">Home</a>
+        <a href="/equity-screener.html" class="nav-pill-link">ASX Explorer</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE SHELL -->
+  <div class="page-shell">
+    <div class="corner-pattern" aria-hidden="true"></div>
+
+    <main class="ms-main">
+      <!-- HERO: Today in 20 seconds -->
+      <section class="card ms-hero">
+        <div class="ms-hero-left">
+          <div class="pill pill-soft">Built for new investors</div>
+          <h1 class="ms-hero-title">Today in plain English</h1>
+          <p class="ms-hero-subtitle">
+            A quick ASX snapshot every morning at <strong>6:05am AEST</strong>.
+            No jargon. No hype. Just what actually moved the market.
+          </p>
+
+          <div class="ms-hero-today">
+            <h2 class="ms-hero-today-heading">Today in 20 seconds</h2>
+            <p id="msTodaySummary" class="ms-hero-today-body">
+              Loading today’s snapshot…
+            </p>
+            <ul class="ms-hero-bullets" id="msTodayBullets">
+              <li>Futures, major moves, and sectors in one place.</li>
+              <li>US & global overnight moves in simple language.</li>
+              <li>1–2 things to watch on the ASX today.</li>
+            </ul>
+          </div>
+
+          <div class="ms-hero-cta-row">
+            <button id="openBrief" type="button" class="btn-primary">
+              Read today’s full Morning Brief
+            </button>
+            <a href="/join.html" class="btn-ghost">
+              Get the 6:05am email
+            </a>
+          </div>
+        </div>
+
+        <div class="ms-hero-right">
+          <div class="ms-hero-statcard">
+            <div class="ms-hero-stathead">
+              <span class="pill pill-outline">Snapshot</span>
+              <span class="ms-hero-stat-time" id="msSnapshotTime">Updated just now</span>
+            </div>
+            <dl class="ms-hero-statgrid">
+              <div>
+                <dt>ASX futures</dt>
+                <dd id="msFutures">Loading…</dd>
+              </div>
+              <div>
+                <dt>Overnight US</dt>
+                <dd id="msOvernightUs">Loading…</dd>
+              </div>
+              <div>
+                <dt>Theme of the day</dt>
+                <dd id="msTheme">TBA</dd>
+              </div>
+              <div>
+                <dt>Volatility</dt>
+                <dd id="msVol">Normal</dd>
+              </div>
+            </dl>
+            <p class="ms-hero-footnote">
+              Data is delayed and for education only. Not financial advice.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- NEW INVESTOR LEARNING STRIP -->
+      <section class="ms-learn">
+        <header class="ms-section-head">
+          <h2>New to investing? Start here.</h2>
+          <p>Three short explainers to get your bearings before you dive in.</p>
+        </header>
+
+        <div class="ms-learn-grid">
+          <article class="card ms-learn-card">
+            <h3>What is a share?</h3>
+            <p>
+              A share is a tiny slice of a company. When the company grows or pays out profits,
+              your slice can grow too.
+            </p>
+            <a href="/guides/what-is-a-share.html" class="ms-learn-link">Explain it in 2 minutes →</a>
+          </article>
+
+          <article class="card ms-learn-card">
+            <h3>What moves the market?</h3>
+            <p>
+              Interest rates, company profits, sentiment, and global news all push prices up and down.
+            </p>
+            <a href="/guides/what-moves-markets.html" class="ms-learn-link">See real examples →</a>
+          </article>
+
+          <article class="card ms-learn-card">
+            <h3>How risky is this?</h3>
+            <p>
+              Shares go up and down every day. We’ll flag when things are extra noisy
+              so you’re not surprised.
+            </p>
+            <a href="/guides/understanding-risk.html" class="ms-learn-link">Learn the basics →</a>
+          </article>
+        </div>
+      </section>
+
+      <!-- MIDDLE ROW: What's moving today + headlines -->
+      <section class="ms-row">
+        <!-- WHAT'S MOVING TODAY -->
+        <section class="card ms-movers">
+          <header class="ms-section-head">
+            <h2>What’s moving today?</h2>
+            <p>Not a full screener – just a quick feel for where the action is.</p>
+          </header>
+
+          <div class="ms-movers-grid">
+            <div>
+              <h3 class="ms-movers-heading">Biggest moves</h3>
+              <ul class="ms-movers-list" id="msBigMoves">
+                <li><span>Loading…</span></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 class="ms-movers-heading">Sectors on the move</h3>
+              <ul class="ms-movers-list" id="msSectors">
+                <li><span>Loading…</span></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 class="ms-movers-heading">Themes to watch</h3>
+              <ul class="ms-movers-list" id="msThemes">
+                <li><span>Loading…</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <p class="ms-movers-footnote">
+            We pick a handful of names and sectors each day so you don’t have to sift through hundreds.
+          </p>
+        </section>
+
+        <!-- LATEST HEADLINES (simplified newsfeed) -->
+        <section class="card ms-news" aria-labelledby="latest-headlines">
+          <header class="ms-news-head">
+            <div>
+              <h2 id="latest-headlines">Latest headlines</h2>
+              <p class="ms-news-subtitle">
+                Plain-English headlines from the ASX and global markets.
+              </p>
+            </div>
+
+            <div class="ms-news-controls">
+              <button type="button" class="chip chip-active" data-ms-news-mode="all">All</button>
+              <button type="button" class="chip" data-ms-news-mode="asx">ASX</button>
+              <button type="button" class="chip" data-ms-news-mode="global">Global</button>
+            </div>
+          </header>
+
+          <div id="newsStatus" class="ms-news-status">Loading news…</div>
+          <div id="newsList" class="ms-news-list">
+            <!-- Populated by JS -->
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <!-- Minimal JS for test page: stubs to be wired into your existing functions -->
+  <script>
+    // --- Helpers: small utility renderers ---
+
+    function renderHeadlineCard(article) {
+      const div = document.createElement("article");
+      div.className = "headline";
+
+      const source = article.source || "Source";
+      const time = article.timeAgo || article.time || "";
+
+      div.innerHTML = `
+        <div class="headline-top">
+          <span class="headline-source">${source}</span>
+          ${time ? `<span class="headline-time">${time}</span>` : ""}
+        </div>
+        <h3 class="headline-title">${article.title || "Untitled headline"}</h3>
+        ${article.summary ? `<p class="headline-summary">${article.summary}</p>` : ""}
+      `;
+
+      return div;
+    }
+
+    // --- Fake data / placeholders for now ---
+    // TODO: Wire these up to your Netlify functions (morning-brief, newsFeed, etc.)
+
+    function loadTodaySnapshot() {
+      const summaryEl = document.getElementById("msTodaySummary");
+      const bulletsEl = document.getElementById("msTodayBullets");
+      const futuresEl = document.getElementById("msFutures");
+      const usEl = document.getElementById("msOvernightUs");
+      const themeEl = document.getElementById("msTheme");
+      const volEl = document.getElementById("msVol");
+      const timeEl = document.getElementById("msSnapshotTime");
+
+      if (!summaryEl) return;
+
+      // Placeholder: replace this block with a fetch to your morning-brief function
+      summaryEl.textContent =
+        "ASX futures are pointing slightly higher after a mixed session in the US. Resources are firm, while tech is softer.";
+
+      bulletsEl.innerHTML = `
+        <li>Resources are leading early, helped by stronger commodity prices.</li>
+        <li>US tech was weaker overnight as bond yields ticked up.</li>
+        <li>Keep an eye on banks and miners for the open.</li>
+      `;
+
+      futuresEl.textContent = "+0.3% (indicative)";
+      usEl.textContent = "Mixed – tech weaker, energy firmer";
+      themeEl.textContent = "Resources vs. tech";
+      volEl.textContent = "Normal";
+      timeEl.textContent = "Updated a few minutes ago";
+    }
+
+    function loadWhatsMoving() {
+      const movesEl = document.getElementById("msBigMoves");
+      const sectorsEl = document.getElementById("msSectors");
+      const themesEl = document.getElementById("msThemes");
+
+      if (!movesEl || !sectorsEl || !themesEl) return;
+
+      // Placeholder: later you can drive this off your screener data / LSEG / EODHD
+      movesEl.innerHTML = `
+        <li><span>BHP</span><span class="ms-move-up">▲ +1.8%</span></li>
+        <li><span>CBA</span><span class="ms-move-up">▲ +1.2%</span></li>
+        <li><span>WES</span><span class="ms-move-down">▼ -1.0%</span></li>
+      `;
+
+      sectorsEl.innerHTML = `
+        <li><span>Resources</span><span class="ms-move-up">Stronger</span></li>
+        <li><span>Banks</span><span class="ms-move-flat">Steady</span></li>
+        <li><span>Tech</span><span class="ms-move-down">Softer</span></li>
+      `;
+
+      themesEl.innerHTML = `
+        <li><span>Gold</span><span class="ms-move-up">Benefit from higher prices</span></li>
+        <li><span>Lithium</span><span class="ms-move-flat">Sideways after recent falls</span></li>
+        <li><span>Dividends</span><span class="ms-move-flat">Focus on quality names</span></li>
+      `;
+    }
+
+    function loadNews(mode) {
+      const statusEl = document.getElementById("newsStatus");
+      const listEl = document.getElementById("newsList");
+      if (!statusEl || !listEl) return;
+
+      // Placeholder dataset – swap this for a fetch to /.netlify/functions/newsFeed
+      const sampleArticles = [
+        {
+          title: "ASX set to open higher as Wall St steadies",
+          source: "MatesFeed",
+          timeAgo: "Just now",
+          summary: "Futures point to a modestly stronger open, with resources in focus.",
+          type: "asx"
+        },
+        {
+          title: "US tech slides as bond yields edge up",
+          source: "Overnight US",
+          timeAgo: "Overnight",
+          summary: "Big tech names gave back some recent gains as yields ticked higher.",
+          type: "global"
+        },
+        {
+          title: "Gold miners in focus as bullion tests recent highs",
+          source: "Commodities",
+          timeAgo: "1 hr ago",
+          summary: "Local gold names may be active after another move higher in bullion.",
+          type: "asx"
+        }
+      ];
+
+      statusEl.textContent = "";
+      listEl.innerHTML = "";
+
+      const filtered = mode && mode !== "all"
+        ? sampleArticles.filter(a => a.type === mode)
+        : sampleArticles;
+
+      if (!filtered.length) {
+        statusEl.textContent = "No headlines for this filter yet.";
+        return;
+      }
+
+      filtered.forEach(a => {
+        listEl.appendChild(renderHeadlineCard(a));
+      });
+    }
+
+    function wireNewsModeChips() {
+      const chips = document.querySelectorAll("[data-ms-news-mode]");
+      chips.forEach(chip => {
+        chip.addEventListener("click", () => {
+          const mode = chip.getAttribute("data-ms-news-mode");
+          chips.forEach(c => c.classList.remove("chip-active"));
+          chip.classList.add("chip-active");
+          loadNews(mode);
+        });
+      });
+    }
+
+    (function init() {
+      loadTodaySnapshot();
+      loadWhatsMoving();
+      loadNews("all");
+      wireNewsModeChips();
+
+      // You can also wire #openBrief to your existing Morning Brief modal/function here
+      // document.getElementById("openBrief").addEventListener("click", ...)
+    })();
+  </script>
+</body>
+</html>
