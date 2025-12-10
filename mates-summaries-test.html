@@ -911,25 +911,34 @@ async function loadMoversFromAsx200() {
         .sort((a, b) => Number(a.pctChange) - Number(b.pctChange)) // most negative first
         .slice(0, 5);
 
-      moversBigEl.innerHTML = losers
-        .map((r) => {
-          const code = r.code || r.symbol || "";
-          const pctNum = Number(r.pctChange);
-          const pctStr =
-            (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+       moversBigEl.innerHTML = losers
+    .map((r) => {
+      const code = r.code || r.symbol || "";
+      const name = r.name || "";
 
-          let cls = "ms-move-flat";
-          if (pctNum > 0) cls = "ms-move-up";
-          else if (pctNum < 0) cls = "ms-move-down";
+      const pctNum = Number(r.pctChange);
+      const pctStr =
+        (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
 
-          return `
-            <li>
-              <span>${escapeHtml(code)}</span>
-              <span class="${cls}">${escapeHtml(pctStr)}</span>
-            </li>
-          `;
-        })
-        .join("");
+      let cls = "ms-move-flat";
+      if (pctNum > 0) cls = "ms-move-up";
+      else if (pctNum < 0) cls = "ms-move-down";
+
+      return `
+        <li>
+          <span class="ms-mover-name-wrap">
+            <span class="brief-code">${escapeHtml(code)}</span>
+            ${
+              name
+                ? `<span class="ms-mover-name">${escapeHtml(name)}</span>`
+                : ""
+            }
+          </span>
+          <span class="${cls}">${escapeHtml(pctStr)}</span>
+        </li>
+      `;
+    })
+    .join("");
     }
 
     // ---------- SECTORS ON THE MOVE ----------
