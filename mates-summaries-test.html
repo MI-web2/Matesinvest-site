@@ -187,10 +187,12 @@
     const moversSectorsEl = document.getElementById("msSectors");
     const moversThemesEl = document.getElementById("msThemes");
 
-    let allArticles = [];
+let allArticles = [];
 let visibleNewsCount = 0;
 const NEWS_PAGE_SIZE = 5;
+const MAX_NEWS_ITEMS = 20;
 let isNewsLoadingMore = false;
+
 
     /* ---------- Helpers ---------- */
 
@@ -901,8 +903,11 @@ function isAusArticle(a) {
         feedStatus.textContent = "Loading…";
         showSkeleton(4);
 
-        const raw = await getMarketFeed();
-        allArticles = Array.isArray(raw) ? raw.filter(isAusArticle) : [];
+const raw = await getMarketFeed();
+
+// AU / ASX only, then hard-cap to first 20
+allArticles = Array.isArray(raw) ? raw.filter(isAusArticle) : [];
+allArticles = allArticles.slice(0, MAX_NEWS_ITEMS);
 
         if (!allArticles.length) {
           newsList.innerHTML =
