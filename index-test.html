@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MatesInvest – Invest smarter together.</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="MatesInvest is a social investing companion for everyday Aussies — helping retail investors link their existing broker, cut through ASX noise with plain-English insights, and feel confident talking about money with their mates."
+    />
+
+    <!-- Open Graph / social -->
+    <meta property="og:title" content="MatesInvest – Invest smarter together." />
+    <meta
+      property="og:description"
+      content="MatesInvest is a social investing companion for everyday Aussies — helping retail investors link their existing broker, cut through ASX noise with plain-English insights, and feel confident talking about money with their mates."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://matesinvest.com/" />
+    <meta property="og:image" content="/assets/matesinvest-social-card.png" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MatesInvest – Invest smarter together." />
+    <meta
+      name="twitter:description"
+      content="MatesInvest is a social investing companion for everyday Aussies — helping retail investors link their existing broker, cut through ASX noise with plain-English insights, and feel confident talking about money with their mates."
+    />
+    <meta name="twitter:image" content="/assets/matesinvest-social-card.png" />
+
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <link rel="icon" type="image/png" href="/assets/favicon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+
+    <!-- Full-screen loading overlay styles (from mates-summaries-test) -->
+    <style>
+      #pageLoadingOverlay {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        opacity: 1;
+        transition: opacity 0.35s ease;
+      }
+      #pageLoadingOverlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #pageLoadingOverlay .loading-inner {
+        text-align: center;
+      }
+      #pageLoadingOverlay .loading-logo {
+        width: 130px;
+        max-width: 60vw;
+        margin-bottom: 1rem;
+        opacity: 0.95;
+      }
+      #pageLoadingOverlay p {
+        font-size: 0.95rem;
+        color: var(--muted, #4b5563);
+      }
+    </style>
+  </head>
+
+  <body class="mi-body">
+    <!-- FULL SCREEN LOADING OVERLAY -->
+    <div id="pageLoadingOverlay">
+      <div class="loading-inner">
+        <img
+          src="/assets/img/logo-placeholder.png"
+          alt="MatesInvest"
+          class="loading-logo"
+        />
+        <p>Loading your daily brief…</p>
+      </div>
+    </div>
+
+    <!-- TOP NAV -->
+    <header class="nav">
+      <div class="container nav-inner">
+        <div class="brand">
+          <img
+            src="/assets/favicon-32x32.png"
+            alt="MatesInvest logo"
+            class="logo"
+          />
+          <span>MatesInvest</span>
+        </div>
+
+        <nav>
+          <a href="#today">Today’s ASX brief</a>
+          <a href="#how">How it works</a>
+          <a href="#about">Why we exist</a>
+          <a href="#safety">Safety &amp; data</a>
+          <a href="#pricing">Pricing</a>
+          <a href="/join.html" class="btn btn-outline">Join the waitlist</a>
+        </nav>
+
+        <button class="menu-btn" aria-label="Toggle navigation">☰</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- HERO -->
+      <section class="hero">
+        <div class="container grid">
+          <div>
+            <p class="hero-eyebrow">
+              Built by Aussie investors, for Aussie investors
+            </p>
+            <h1>Get the 6:05am ASX brief in plain English.</h1>
+
+            <div class="badges">
+              <span class="badge">Plain-English ASX brief each morning</span>
+              <span class="badge">Built for retail investors</span>
+              <span class="badge">No hot tips, no hype</span>
+            </div>
+
+            <!-- Inline email signup (wired to /.netlify/functions/subscribe) -->
+            <div class="cta-row" style="margin-top:1rem;">
+              <form id="inlineSignup" class="inline-signup" style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+                <input
+                  type="email"
+                  id="inlineEmail"
+                  name="email"
+                  required
+                  placeholder="you@example.com"
+                  autocomplete="email"
+                  style="flex:1;min-width:200px;"
+                />
+                <button type="submit" class="btn btn-primary">
+                  Get the 6:05am brief
+                </button>
+              </form>
+            </div>
+            <div
+              id="inlineStatus"
+              style="font-size:13px;color:#64748b;margin-top:0.5rem;"
+            ></div>
+
+            <div style="margin-top:14px;">
+              <a
+                href="#today"
+                class="btn btn-ghost"
+                style="display:inline-block;font-weight:700;"
+              >
+                View today’s ASX snapshot →
+              </a>
+            </div>
+
+            <p style="font-size:13px;color:#64748b;margin-top:6px;">
+              In private beta now. No trading, no “hot tips” — just context, education,
+              and tools to help you feel on top of your investing.
+            </p>
+          </div>
+
+          <div class="mockup">
+            <div
+              style="
+                background:#061a2e;
+                border-radius:16px;
+                padding:18px;
+                color:#e2e8f0;
+                box-shadow:0 10px 30px rgba(0,0,0,0.18);
+              "
+            >
+              <div
+                style="
+                  display:flex;
+                  justify-content:space-between;
+                  align-items:center;
+                  margin-bottom:8px;
+                "
+              >
+                <div>
+                  <div style="font-size:13px;color:#94a3b8;">
+                    Today&apos;s view
+                  </div>
+                  <div style="font-weight:700;font-size:16px;">
+                    ASX snapshot
+                  </div>
+                </div>
+                <div style="font-size:12px;color:#94a3b8;">
+                  Live in app &amp; email
+                </div>
+              </div>
+              <hr
+                style="
+                  border:none;
+                  border-top:1px solid rgba(148,163,184,0.45);
+                  margin:10px 0;
+                "
+              />
+              <div style="font-size:13px;line-height:1.6;">
+                <div>• ASX 200, sectors &amp; commodities at a glance</div>
+                <div>• See how moves connect back to your holdings</div>
+                <div>• Clear explanation of what actually changed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TODAY'S ASX SNAPSHOT / DAILY BRIEF -->
+      <section id="today" class="section alt">
+        <div class="container">
+          <div class="ms-main">
+            <!-- HERO: snapshot (brief + board + note + SOTD) -->
+            <section class="card ms-hero">
+              <div class="ms-hero-left">
+                <div class="pill pill-soft">Built for new investors</div>
+                <h2 class="ms-hero-title">Today’s ASX snapshot</h2>
+
+                <!-- Morning Brief content (loads automatically) -->
+                <div
+                  id="briefContent"
+                  class="brief-content"
+                  aria-live="polite"
+                  style="margin-top:0.4rem;"
+                ></div>
+              </div>
+            </section>
+
+            <!-- NEW INVESTOR LEARNING STRIP -->
+            <section class="ms-learn">
+              <header class="ms-section-head">
+                <h2>New to investing? Start here.</h2>
+                <p>Three short explainers to get your bearings before you dive in.</p>
+              </header>
+
+              <div class="ms-learn-grid">
+                <article class="card ms-learn-card">
+                  <h3>What is a share?</h3>
+                  <p>
+                    A share is a tiny slice of a company. When the company grows or pays out profits,
+                    your slice can grow too.
+                  </p>
+                  <a href="/guides/what-is-a-share.html" class="ms-learn-link">
+                    Explain it in 2 minutes →
+                  </a>
+                </article>
+
+                <article class="card ms-learn-card">
+                  <h3>What moves the market?</h3>
+                  <p>
+                    Interest rates, company profits, sentiment, and global news all push prices up
+                    and down.
+                  </p>
+                  <a href="/guides/what-moves-markets.html" class="ms-learn-link">
+                    See real examples →
+                  </a>
+                </article>
+
+                <article class="card ms-learn-card">
+                  <h3>How risky is this?</h3>
+                  <p>
+                    Shares go up and down every day. We’ll flag when things are extra noisy
+                    so you’re not surprised.
+                  </p>
+                  <a href="/guides/understanding-risk.html" class="ms-learn-link">
+                    Learn the basics →
+                  </a>
+                </article>
+              </div>
+            </section>
+
+            <!-- MIDDLE ROW: What's moving + headlines -->
+            <section class="ms-row">
+              <!-- WHAT MOVED YESTERDAY -->
+              <section class="card ms-movers">
+                <header class="ms-section-head">
+                  <h2>What moved yesterday?</h2>
+                </header>
+
+                <div class="ms-movers-grid">
+                  <div>
+                    <h3 class="ms-movers-heading">Biggest fallers</h3>
+                    <ul class="ms-movers-list" id="msBigMoves">
+                      <li><span>Loading…</span><span></span></li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 class="ms-movers-heading">Sectors on the move</h3>
+                    <ul class="ms-movers-list" id="msSectors">
+                      <li><span>Loading…</span><span></span></li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 class="ms-movers-heading">Themes to watch</h3>
+                    <ul class="ms-movers-list" id="msThemes">
+                      <li><span>Loading…</span><span></span></li>
+                    </ul>
+                  </div>
+                </div>
+              </section>
+
+              <!-- LATEST HEADLINES – AU / ASX only -->
+              <section id="news" class="card ms-news" aria-labelledby="latest-headlines">
+                <div class="ms-news-head">
+                  <div>
+                    <h2 id="latest-headlines">Latest headlines</h2>
+                    <p class="ms-news-subtitle">
+                      The latest Australian business news.
+                    </p>
+                  </div>
+                  <div style="font-size:0.86rem;color:var(--muted);">
+                    <span id="feedStatus">Loading…</span>
+                  </div>
+                </div>
+
+                <div id="newsList" class="ms-news-list">
+                  <!-- filled by JS -->
+                </div>
+              </section>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <!-- WHY WE'RE BUILDING -->
+      <section id="about" class="section alt">
+        <div class="container grid-2">
+          <div>
+            <h2>We want investing to feel normal, not taboo.</h2>
+            <p>
+              In Australia, money and investing can still feel a bit awkward.
+              A lot of people want to invest but don&apos;t know where to start,
+              don&apos;t have time to research everything, or feel like they&apos;re
+              the only one who doesn&apos;t “get it”.
+            </p>
+            <p>
+              MatesInvest is here to bridge that gap — to make investing feel
+              normal, social and approachable, and to give retail investors tools
+              and context that usually live behind professional platforms.
+            </p>
+          </div>
+
+          <div>
+            <ul class="tick">
+              <li>Help first-time and time-poor investors build confidence, not FOMO.</li>
+              <li>Turn group chats and DMs into organised, trackable ideas.</li>
+              <li>Make it safe to ask “dumb” questions with people you trust.</li>
+              <li>Bridge the gap between education, news and the portfolio you actually hold.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- HOW IT WORKS -->
+      <section id="how" class="section">
+        <div class="container">
+          <h2>One place for your portfolio, news and mates.</h2>
+          <p>
+            We don&apos;t replace your broker. We sit alongside it — helping you and your mates
+            understand what&apos;s going on, why it matters, and how it connects to the holdings
+            you already have.
+          </p>
+
+          <div class="cards" style="margin-top:24px;">
+            <div class="card">
+              <h3>1. Connect your existing broker</h3>
+              <p>
+                Link your ASX account through trusted data partners so you can see your real
+                holdings in one simple view. No new brokerage account, no messy CSV uploads.
+              </p>
+            </div>
+
+            <div class="card">
+              <h3>2. Get a clear, no-nonsense brief</h3>
+              <p>
+                Each morning we pull together market moves, sectors, commodities and key stories
+                into a short email and in-app view — all in plain English, with zero jargon.
+              </p>
+            </div>
+
+            <div class="card">
+              <h3>3. See how it hits your portfolio</h3>
+              <p>
+                We connect the dots for you: which holdings are tied to that move in iron ore,
+                how a rate decision might flow through your banks, and where volatility could show up.
+              </p>
+            </div>
+
+            <div class="card">
+              <h3>4. Learn and decide with your mates</h3>
+              <p>
+                Share ideas, compare watchlists and talk through decisions in a space designed
+                for honest conversation — not anonymous forums or FOMO-driven hype.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SAFETY & DATA -->
+      <section id="safety" class="section alt">
+        <div class="container grid-2">
+          <div>
+            <h2>Your data, your control.</h2>
+            <p>
+              MatesInvest is being built with privacy and security baked in from day one.
+              We don&apos;t want your password. We don&apos;t sell your data. And we&apos;re
+              careful about which partners we work with.
+            </p>
+            <ul class="tick">
+              <li>Bank-grade encryption for all connections and sensitive data.</li>
+              <li>Read-only portfolio connections — no one can place trades on your behalf.</li>
+              <li>
+                We aim to work with regulated data providers for broker connections,
+                rather than building our own risky integrations.
+              </li>
+              <li>Clear, human-readable explanations of how your data is used.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>Built for trust, not trading volume.</h3>
+            <p>
+              Our incentives are simple: if MatesInvest helps you feel more confident about your
+              investing, you&apos;ll keep using it and tell your mates. That matters more to us
+              than pushing you to trade more often.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- PRICING -->
+      <section id="pricing" class="section">
+        <div class="container">
+          <h2>Fair, transparent and built for retail investors.</h2>
+          <p>
+            During our early beta, MatesInvest is free while we learn with our first users
+            and shape the product together.
+          </p>
+
+          <div class="pricing" style="margin-top:24px;">
+            <div class="price-card">
+              <h3>Early access</h3>
+              <p class="price">$0 <span>/ month</span></p>
+              <ul class="tick">
+                <li>Daily ASX email brief</li>
+                <li>Access to portfolio &amp; market overview</li>
+                <li>Early access to new features</li>
+                <li>Direct line to the founding team</li>
+              </ul>
+              <p class="note">
+                In return, we may occasionally ask for your feedback or to jump on a quick call
+                to understand how you use the product.
+              </p>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;max-width:520px;">
+            <p>
+              Longer term, we expect a simple subscription model — no ads, no payment for order
+              flow, and no selling your data. We&apos;ll share pricing openly with our early users
+              before anything changes.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="section alt">
+        <div class="container">
+          <h2>Questions investors are asking us.</h2>
+
+          <div class="faq">
+            <details>
+              <summary>Is MatesInvest a broker?</summary>
+              <p>
+                No. We don&apos;t hold your money and we don&apos;t execute trades. We sit
+                alongside your existing broker to give you context, education and better
+                visibility over what you already own.
+              </p>
+            </details>
+
+            <details>
+              <summary>Will you tell me what to buy?</summary>
+              <p>
+                No hot tips here. We highlight trends, sectors and news, and help you see how
+                they might relate to your holdings, but investment decisions are always yours.
+              </p>
+            </details>
+
+            <details>
+              <summary>Who is MatesInvest for?</summary>
+              <p>
+                Everyday retail investors — from first-timers to experienced DIY investors
+                who want a clearer view and a better way to talk about money with people
+                they trust.
+              </p>
+            </details>
+
+            <details>
+              <summary>When will the app launch?</summary>
+              <p>
+                We&apos;re rolling out features in stages, starting with the daily ASX brief
+                and portfolio overview. Joining the waitlist is the best way to get access
+                early and influence what we build next.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONTACT / WAITLIST -->
+      <section id="contact" class="section">
+        <div class="container grid-2">
+          <div>
+            <h2>Join the MatesInvest waitlist</h2>
+            <p>
+              We&apos;re starting with a small group of everyday investors who want to feel
+              more in control of their portfolios and more comfortable talking about money.
+            </p>
+            <p>
+              Join the waitlist to receive the daily ASX brief, test new features as they roll out,
+              and help us shape a platform built for retail investors, not institutions.
+            </p>
+            <ul class="tick">
+              <li>Daily ASX email &amp; in-app brief</li>
+              <li>Early access to new portfolio tools</li>
+              <li>Direct feedback loop with the founding team</li>
+            </ul>
+          </div>
+
+          <div class="contact-card">
+            <h3>Get early access</h3>
+            <p style="font-size:13px;color:#6b7280;margin-bottom:1rem;">
+              Join the MatesInvest crew for the daily ASX brief, weekly wrap, and early app access.
+            </p>
+
+            <a href="/join.html" class="btn btn-primary">
+              Join with your email
+            </a>
+
+            <p style="font-size:12px;color:#9ca3af;margin-top:0.75rem;">
+              You’ll be added to our early-access list and receive email updates as we ship new features.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <div class="container footer-inner">
+        <div>&copy; <span id="year"></span> MatesInvest</div>
+        <div>
+          <span style="font-size:12px;">
+            MatesInvest does not provide financial advice. Information is general in nature
+            and does not take into account your objectives, financial situation or needs.
+          </span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Existing small scripts (nav + year) -->
+    <script>
+      // Mobile nav toggle (matches your existing CSS: body.open .nav nav { ... })
+      (function () {
+        const btn = document.querySelector('.menu-btn');
+        const body = document.body;
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          body.classList.toggle('open');
+        });
+      })();
+
+      // Footer year
+      (function () {
+        var y = document.getElementById('year');
+        if (y) y.textContent = new Date().getFullYear();
+      })();
+    </script>
+
+    <!-- Daily brief + movers + AU newsfeed logic (from mates-summaries-test) -->
+    <script>
+      /* ---------- Globals ---------- */
+      const newsList = document.getElementById("newsList");
+      const feedStatus = document.getElementById("feedStatus");
+      const briefContent = document.getElementById("briefContent");
+      const newsSection = document.getElementById("news");
+
+      // These may be null (we don't use them on this page),
+      // but the guards in renderMorningBrief handle that.
+      const todaySummaryEl = document.getElementById("msTodaySummary");
+      const todayBulletsEl = document.getElementById("msTodayBullets");
+
+      const moversBigEl = document.getElementById("msBigMoves");
+      const moversSectorsEl = document.getElementById("msSectors");
+      const moversThemesEl = document.getElementById("msThemes");
+
+      let allArticles = [];
+      let visibleNewsCount = 0;
+      const NEWS_PAGE_SIZE = 5;
+      const MAX_NEWS_ITEMS = 20;
+      let isNewsLoadingMore = false;
+
+      /* ---------- Helpers ---------- */
+
+      function escapeHtml(str) {
+        return (str || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function formatMoney(num) {
+        const n = Number(num);
+        if (!isFinite(n)) return num;
+        if (Math.abs(n) >= 1_000_000_000) {
+          return (n / 1_000_000_000).toFixed(1).replace(/\.0$/,"") + "b";
+        }
+        if (Math.abs(n) >= 1_000_000) {
+          return (n / 1_000_000).toFixed(1).replace(/\.0$/,"") + "m";
+        }
+        if (Math.abs(n) >= 1_000) {
+          return (n / 1_000).toFixed(1).replace(/\.0$/,"") + "k";
+        }
+        return n.toFixed(2);
+      }
+
+      function formatTime(iso) {
+        try {
+          const d = new Date(iso);
+          if (isNaN(d)) return "";
+          return new Intl.DateTimeFormat(undefined, {
+            dateStyle: "short",
+            timeStyle: "short"
+          }).format(d);
+        } catch {
+          return iso || "";
+        }
+      }
+
+      function formatTimeAgo(iso) {
+        try {
+          const d = new Date(iso);
+          if (isNaN(d)) return "";
+          const diffMs = Date.now() - d.getTime();
+          const diffMin = Math.round(diffMs / 60000);
+          if (diffMin < 60) return diffMin + "m ago";
+          const diffHours = Math.round(diffMin / 60);
+          if (diffHours < 24) return diffHours + "h ago";
+          const diffDays = Math.round(diffHours / 24);
+          return diffDays + "d ago";
+        } catch {
+          return "";
+        }
+      }
+
+      // Keep only Australian / ASX-related stories
+      function isAusArticle(a) {
+        if (!a) return false;
+
+        const title = (a.title || "").toLowerCase();
+        const desc = (a.description || "").toLowerCase();
+        const source = (a.source || a.source_name || "").toLowerCase();
+        const url = (a.url || "").toLowerCase();
+        const country =
+          (a.country || a.region || a.locale || "").toLowerCase();
+
+        const tags = []
+          .concat(a.tags || [], a.tickers || [], a.symbols || [])
+          .join(" ")
+          .toLowerCase();
+
+        if (country === "au" || country === "australia") return true;
+        if (url.includes(".com.au") || url.includes(".gov.au")) return true;
+        if (
+          title.includes("asx") ||
+          desc.includes("asx") ||
+          tags.includes("asx:") ||
+          tags.includes(".ax")
+        ) return true;
+        if (title.includes("australia") || desc.includes("australia")) return true;
+
+        if (
+          source.includes("afr") ||
+          source.includes("australian") ||
+          source.includes("sydney morning herald") ||
+          source.includes("abc news") ||
+          source.includes("asx")
+        ) return true;
+
+        return false;
+      }
+
+      function showSkeleton(count = 4) {
+        newsList.innerHTML = "";
+        for (let i = 0; i < count; i++) {
+          const div = document.createElement("div");
+          div.className = "headline";
+          div.innerHTML = `
+            <div style="display:flex;align-items:center;gap:0.75rem">
+              <div style="flex:1">
+                <div class="skeleton" style="height:14px;width:60%"></div>
+                <div style="height:8px"></div>
+                <div class="skeleton" style="height:10px;width:85%"></div>
+              </div>
+            </div>
+          `;
+          newsList.appendChild(div);
+        }
+      }
+
+      /* ---------- Loader helper ---------- */
+      function hidePageLoader() {
+        const overlay = document.getElementById("pageLoadingOverlay");
+        if (!overlay) return;
+        overlay.classList.add("hidden");
+        // Remove from DOM after fade-out
+        setTimeout(() => {
+          if (overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+          }
+        }, 400);
+      }
+
+      /* ---------- Backend calls ---------- */
+
+      async function getMarketFeed() {
+        try {
+          const res = await fetch("/.netlify/functions/newsFeed");
+          const data = await res.json();
+          return data.articles || [];
+        } catch (e) {
+          console.warn("Market feed failed", e);
+          return [];
+        }
+      }
+
+      async function callMatesSummary(payload) {
+        const res = await fetch("/.netlify/functions/matesSummary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Summary request failed");
+        return res.json();
+      }
+
+      async function loadMatesMorningNote() {
+        const container = document.getElementById("matesMorningNote");
+        const textBox = document.getElementById("matesNoteText");
+        const timeBox = document.getElementById("matesNoteTimestamp");
+        if (!container || !textBox || !timeBox) return;
+
+        try {
+          const res = await fetch("/.netlify/functions/matesMorningNote");
+          const data = await res.json();
+          const note = data.note || "No update available.";
+          textBox.textContent = note;
+          timeBox.textContent = "Updated 6:00am AEST";
+          container.style.display = "block";
+        } catch (err) {
+          console.error("Failed to load Morning Note", err);
+          textBox.textContent = "Unable to load today’s note.";
+          container.style.display = "block";
+        }
+      }
+
+      async function loadStockOfTheDay() {
+        const container = document.getElementById("stockOfDay");
+        if (!container) return;
+
+        const tickerEl = document.getElementById("sotdTicker");
+        const nameEl = document.getElementById("sotdName");
+        const summaryEl = document.getElementById("sotdSummary");
+
+        if (!tickerEl || !nameEl || !summaryEl) return;
+
+        let candidate = window._mates_sotd || null;
+        if (!candidate || !candidate.symbol) {
+          candidate = {
+            symbol: container.dataset.symbol || "ASX:VAS",
+            name: container.dataset.name || "Vanguard Australian Shares",
+          };
+        }
+
+        if (!candidate || !candidate.symbol) {
+          container.style.display = "none";
+          return;
+        }
+
+        try {
+          const params = new URLSearchParams();
+          params.set("symbol", candidate.symbol);
+          if (candidate.name) params.set("name", candidate.name);
+          params.set("exchange", "ASX");
+
+          const res = await fetch(
+            "/.netlify/functions/stockOfTheDay?" + params.toString()
+          );
+          const data = await res.json();
+
+          tickerEl.textContent = data.ticker || candidate.symbol || "—";
+          nameEl.textContent = data.name || candidate.name || "";
+          summaryEl.textContent = data.summary || "No snapshot available today.";
+          container.style.display = "block";
+        } catch (err) {
+          console.error("loadStockOfTheDay failed", err);
+          summaryEl.textContent = "Unable to load today’s stock.";
+          container.style.display = "block";
+        }
+      }
+
+      /* ---------- Morning Brief rendering ---------- */
+
+      function renderSummaryBlock(s) {
+        if (!s) return "";
+        const bullets = (s.tldrBullets || []).map(b => `<li>${escapeHtml(b)}</li>`).join("");
+        return `
+          <div class="summary-block">
+            ${bullets ? `<strong>TL;DR</strong><ul class="tldr-list">${bullets}</ul>` : ""}
+            <details>
+              <summary style="cursor:pointer;color:var(--muted-2)">Full summary</summary>
+              <div style="margin-top:0.5rem">
+                ${s.whatsHappening ? `<p><strong>What happened:</strong><br>${escapeHtml(s.whatsHappening)}</p>` : ""}
+                ${s.whyItMatters ? `<p><strong>Why it matters:</strong><br>${escapeHtml(s.whyItMatters)}</p>` : ""}
+                ${s.riskNote ? `<p><strong>Risks / watch outs:</strong><br>${escapeHtml(s.riskNote)}</p>` : ""}
+                ${s.disclaimer ? `<p class="summary-meta" style="opacity:0.7">${escapeHtml(s.disclaimer)}</p>` : ""}
+              </div>
+            </details>
+          </div>
+        `;
+      }
+
+      // Use morning-brief payload to drive the movers rows
+      function updateMoversFromBrief(payload) {
+        if (!payload) return;
+
+        // Biggest moves: from topPerformers
+        if (moversBigEl && Array.isArray(payload.topPerformers) && payload.topPerformers.length) {
+          const html = payload.topPerformers.slice(0, 5).map(tp => {
+            const sym = tp.symbol || "";
+            const pctNum = tp.pctGain != null ? Number(tp.pctGain) : NaN;
+            let label = "";
+            let cls = "ms-move-flat";
+
+            if (!isNaN(pctNum)) {
+              label = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+              if (pctNum > 0) cls = "ms-move-up";
+              else if (pctNum < 0) cls = "ms-move-down";
+            } else if (tp.pctGain != null) {
+              label = String(tp.pctGain);
+            }
+
+            return `
+              <li>
+                <span>${escapeHtml(sym)}</span>
+                <span class="${cls}">${escapeHtml(label)}</span>
+              </li>
+            `;
+          }).join("");
+
+          if (html) moversBigEl.innerHTML = html;
+        }
+
+        // Sectors on the move: payload.sectorMoves if present
+        if (moversSectorsEl) {
+          const sectors = payload.sectorMoves && typeof payload.sectorMoves === "object"
+            ? payload.sectorMoves
+            : null;
+
+          if (sectors) {
+            const html = Object.entries(sectors).slice(0, 5).map(([key, val]) => {
+              const name = (val && (val.label || val.name)) || key;
+              const pctNum = val && val.pctChange != null ? Number(val.pctChange) : NaN;
+              let label = "";
+              let cls = "ms-move-flat";
+
+              if (!isNaN(pctNum)) {
+                label = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+                if (pctNum > 0) cls = "ms-move-up";
+                else if (pctNum < 0) cls = "ms-move-down";
+              } else if (val && val.note) {
+                label = val.note;
+              }
+
+              return `
+                <li>
+                  <span>${escapeHtml(name)}</span>
+                  <span class="${cls}">${escapeHtml(label)}</span>
+                </li>
+              `;
+            }).join("");
+
+            if (html) moversSectorsEl.innerHTML = html;
+          }
+        }
+
+        // Themes to watch: payload.themesOfDay / themes / storylines
+        if (moversThemesEl) {
+          const themes =
+            Array.isArray(payload.themesOfDay) && payload.themesOfDay.length ? payload.themesOfDay :
+            Array.isArray(payload.themes) && payload.themes.length ? payload.themes :
+            Array.isArray(payload.storylines) && payload.storylines.length ? payload.storylines :
+            null;
+
+          if (themes) {
+            const html = themes.slice(0, 5).map(t => {
+              const name = typeof t === "string" ? t : (t.name || t.label || "");
+              const note = typeof t === "string" ? "" : (t.note || t.summary || "");
+              return `
+                <li>
+                  <span>${escapeHtml(name)}</span>
+                  <span class="ms-move-flat">${escapeHtml(note)}</span>
+                </li>
+              `;
+            }).join("");
+            if (html) moversThemesEl.innerHTML = html;
+          }
+        }
+      }
+
+      function renderMorningBrief(payload) {
+        if (!payload) {
+          briefContent.innerHTML = `<div class="brief-loading">No briefing available.</div>`;
+          return;
+        }
+
+        // --- Snapshot text (if those elements exist) ---
+        if (todaySummaryEl && payload.topLine) {
+          todaySummaryEl.textContent = payload.topLine;
+        }
+        if (todayBulletsEl && Array.isArray(payload.bullets) && payload.bullets.length) {
+          todayBulletsEl.innerHTML = payload.bullets
+            .map((b) => `<li>${escapeHtml(b)}</li>`)
+            .join("");
+        }
+
+        // ---------- Commodities (priceAUD, full dollars, no decimals) ----------
+
+        const metalsObj =
+          payload.metals && typeof payload.metals === "object"
+            ? payload.metals
+            : payload.symbols && typeof payload.symbols === "object"
+            ? payload.symbols
+            : null;
+
+        const metalRows = [];
+        if (metalsObj) {
+          const metalSymbols = Object.keys(metalsObj);
+          const friendlyMetals = {
+            XAU: "Gold",
+            XAG: "Silver",
+            IRON: "Iron Ore 62% Fe",
+            "LITH-CAR": "Lithium Carbonate",
+            NI: "Nickel",
+            URANIUM: "Uranium",
+          };
+
+          metalSymbols.slice(0, 4).forEach((sym) => {
+            const m = metalsObj[sym] || {};
+
+            const priceAUDraw = typeof m.priceAUD === "number" ? m.priceAUD : null;
+
+            // Full dollar amount, no decimals, with thousand separators
+            const price =
+              priceAUDraw !== null
+                ? "$" + Math.round(priceAUDraw).toLocaleString()
+                : "—";
+
+            let pctDisplay = "";
+            let pctClass = "brief-pct-flat";
+
+            if (m.pctChange != null) {
+              const pctNum = Number(m.pctChange);
+              if (!isNaN(pctNum)) {
+                pctDisplay = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+                if (pctNum > 0) pctClass = "brief-pct-up";
+                else if (pctNum < 0) pctClass = "brief-pct-down";
+              } else {
+                pctDisplay = String(m.pctChange);
+              }
+            }
+
+            metalRows.push({
+              label: friendlyMetals[sym] || sym,
+              price,
+              pctDisplay,
+              pctClass,
+            });
+          });
+        }
+
+        // ---------- Top performers (with company name) ----------
+
+        const perfRows = [];
+        if (Array.isArray(payload.topPerformers)) {
+          payload.topPerformers.slice(0, 6).forEach((tp) => {
+            const symbol = tp.symbol || "";
+            const name =
+              tp.companyName || tp.name || tp.company || "";
+
+            const last =
+              typeof tp.lastClose === "number"
+                ? "$" + formatMoney(tp.lastClose)
+                : tp.lastClose || "";
+
+            let pctDisplay = "";
+            let pctClass = "brief-pct-flat";
+
+            if (tp.pctGain != null) {
+              const pctNum = Number(tp.pctGain);
+              if (!isNaN(pctNum)) {
+                pctDisplay = (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+                if (pctNum > 0) pctClass = "brief-pct-up";
+                else if (pctNum < 0) pctClass = "brief-pct-down";
+              } else {
+                pctDisplay = String(tp.pctGain);
+              }
+            }
+
+            perfRows.push({
+              symbol,
+              name,
+              price: last,
+              pctDisplay,
+              pctClass,
+            });
+          });
+        }
+
+        // ---------- Build the compact board HTML ----------
+
+        let boardHtml = "";
+        if (metalRows.length || perfRows.length) {
+          boardHtml = `
+            <div class="brief-snapshot-board">
+              <div class="brief-board-grid">
+                ${
+                  metalRows.length
+                    ? `
+                  <div>
+                    <div class="brief-section-label">Commodities</div>
+                    <table class="brief-table">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Last</th>
+                          <th style="text-align:right;">24h</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${metalRows
+                          .map(
+                            (r) => `
+                          <tr>
+                            <td>${escapeHtml(r.label)}</td>
+                            <td>${escapeHtml(r.price)}</td>
+                            <td class="${r.pctClass}">
+                              ${escapeHtml(r.pctDisplay || "")}
+                            </td>
+                          </tr>`
+                          )
+                          .join("")}
+                      </tbody>
+                    </table>
+                  </div>`
+                    : ""
+                }
+                ${
+                  perfRows.length
+                    ? `
+                  <div>
+                    <div class="brief-section-label">Top moves</div>
+                    <table class="brief-table">
+                      <thead>
+                        <tr>
+                          <th>Code</th>
+                          <th>Last</th>
+                          <th style="text-align:right;">Day</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${perfRows
+                          .map(
+                            (r) => `
+                          <tr>
+                            <td class="brief-code-name-cell">
+                              <span class="brief-code">${escapeHtml(r.symbol)}</span>
+                              ${
+                                r.name
+                                  ? `<span class="brief-name">${escapeHtml(r.name)}</span>`
+                                  : ""
+                              }
+                            </td>
+                            <td>${escapeHtml(r.price)}</td>
+                            <td class="${r.pctClass}">
+                              ${escapeHtml(r.pctDisplay || "")}
+                            </td>
+                          </tr>`
+                          )
+                          .join("")}
+                      </tbody>
+                    </table>
+                  </div>`
+                    : ""
+                }
+              </div>
+            </div>
+          `;
+        }
+
+        // ---------- Morning Note + Stock of the Day ----------
+
+        const noteHtml = `
+          <div id="matesMorningNote" class="mates-note" style="display:none;margin-top:0.35rem;">
+            <div class="mates-note-header">
+              <span class="pill">Mates Morning Note</span>
+              <span class="timestamp" id="matesNoteTimestamp"></span>
+            </div>
+            <div class="mates-note-body" id="matesNoteText">Loading…</div>
+          </div>
+        `;
+
+        const sotdHtml = `
+          <div id="stockOfDay" class="sotd-card" style="display:none;margin-top:1rem;" data-symbol="ASX:VAS" data-name="Vanguard Australian Shares">
+            <div class="sotd-header">
+              <div class="sotd-title-left">
+                <span class="sotd-pill">Stock of the day</span>
+                <span class="sotd-ticker" id="sotdTicker">ASX:VAS</span>
+              </div>
+              <div style="text-align:right">
+                <div class="sotd-name" id="sotdName">Vanguard Australian Shares</div>
+              </div>
+            </div>
+            <div class="sotd-summary" id="sotdSummary">Loading...</div>
+            <div class="sotd-disclaimer">
+              Not financial advice. Just a simple snapshot to help you learn.
+            </div>
+          </div>
+        `;
+
+        briefContent.innerHTML = `
+          ${noteHtml}
+          ${boardHtml}
+          ${sotdHtml}
+        `;
+      }
+
+      /* ---------- Morning Brief: load on page load (no button) ---------- */
+
+      async function loadMorningBriefInitial() {
+        if (!briefContent) {
+          hidePageLoader();
+          return;
+        }
+        const region = "au";
+
+        briefContent.style.display = "block";
+        briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
+
+        try {
+          const res = await fetch(
+            `/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`
+          );
+          if (!res.ok) {
+            const t = await res.text();
+            throw new Error(t || "Brief fetch failed");
+          }
+          const payload = await res.json();
+          renderMorningBrief(payload);
+          loadMatesMorningNote();
+          loadStockOfTheDay();
+        } catch (err) {
+          console.error(err);
+          briefContent.innerHTML =
+            `<div class="brief-loading">Unable to load today’s brief.</div>`;
+        } finally {
+          // Always hide the full-screen loader once the Brief has resolved
+          hidePageLoader();
+        }
+      }
+
+      /* ---------- News rendering: Market mode only ---------- */
+
+      function buildNewsItem(a) {
+        const item = document.createElement("article");
+        item.className = "headline";
+
+        const title = a.title || "Untitled headline";
+        const source = a.source || a.source_name || "Source";
+        const publishedRaw = a.publishedAt || a.published || a.time;
+        const timeStr = publishedRaw ? formatTimeAgo(publishedRaw) : "";
+
+        item.innerHTML = `
+          <div class="headline-top">
+            <span class="headline-source">${escapeHtml(source)}</span>
+            ${timeStr ? `<span class="headline-time">${escapeHtml(timeStr)}</span>` : ""}
+          </div>
+          <h3 class="headline-title">${escapeHtml(title)}</h3>
+          ${
+            a.description
+              ? `<p class="headline-summary">${escapeHtml(a.description)}</p>`
+              : ""
+          }
+          <div class="meta-actions">
+            <a class="link-min" href="${a.url || "#"}" target="_blank" rel="noopener">
+              Read original
+            </a>
+            <button class="btn" type="button">MatesInvest summary</button>
+          </div>
+          <div class="summary-output"></div>
+        ";
+
+        const btn = item.querySelector("button");
+        const output = item.querySelector(".summary-output");
+        let busy = false;
+
+        btn.addEventListener("click", async () => {
+          if (busy) return;
+          busy = true;
+          btn.disabled = true;
+          const origText = btn.textContent;
+          btn.textContent = "Summarising…";
+          output.textContent = "";
+
+          try {
+            const summary = await callMatesSummary({
+              text: `${title}\n\n${a.description || ""}`,
+              sourceType: "news_article",
+              headline: title,
+            });
+            output.innerHTML = renderSummaryBlock(summary);
+          } catch (err) {
+            console.error(err);
+            output.textContent = "Summary failed.";
+          } finally {
+            btn.disabled = false;
+            btn.textContent = origText;
+            busy = false;
+          }
+        });
+
+        return item;
+      }
+
+      function renderNews() {
+        newsList.innerHTML = "";
+
+        if (!allArticles.length) {
+          newsList.innerHTML =
+            `<div class="headline"><small style="color:var(--muted)">No market headlines yet.</small></div>`;
+          return;
+        }
+
+        visibleNewsCount = 0;
+        renderMoreNews();
+      }
+
+      function renderMoreNews() {
+        if (!allArticles.length) return;
+
+        // Prevent concurrent loads
+        if (isNewsLoadingMore) return;
+        isNewsLoadingMore = true;
+
+        const start = visibleNewsCount;
+        const end = Math.min(visibleNewsCount + NEWS_PAGE_SIZE, allArticles.length);
+
+        for (let i = start; i < end; i++) {
+          const a = allArticles[i];
+          const item = buildNewsItem(a);
+          newsList.appendChild(item);
+        }
+
+        visibleNewsCount = end;
+        isNewsLoadingMore = false;
+
+        // Ensure a sentinel exists at the end so observer can see it (or remove it if finished)
+        if (visibleNewsCount >= allArticles.length) {
+          const sentinel = document.getElementById("newsSentinel");
+          if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
+
+          // optional: show end of feed
+          const endNote = document.createElement("div");
+          endNote.className = "headline";
+          endNote.innerHTML = `<small style="color:var(--muted)">End of feed</small>`;
+          newsList.appendChild(endNote);
+        } else {
+          let sentinel = document.getElementById("newsSentinel");
+          if (!sentinel) {
+            sentinel = document.createElement("div");
+            sentinel.id = "newsSentinel";
+            sentinel.style.height = "1px";
+            sentinel.style.width = "100%";
+            newsList.appendChild(sentinel);
+          } else {
+            // move sentinel to the end
+            newsList.appendChild(sentinel);
+          }
+        }
+      }
+
+      function setupNewsInfiniteScroll() {
+        // Don't crash on old browsers; first page will still show
+        if (typeof IntersectionObserver === "undefined") return;
+
+        let sentinel = document.getElementById("newsSentinel");
+        if (!sentinel) {
+          sentinel = document.createElement("div");
+          sentinel.id = "newsSentinel";
+          sentinel.style.height = "1px";
+          sentinel.style.width = "100%";
+          newsList.appendChild(sentinel);
+        }
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                if (isNewsLoadingMore) return;
+                if (visibleNewsCount >= allArticles.length) return;
+                renderMoreNews();
+              }
+            }
+          },
+          {
+            root: null,
+            rootMargin: "300px", // start loading early
+            threshold: 0.01,
+          }
+        );
+
+        observer.observe(sentinel);
+      }
+
+      async function loadNewsInitial() {
+        try {
+          feedStatus.textContent = "Loading…";
+          showSkeleton(4);
+
+          const raw = await getMarketFeed();
+
+          // AU / ASX only, then hard-cap to first 20
+          allArticles = Array.isArray(raw) ? raw.filter(isAusArticle) : [];
+          allArticles = allArticles.slice(0, MAX_NEWS_ITEMS);
+
+          if (!allArticles.length) {
+            newsList.innerHTML =
+              `<div class="headline"><small style="color:var(--muted)">No Australian headlines yet.</small></div>`;
+            feedStatus.textContent = "Live";
+            return;
+          }
+
+          renderNews(); // will render first 5
+          setupNewsInfiniteScroll();
+          feedStatus.textContent = "Live";
+        } catch (err) {
+          console.error(err);
+          newsList.innerHTML =
+            `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
+          feedStatus.textContent = "Offline";
+        }
+      }
+
+      /* ---------- Inline email signup ---------- */
+
+      (function wireInlineSignup() {
+        const form = document.getElementById("inlineSignup");
+        if (!form) return;
+        const emailInput = document.getElementById("inlineEmail");
+        const statusEl = document.getElementById("inlineStatus");
+
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const email = emailInput.value.trim();
+
+          if (!email) {
+            statusEl.textContent = "Please enter an email address.";
+            statusEl.style.color = "#dc2626";
+            return;
+          }
+
+          statusEl.textContent = "Subscribing…";
+          statusEl.style.color = "var(--muted)";
+
+          try {
+            const res = await fetch("/.netlify/functions/subscribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok || !data.ok) {
+              const msg =
+                data?.error || data?.message || "Something went wrong. Try again.";
+              statusEl.textContent = msg;
+              statusEl.style.color = "#dc2626";
+              return;
+            }
+
+            statusEl.textContent =
+              "You're in! The briefing will arrive every morning.";
+            statusEl.style.color = "#15803d";
+            emailInput.value = "";
+          } catch (err) {
+            statusEl.textContent = "Network error, try again shortly.";
+            statusEl.style.color = "#dc2626";
+          }
+        });
+      })();
+
+      /* ---------- Simple placeholder movers (initial) ---------- */
+
+      function loadPlaceholderMoversFallback() {
+        if (moversBigEl) {
+          moversBigEl.innerHTML = `
+            <li><span>ASX200</span><span class="ms-move-down">-0.5% to -1.5%</span></li>
+            <li><span>Mid caps</span><span class="ms-move-down">Under pressure</span></li>
+            <li><span>Small caps</span><span class="ms-move-flat">Choppy</span></li>
+            <li><span>Property</span><span class="ms-move-flat">Steady</span></li>
+            <li><span>Cash</span><span class="ms-move-flat">No change</span></li>
+          `;
+        }
+        if (moversSectorsEl) {
+          moversSectorsEl.innerHTML = `
+            <li><span>Resources</span><span class="ms-move-up">Stronger</span></li>
+            <li><span>Banks</span><span class="ms-move-flat">Steady</span></li>
+            <li><span>Tech</span><span class="ms-move-down">Softer</span></li>
+          `;
+        }
+        if (moversThemesEl) {
+          moversThemesEl.innerHTML = `
+            <li><span>Gold</span><span class="ms-move-up">Benefiting from higher prices</span></li>
+            <li><span>Lithium</span><span class="ms-move-flat">Sideways after recent falls</span></li>
+            <li><span>Dividends</span><span class="ms-move-flat">Focus on quality names</span></li>
+          `;
+        }
+      }
+
+      async function loadMoversFromAsx200() {
+        if (!moversBigEl && !moversSectorsEl && !moversThemesEl) return;
+
+        try {
+          const res = await fetch("/.netlify/functions/asx200-latest");
+          if (!res.ok) {
+            throw new Error(await res.text());
+          }
+          const data = await res.json();
+          const rowsRaw = data.items || data.stocks || data || [];
+          const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
+
+          if (!rows.length) {
+            throw new Error("No ASX200 rows");
+          }
+
+          const withPct = rows.filter(
+            (r) => r.pctChange != null && !isNaN(Number(r.pctChange))
+          );
+
+          // ---------- BIGGEST FALLERS ----------
+          if (moversBigEl) {
+            const losers = [...withPct]
+              .sort((a, b) => Number(a.pctChange) - Number(b.pctChange)) // most negative first
+              .slice(0, 5);
+
+            moversBigEl.innerHTML = losers
+              .map((r) => {
+                const code = r.code || r.symbol || "";
+                const name = r.name || "";
+
+                const pctNum = Number(r.pctChange);
+                const pctStr =
+                  (pctNum > 0 ? "+" : "") + pctNum.toFixed(2) + "%";
+
+                let cls = "ms-move-flat";
+                if (pctNum > 0) cls = "ms-move-up";
+                else if (pctNum < 0) cls = "ms-move-down";
+
+                return `
+                  <li>
+                    <span class="ms-mover-name-wrap">
+                      <span class="brief-code">${escapeHtml(code)}</span>
+                      ${
+                        name
+                          ? `<span class="ms-mover-name">${escapeHtml(name)}</span>`
+                          : ""
+                      }
+                    </span>
+                    <span class="${cls}">${escapeHtml(pctStr)}</span>
+                  </li>
+                `;
+              })
+              .join("");
+          }
+
+          // ---------- SECTORS ON THE MOVE ----------
+          if (moversSectorsEl) {
+            const sectorAgg = {};
+
+            withPct.forEach((r) => {
+              const sec = r.sector || r.gicSector;
+              if (!sec) return;
+              const pctNum = Number(r.pctChange);
+              if (isNaN(pctNum)) return;
+
+              if (!sectorAgg[sec]) {
+                sectorAgg[sec] = { sum: 0, count: 0 };
+              }
+              sectorAgg[sec].sum += pctNum;
+              sectorAgg[sec].count += 1;
+            });
+
+            const sectorsArr = Object.entries(sectorAgg).map(([sec, v]) => ({
+              sec,
+              avg: v.sum / v.count,
+            }));
+
+            sectorsArr.sort((a, b) => Math.abs(b.avg) - Math.abs(a.avg));
+
+            const topSecs = sectorsArr.slice(0, 3);
+
+            moversSectorsEl.innerHTML = topSecs
+              .map((s) => {
+                let label = "Steady";
+                let cls = "ms-move-flat";
+
+                if (s.avg > 0.15) {
+                  label = "Stronger";
+                  cls = "ms-move-up";
+                } else if (s.avg < -0.15) {
+                  label = "Softer";
+                  cls = "ms-move-down";
+                }
+
+                return `
+                  <li>
+                    <span>${escapeHtml(s.sec)}</span>
+                    <span class="${cls}">${escapeHtml(label)}</span>
+                  </li>
+                `;
+              })
+              .join("");
+          }
+
+          // ---------- THEMES TO WATCH (from GIC industries) ----------
+          if (moversThemesEl) {
+            const themeAgg = {};
+
+            withPct.forEach((r) => {
+              const theme = r.gicIndustry || r.gicGroup;
+              if (!theme) return;
+              const pctNum = Number(r.pctChange);
+              if (isNaN(pctNum)) return;
+
+              if (!themeAgg[theme]) {
+                themeAgg[theme] = { sum: 0, count: 0 };
+              }
+              themeAgg[theme].sum += pctNum;
+              themeAgg[theme].count += 1;
+            });
+
+            const themesArr = Object.entries(themeAgg).map(([theme, v]) => ({
+              theme,
+              avg: v.sum / v.count,
+            }));
+
+            themesArr.sort((a, b) => Math.abs(b.avg) - Math.abs(a.avg));
+
+            const topThemes = themesArr.slice(0, 3);
+
+            moversThemesEl.innerHTML = topThemes
+              .map((t) => {
+                let text = "Sideways";
+                let cls = "ms-move-flat";
+
+                if (t.avg > 0.15) {
+                  text = "Gainers";
+                  cls = "ms-move-up";
+                } else if (t.avg < -0.15) {
+                  text = "Under pressure";
+                  cls = "ms-move-down";
+                }
+
+                return `
+                  <li>
+                    <span>${escapeHtml(t.theme)}</span>
+                    <span class="${cls}">${escapeHtml(text)}</span>
+                  </li>
+                `;
+              })
+              .join("");
+          }
+        } catch (err) {
+          console.error("loadMoversFromAsx200 failed", err);
+          loadPlaceholderMoversFallback();
+        }
+      }
+
+      /* ---------- Init ---------- */
+
+      (function init() {
+        loadNewsInitial();
+        loadMoversFromAsx200();
+        loadMorningBriefInitial();
+
+        // Extra scroll-based top-up (kept from original; IntersectionObserver handles most)
+        window.addEventListener("scroll", () => {
+          if (
+            window.innerHeight + window.scrollY >=
+              document.body.offsetHeight - 400 &&
+            !isNewsLoadingMore &&
+            visibleNewsCount < allArticles.length
+          ) {
+            isNewsLoadingMore = true;
+            renderMoreNews();
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
