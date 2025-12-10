@@ -880,24 +880,83 @@ function isAusArticle(a) {
       renderMoreNews();
     }
 
-    function renderMoreNews() {
-      if (!allArticles.length) return;
+/* --- Replace the existing renderMoreNews() function with this code --- */
+function renderMoreNews() {
+  if (!allArticles.length) return;
 
-      const start = visibleNewsCount;
-      const end = Math.min(
-        visibleNewsCount + NEWS_PAGE_SIZE,
-        allArticles.length
-      );
+  // Prevent concurrent loads
+  if (isNewsLoadingMore) return;
+  isNewsLoadingMore = true;
 
-      for (let i = start; i < end; i++) {
-        const a = allArticles[i];
-        const item = buildNewsItem(a);
-        newsList.appendChild(item);
-      }
+  const start = visibleNewsCount;
+  const end = Math.min(visibleNewsCount + NEWS_PAGE_SIZE, allArticles.length);
 
-      visibleNewsCount = end;
-      isNewsLoadingMore = false;
+  for (let i = start; i < end; i++) {
+    const a = allArticles[i];
+    const item = buildNewsItem(a);
+    newsList.appendChild(item);
+  }
+
+  visibleNewsCount = end;
+  isNewsLoadingMore = false;
+
+  // If we've rendered everything, remove sentinel (if any) and append an end note
+  if (visibleNewsCount >= allArticles.length) {
+    const sentinel = document.getElementById("newsSentinel");
+    if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
+    const endNote = document.createElement("div");
+    endNote.className = "headline";
+    endNote.innerHTML = `<small style="color:var(--muted)">End of feed</small>`;
+    newsList.appendChild(endNote);
+  } else {
+    // ensure sentinel exists at the end so the observer can see it
+    let sentinel = document.getElementById("newsSentinel");
+    if (!sentinel) {
+      sentinel = document.createElement("div");
+      sentinel.id = "newsSentinel";
+      sentinel.style.height = "1px";
+      sentinel.style.width = "100%";
+      newsList.appendChild(sentinel);
+    } else {
+      // move sentinel to end
+      newsList.appendChild(sentinel);
     }
+  }
+}
+
+/* --- Add this function (anywhere in the same script scope) --- */
+function setupNewsInfiniteScroll() {
+  // If IntersectionObserver isn't supported, do nothing (page still shows first page)
+  if (typeof IntersectionObserver === "undefined") return;
+
+  let sentinel = document.getElementById("newsSentinel");
+  if (!sentinel) {
+    sentinel = document.createElement("div");
+    sentinel.id = "newsSentinel";
+    sentinel.style.height = "1px";
+    sentinel.style.width = "100%";
+    newsList.appendChild(sentinel);
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          if (isNewsLoadingMore) return;
+          if (visibleNewsCount >= allArticles.length) return;
+          renderMoreNews();
+        }
+      }
+    },
+    {
+      root: null,
+      rootMargin: "300px", // start loading before the bottom hits viewport
+      threshold: 0.01,
+    }
+  );
+
+  observer.observe(sentinel);
+}
 
     async function loadNewsInitial() {
       try {
@@ -918,6 +977,7 @@ allArticles = allArticles.slice(0, MAX_NEWS_ITEMS);
         }
 
         renderNews(); // will render first 5
+            setupNewsInfiniteScroll();
         feedStatus.textContent = "Live";
       } catch (err) {
         console.error(err);
