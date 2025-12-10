@@ -714,7 +714,55 @@
     }
 
     /* ---------- News rendering: Market mode only ---------- */
+// Return true if an article is clearly AU / ASX related
+function isAusArticle(a) {
+  if (!a) return false;
 
+  const title = (a.title || "").toLowerCase();
+  const desc = (a.description || "").toLowerCase();
+  const source = (a.source || a.source_name || "").toLowerCase();
+  const url = (a.url || "").toLowerCase();
+  const country =
+    (a.country || a.region || a.locale || "").toLowerCase();
+
+  const tags = []
+    .concat(a.tags || [], a.tickers || [], a.symbols || [])
+    .join(" ")
+    .toLowerCase();
+
+  // 1) Strong signals: country / region
+  if (country === "au" || country === "australia") return true;
+
+  // 2) URL ending in .com.au or .gov.au
+  if (url.includes(".com.au") || url.includes(".gov.au")) return true;
+
+  // 3) ASX tickers or explicit ASX mentions
+  if (
+    title.includes("asx") ||
+    desc.includes("asx") ||
+    tags.includes("asx:") ||
+    tags.includes(".ax")
+  ) {
+    return true;
+  }
+
+  // 4) Australia mentions in text
+  if (title.includes("australia") || desc.includes("australia")) return true;
+
+  // 5) Known AU business sources (rough heuristic)
+  if (
+    source.includes("afr") ||               // AFR
+    source.includes("australian") ||
+    source.includes("sydney morning herald") ||
+    source.includes("abc news") ||
+    source.includes("asx")
+  ) {
+    return true;
+  }
+
+  // Otherwise, treat as global / non-AU
+  return false;
+}
     function renderNews() {
       newsList.innerHTML = "";
 
@@ -786,20 +834,32 @@
       });
     }
 
-    async function loadNewsInitial() {
-      try {
-        feedStatus.textContent = "Loading…";
-        showSkeleton(4);
-        allArticles = await getMarketFeed();
-        renderNews();
-        feedStatus.textContent = "Live";
-      } catch (err) {
-        console.error(err);
-        newsList.innerHTML =
-          `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
-        feedStatus.textContent = "Offline";
-      }
+async function loadNewsInitial() {
+  try {
+    feedStatus.textContent = "Loading…";
+    showSkeleton(4);
+
+    const raw = await getMarketFeed();
+    // Keep only Australian / ASX related articles
+    allArticles = Array.isArray(raw) ? raw.filter(isAusArticle) : [];
+
+    // If nothing matches, fall back to a simple message
+    if (!allArticles.length) {
+      newsList.innerHTML =
+        `<div class="headline"><small style="color:var(--muted)">No Australian headlines yet.</small></div>`;
+      feedStatus.textContent = "Live";
+      return;
     }
+
+    renderNews();
+    feedStatus.textContent = "Live";
+  } catch (err) {
+    console.error(err);
+    newsList.innerHTML =
+      `<div class="headline"><small style="color:var(--muted)">Failed to load feed.</small></div>`;
+    feedStatus.textContent = "Offline";
+  }
+}
 
     /* ---------- Inline email signup ---------- */
 
