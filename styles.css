@@ -2993,5 +2993,16 @@ body{
     display: none;
   }
 }
+/* Align all 'Last' columns consistently across snapshot tables */
+.brief-table td:nth-child(2),
+.brief-table th:nth-child(2) {
+  text-align: right !important;
+}
+
+/* Optional: also right-align the % column for consistency */
+.brief-table td:nth-child(3),
+.brief-table th:nth-child(3) {
+  text-align: right !important;
+}
 
 
