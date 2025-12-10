@@ -61,7 +61,7 @@
     id="briefContent"
     class="brief-content"
     aria-live="polite"
-    style="margin-top:1rem;"
+    style="margin-top:0.4rem;"
   ></div>
 
   <!-- Inline email signup directly after brief -->
@@ -416,7 +416,7 @@ function renderMorningBrief(payload) {
     return;
   }
 
-  // --- Wire hero snapshot text ---
+  // --- Wire hero snapshot text (safe even if we removed the 20s block) ---
   if (todaySummaryEl && payload.topLine) {
     todaySummaryEl.textContent = payload.topLine;
   }
@@ -435,7 +435,7 @@ function renderMorningBrief(payload) {
   if (themeEl && payload.themeOfDay) themeEl.textContent = payload.themeOfDay;
   if (volEl && payload.volatilityLabel) volEl.textContent = payload.volatilityLabel;
 
-  // ---------- Commodities (from priceAUD / pctChange) ----------
+  // ---------- Commodities (priceAUD, full dollars, no decimals) ----------
 
   const metalsObj =
     payload.metals && typeof payload.metals === "object"
@@ -459,11 +459,12 @@ function renderMorningBrief(payload) {
     metalSymbols.slice(0, 4).forEach((sym) => {
       const m = metalsObj[sym] || {};
 
-      const priceAUDraw =
-        typeof m.priceAUD === "number" ? m.priceAUD : null;
+      const priceAUDraw = typeof m.priceAUD === "number" ? m.priceAUD : null;
+
+      // Full dollar amount, no decimals, with thousand separators
       const price =
         priceAUDraw !== null
-          ? "$" + formatMoney(priceAUDraw)
+          ? "$" + Math.round(priceAUDraw).toLocaleString()
           : "—";
 
       let pctDisplay = "";
@@ -489,12 +490,15 @@ function renderMorningBrief(payload) {
     });
   }
 
-  // ---------- Top performers (same logic, just compact) ----------
+  // ---------- Top performers (add company name) ----------
 
   const perfRows = [];
   if (Array.isArray(payload.topPerformers)) {
     payload.topPerformers.slice(0, 6).forEach((tp) => {
       const symbol = tp.symbol || "";
+      const name =
+        tp.companyName || tp.name || tp.company || "";
+
       const last =
         typeof tp.lastClose === "number"
           ? "$" + formatMoney(tp.lastClose)
@@ -515,7 +519,8 @@ function renderMorningBrief(payload) {
       }
 
       perfRows.push({
-        label: symbol,
+        symbol,
+        name,
         price: last,
         pctDisplay,
         pctClass,
@@ -579,7 +584,16 @@ function renderMorningBrief(payload) {
                     .map(
                       (r) => `
                     <tr>
-                      <td>${escapeHtml(r.label)}</td>
+                      <td>
+                        ${escapeHtml(r.symbol)}
+                        ${
+                          r.name
+                            ? `<div style="font-size:0.76rem;color:var(--muted-2);">
+                                 ${escapeHtml(r.name)}
+                               </div>`
+                            : ""
+                        }
+                      </td>
                       <td>${escapeHtml(r.price)}</td>
                       <td class="${r.pctClass}">
                         ${escapeHtml(r.pctDisplay || "")}
@@ -597,10 +611,10 @@ function renderMorningBrief(payload) {
     `;
   }
 
-  // ---------- Morning Note + Stock of the Day (same as before) ----------
+  // ---------- Morning Note + Stock of the Day ----------
 
   const noteHtml = `
-    <div id="matesMorningNote" class="mates-note" style="display:none;margin-top:1rem;">
+    <div id="matesMorningNote" class="mates-note" style="display:none;margin-top:0.35rem;">
       <div class="mates-note-header">
         <span class="pill">Mates Morning Note</span>
         <span class="timestamp" id="matesNoteTimestamp"></span>
