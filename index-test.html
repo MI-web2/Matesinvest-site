@@ -108,104 +108,59 @@
 
     <main>
       <!-- HERO -->
-      <section class="hero">
-        <div class="container grid">
-          <div>
-            <p class="hero-eyebrow">
-              Built by Aussie investors, for Aussie investors
-            </p>
-            <h1>Get the 6:05am ASX brief in plain English.</h1>
+<section class="hero">
+  <div class="container grid">
+    <div>
+      <p class="hero-eyebrow">
+        Built by Aussie investors, for Aussie investors
+      </p>
+      <h1>Get the 6:05am ASX brief in plain English.</h1>
 
-            <div class="badges">
-              <span class="badge">Plain-English ASX brief each morning</span>
-              <span class="badge">Built for retail investors</span>
-              <span class="badge">No hot tips, no hype</span>
-            </div>
+      <div class="badges">
+        <span class="badge">Plain-English ASX brief each morning</span>
+        <span class="badge">Built for retail investors</span>
+        <span class="badge">No hot tips, no hype</span>
+      </div>
 
-            <!-- Inline email signup (wired to /.netlify/functions/subscribe) -->
-            <div class="cta-row" style="margin-top:1rem;">
-              <form id="inlineSignup" class="inline-signup" style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-                <input
-                  type="email"
-                  id="inlineEmail"
-                  name="email"
-                  required
-                  placeholder="you@example.com"
-                  autocomplete="email"
-                  style="flex:1;min-width:200px;"
-                />
-                <button type="submit" class="btn btn-primary">
-                  Get the 6:05am brief
-                </button>
-              </form>
-            </div>
-            <div
-              id="inlineStatus"
-              style="font-size:13px;color:#64748b;margin-top:0.5rem;"
-            ></div>
+      <!-- Inline email signup (wired to /.netlify/functions/subscribe) -->
+      <div class="cta-row" style="margin-top:1rem;">
+        <form id="inlineSignup" class="inline-signup"
+              style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+          <input
+            type="email"
+            id="inlineEmail"
+            name="email"
+            required
+            placeholder="you@example.com"
+            autocomplete="email"
+            style="flex:1;min-width:200px;"
+          />
+          <button type="submit" class="btn btn-primary">
+            Get the 6:05am brief
+          </button>
+        </form>
+      </div>
+      <div id="inlineStatus"
+           style="font-size:13px;color:#64748b;margin-top:0.5rem;">
+      </div>
 
-            <div style="margin-top:14px;">
-              <a
-                href="#today"
-                class="btn btn-ghost"
-                style="display:inline-block;font-weight:700;"
-              >
-                View today’s ASX snapshot →
-              </a>
-            </div>
+      <div style="margin-top:14px;">
+        <a
+          href="#today"
+          class="btn btn-ghost"
+          style="display:inline-block;font-weight:700;"
+        >
+          View today’s ASX snapshot →
+        </a>
+      </div>
 
-            <p style="font-size:13px;color:#64748b;margin-top:6px;">
-              In private beta now. No trading, no “hot tips” — just context, education,
-              and tools to help you feel on top of your investing.
-            </p>
-          </div>
-
-          <div class="mockup">
-            <div
-              style="
-                background:#061a2e;
-                border-radius:16px;
-                padding:18px;
-                color:#e2e8f0;
-                box-shadow:0 10px 30px rgba(0,0,0,0.18);
-              "
-            >
-              <div
-                style="
-                  display:flex;
-                  justify-content:space-between;
-                  align-items:center;
-                  margin-bottom:8px;
-                "
-              >
-                <div>
-                  <div style="font-size:13px;color:#94a3b8;">
-                    Today&apos;s view
-                  </div>
-                  <div style="font-weight:700;font-size:16px;">
-                    ASX snapshot
-                  </div>
-                </div>
-                <div style="font-size:12px;color:#94a3b8;">
-                  Live in app &amp; email
-                </div>
-              </div>
-              <hr
-                style="
-                  border:none;
-                  border-top:1px solid rgba(148,163,184,0.45);
-                  margin:10px 0;
-                "
-              />
-              <div style="font-size:13px;line-height:1.6;">
-                <div>• ASX 200, sectors &amp; commodities at a glance</div>
-                <div>• See how moves connect back to your holdings</div>
-                <div>• Clear explanation of what actually changed</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <p style="font-size:13px;color:#64748b;margin-top:6px;">
+        In private beta now. No trading, no “hot tips” — just context, education,
+        and tools to help you feel on top of your investing.
+      </p>
+    </div>
+  </div>
+</section>
 
       <!-- TODAY'S ASX SNAPSHOT / DAILY BRIEF -->
       <section id="today" class="section alt">
