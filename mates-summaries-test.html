@@ -69,13 +69,6 @@
             </ul>
           </div>
 
-          <div class="ms-hero-cta-row">
-            <!-- Blue button kept – opens Morning Brief -->
-            <button id="openBrief" type="button" class="btn-primary">
-              Read today’s full Morning Brief
-            </button>
-          </div>
-
           <!-- Inline email signup -->
           <form id="inlineSignup">
             <input
@@ -93,9 +86,12 @@
           <div id="inlineStatus"></div>
 
           <!-- Morning Brief content (condensed-ish cards, rendered by JS) -->
-          <div id="briefContent" class="brief-content" aria-live="polite"></div>
-        </div>
-
+<div
+  id="briefContent"
+  class="brief-content"
+  aria-live="polite"
+  style="display:block"
+></div>
         <div class="ms-hero-right">
           <div class="ms-hero-statcard">
             <div class="ms-hero-stathead">
@@ -227,7 +223,6 @@
        (MatesMode, categories & sports are deliberately NOT included) */
     const newsList = document.getElementById("newsList");
     const feedStatus = document.getElementById("feedStatus");
-    const openBriefBtn = document.getElementById("openBrief");
     const briefContent = document.getElementById("briefContent");
 
     const todaySummaryEl = document.getElementById("msTodaySummary");
@@ -638,49 +633,33 @@ function renderMorningBrief(payload) {
     ${sotdHtml}
   `;
 }
-    /* ---------- Morning Brief button behaviour ---------- */
+/* ---------- Morning Brief: load on page load (no button) ---------- */
 
-    (function wireMorningBrief() {
-      if (!openBriefBtn || !briefContent) return;
+async function loadMorningBriefInitial() {
+  if (!briefContent) return;
+  const region = "au";
 
-      let isOpen = false;
-      openBriefBtn.addEventListener("click", async () => {
-        const region = "au";
+  briefContent.style.display = "block";
+  briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
 
-        if (isOpen) {
-          briefContent.style.display = "none";
-          openBriefBtn.textContent = "Read today’s full Morning Brief";
-          isOpen = false;
-          return;
-        }
-
-        briefContent.style.display = "block";
-        openBriefBtn.textContent = "Hide brief";
-        briefContent.innerHTML = `<div class="brief-loading">Loading briefing…</div>`;
-
-        try {
-          const res = await fetch(
-            `/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`
-          );
-          if (!res.ok) {
-            const t = await res.text();
-            throw new Error(t || "Brief fetch failed");
-          }
-          const payload = await res.json();
-          renderMorningBrief(payload);
-          loadMatesMorningNote();
-          loadStockOfTheDay();
-          isOpen = true;
-        } catch (err) {
-          console.error(err);
-          briefContent.innerHTML =
-            `<div class="brief-loading">Unable to load today’s brief.</div>`;
-          openBriefBtn.textContent = "Read today’s full Morning Brief";
-          isOpen = false;
-        }
-      });
-    })();
-
+  try {
+    const res = await fetch(
+      `/.netlify/functions/morning-brief?region=${encodeURIComponent(region)}`
+    );
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || "Brief fetch failed");
+    }
+    const payload = await res.json();
+    renderMorningBrief(payload);
+    loadMatesMorningNote();
+    loadStockOfTheDay();
+  } catch (err) {
+    console.error(err);
+    briefContent.innerHTML =
+      `<div class="brief-loading">Unable to load today’s brief.</div>`;
+  }
+}
     /* ---------- News rendering: Market mode only ---------- */
 
     function renderNews() {
@@ -846,11 +825,11 @@ function renderMorningBrief(payload) {
 
     /* ---------- Init ---------- */
 
-    (function init() {
-      loadNewsInitial();
-      loadPlaceholderMovers();
-      // Morning brief & inline signup wired above
-    })();
+(function init() {
+  loadNewsInitial();
+  loadPlaceholderMovers();
+  loadMorningBriefInitial();  // <- now auto-load the brief
+})();
   </script>
 </body>
 </html>
