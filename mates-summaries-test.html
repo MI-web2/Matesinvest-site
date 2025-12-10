@@ -347,12 +347,11 @@
       const container = document.getElementById("stockOfDay");
       if (!container) return;
 
-      const tickerEl = document.getElementById("sotdTicker");
-      const nameEl = document.getElementById("sotdName");
-      const exchEl = document.getElementById("sotdExchange");
-      const summaryEl = document.getElementById("sotdSummary");
+const tickerEl = document.getElementById("sotdTicker");
+const nameEl = document.getElementById("sotdName");
+const summaryEl = document.getElementById("sotdSummary");
 
-      if (!tickerEl || !nameEl || !exchEl || !summaryEl) return;
+if (!tickerEl || !nameEl || !summaryEl) return;
 
       let candidate = window._mates_sotd || null;
       if (!candidate || !candidate.symbol) {
@@ -380,7 +379,6 @@
 
         tickerEl.textContent = data.ticker || candidate.symbol || "—";
         nameEl.textContent = data.name || candidate.name || "";
-        exchEl.textContent = (data.exchange || "ASX").toUpperCase();
         summaryEl.textContent = data.summary || "No snapshot available today.";
         container.style.display = "block";
       } catch (err) {
@@ -579,23 +577,29 @@ function renderMorningBrief(payload) {
                     <th style="text-align:right;">Day</th>
                   </tr>
                 </thead>
-                <tbody>
-${perfRows
-  .map(
-    (r) => `
-  <tr>
-<td class="brief-code-name-cell">
-  <span class="brief-code">${escapeHtml(r.symbol)}</span>
-  ${
-    r.name
-      ? `<span class="brief-name">${escapeHtml(r.name)}</span>`
-      : ""
-  }
-</td>
-  </tr>`
-  )
-  .join("")}
-                </tbody>
+<tbody>
+  ${perfRows
+    .map(
+      (r) => `
+    <tr>
+      <td class="brief-code-name-cell">
+        <span class="brief-code">${escapeHtml(r.symbol)}</span>
+        ${
+          r.name
+            ? `<span class="brief-name">${escapeHtml(r.name)}</span>`
+            : ""
+        }
+      </td>
+      <td>${escapeHtml(r.price)}</td>
+      <td class="${r.pctClass}">
+        ${escapeHtml(r.pctDisplay || "")}
+      </td>
+    </tr>`
+    )
+    .join("")}
+</tbody>
+
+
               </table>
             </div>`
               : ""
