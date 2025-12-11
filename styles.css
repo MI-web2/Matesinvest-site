@@ -262,21 +262,34 @@ body{
   .cards{grid-template-columns:1fr 1fr}
   .nav nav{display:none}
   .menu-btn{display:block}
-  body.open .nav nav{
-    display:block;
-    position:absolute;
-    top:64px;
-    right:0;
-    background:#fff;
-    border:1px solid #eef1f6;
-    border-radius:12px;
-    padding:10px;
-    margin:10px;
-  }
-  body.open .nav nav a{
-    display:block;
-    padding:8px 12px;
-  }
+body.open .nav nav {
+  display: block;
+  position: absolute;
+  top: 64px;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #cfd8e3;
+  border-radius: 4px; /* Reduce the rounded edges */
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  padding: 8px 12px;
+  margin: 0; /* Remove extra margin */
+  width: auto; /* Adjust width based on dropdown items */
+  max-width: 240px; /* Ensure the dropdown isn't too wide */
+}
+
+body.open .nav nav a {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 4px; /* Consistent with dropdown box corners */
+  text-decoration: none;
+  color: #0b1220; /* Ensure text is readable */
+  font-weight: 500;
+}
+
+body.open .nav nav a:hover {
+  background: #f3f6fb;
+  color: #001220; /* Darken text on hover */
+}
 }
 @media (max-width:560px){
   .cards{grid-template-columns:1fr}
