@@ -2908,12 +2908,13 @@ body{
 }
 
 .brief-name {
-  font-size: 0.78rem;
-  color: var(--muted-2);
+  font-size: 0.88rem;
+  color: var(--text);
   max-width: 7rem; /* adjust to fit mobile */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 500; 
 }
 /* Mobile spacing tidy-up */
 @media (max-width: 768px) {
