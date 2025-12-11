@@ -3024,26 +3024,39 @@ body.open .nav nav a:hover {
 }
   /* existing loader styles... */
 
-  /* --- Mobile nav behaviour --- */
-  @media (max-width: 768px) {
-    header.nav nav {
-      display: none;
-    }
-
-    body.nav-open header.nav nav {
-      display: flex;
-      flex-direction: column;
-      position: absolute;
-      right: 1rem;
-      top: 56px;
-      background: #ffffff;
-      border-radius: 999px;
-      padding: 0.75rem 1rem;
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.28);
-      gap: 0.5rem;
-      z-index: 1000;
-    }
+/* --- Mobile nav behaviour --- */
+@media (max-width: 768px) {
+  header.nav nav {
+    display: none;
   }
+
+  body.nav-open header.nav nav {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: 56px;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.20);
+    gap: 0.5rem;
+    z-index: 1000;
+  }
+
+  body.nav-open header.nav nav a {
+    padding: 0.4rem 0;
+    text-align: left;
+    border-radius: 0;
+  }
+
+  body.nav-open header.nav nav .btn {
+    width: 100%;
+    text-align: center;
+    margin-top: 0.25rem;
+  }
+}
 #pageLoadingOverlay {
   position: fixed;
   inset: 0;
