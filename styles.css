@@ -3171,215 +3171,67 @@ body.open .nav nav a:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-/* Modal */
-.mi-ins-modal {
-  background: #0b1020;
-  color: #f9fafb;
-  border-radius: 18px;
-  max-width: 700px;
-  max-height: 90vh;       /* don’t let it grow taller than the screen */
-  overflow-y: auto;       /* scroll inside the modal */
-  width: 100%;
-  padding: 20px 22px 22px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  position: relative;
+/* ============================
+   LEARNING MODALS (shared style)
+============================ */
+
+.ms-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1.5rem;
 }
 
-/* Close button */
-.mi-ins-close {
-  position: absolute;   /* not absolute anymore */
-  top: 8px;
-  right: 12px;
-  font-size: 20px;
-  color: #9ca3af;
+.ms-modal-content {
+  background: var(--card, #ffffff);
+  border-radius: 12px;
+  max-width: 520px;
+  width: 100%;
+  padding: 1.5rem 1.75rem;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.16);
+  position: relative;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.ms-modal-close {
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
   background: transparent;
   border: none;
+  font-size: 1.4rem;
   cursor: pointer;
-  z-index: 200;          /* extra safety */
+  line-height: 1;
+  opacity: 0.6;
+}
+.ms-modal-close:hover {
+  opacity: 1;
 }
 
-.mi-ins-close:hover {
-  color: #e5e7eb;
+.ms-modal-footer {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
 }
 
-/* Header */
-.mi-ins-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-
-  position: sticky;
-  top: 0;
-  background: #0b1020;
-  z-index: 50; /* bump this up */
-  padding-bottom: 8px;
-  padding-top: 6px;
-  position: relative;
+/* Backdrop */
+.ms-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: none;
+  z-index: 9990;
 }
 
-.mi-ins-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.mi-ins-subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  color: #9ca3af;
-}
-
-/* Price block */
-.mi-ins-price-block {
-  text-align: right;
-}
-
-.mi-ins-price {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.mi-ins-change {
-  font-size: 13px;
-  margin-top: 2px;
-}
-
-.mi-ins-change.up {
-  color: #4ade80; /* green-ish */
-}
-
-.mi-ins-change.down {
-  color: #f97373; /* red-ish */
-}
-
-.mi-ins-date {
-  font-size: 11px;
-  color: #6b7280;
-  margin-top: 3px;
-}
-
-/* Tags */
-.mi-ins-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-
-.mi-ins-tag {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(31, 41, 55, 0.85);
-  color: #e5e7eb;
-  border: 1px solid rgba(55, 65, 81, 0.9);
-}
-
-/* Sections */
-.mi-ins-section {
-  margin-bottom: 14px;
-}
-
-.mi-ins-section-title {
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0 0 8px;
-  color: #d1d5db;
-}
-
-/* Stats grid */
-.mi-ins-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 16px;
-}
-
-.mi-ins-stat-item {
-  font-size: 12px;
-}
-
-.mi-ins-stat-label {
-  color: #9ca3af;
-  display: block;
-  margin-bottom: 2px;
-}
-
-.mi-ins-stat-value {
-  font-weight: 500;
-}
-
-/* History placeholder */
-.mi-ins-history-summary {
-  font-size: 12px;
-  color: #9ca3af;
-  margin-bottom: 6px;
-}
-
-.mi-ins-history-placeholder {
-  font-size: 11px;
-  color: #6b7280;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px dashed rgba(75, 85, 99, 0.8);
-}
-
-/* Mobile */
-@media (max-width: 640px) {
-  .mi-ins-modal {
-    margin: 10px;
-    padding: 16px 14px 18px;
-  }
-
-  .mi-ins-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .mi-ins-price-block {
-    text-align: left;
-  }
-
-  .mi-ins-stats-grid {
-    grid-template-columns: 1fr;
-  }
-}
-    #mi-ins-chart {
-  width: 100%;
-  height: 220px;
-  margin-top: 10px;
-}
-    .mi-ins-ai-summary {
-  font-size: 0.9rem;
-  color: #e5e7eb;
-  background: rgba(15, 23, 42, 0.65);
-  border-radius: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  line-height: 1.4;
-}
-    .brief-subtitle {
-  color: var(--muted);
-  font-size: 0.9rem;
-  margin-top: 0.25rem;
-  max-width: 30rem;
-}
-
-@media (max-width:640px) {
-  .brief-subtitle {
-    font-size: 0.8rem;
-    line-height: 1.35;
+/* Nicely handle scrolling on small screens */
+@media (max-width: 480px) {
+  .ms-modal-content {
     max-width: 100%;
+    max-height: 90vh;
+    border-radius: 10px;
   }
 }
-.segmented {
-  background: #f1f5f9;
-  border-radius: 999px;
-  padding: 3px;
-  gap: 4px;
-  border: 1px solid var(--border);
-  display: inline-flex;
-  align-items: center;
-}
-
