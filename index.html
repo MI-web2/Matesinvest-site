@@ -1676,61 +1676,57 @@ return `
         } else {
           init();
         }
-// Learning modals
-(function () {
-  function wireLearningModals() {
-    const modal1 = document.getElementById("learnModal1");
-    const modal2 = document.getElementById("learnModal2");
-    const modal3 = document.getElementById("learnModal3");
-    const backdrop = document.getElementById("learnModalBackdrop");
+    <!-- LEARNING MODAL WIRING -->
+    <script>
+      (function () {
+        function wireLearningModals() {
+          var modal1 = document.getElementById("learnModal1");
+          var modal2 = document.getElementById("learnModal2");
+          var modal3 = document.getElementById("learnModal3");
+          var backdrop = document.getElementById("learnModalBackdrop");
 
-    if (!modal1 || !modal2 || !modal3 || !backdrop) return;
+          if (!modal1 || !modal2 || !modal3 || !backdrop) return;
 
-    function openModal(modal) {
-      modal.style.display = "block";
-      backdrop.style.display = "block";
-    }
+          function openModal(modal) {
+            modal.style.display = "block";
+            backdrop.style.display = "block";
+          }
 
-    function closeAll() {
-      modal1.style.display = "none";
-      modal2.style.display = "none";
-      modal3.style.display = "none";
-      backdrop.style.display = "none";
-    }
+          function closeAll() {
+            [modal1, modal2, modal3, backdrop].forEach(function (el) {
+              if (el) el.style.display = "none";
+            });
+          }
 
-    // Connect the three learning links to the three modals
-    const links = document.querySelectorAll(".ms-learn-card a");
-    if (links.length >= 3) {
-      links[0].addEventListener("click", function (e) {
-        e.preventDefault();
-        openModal(modal1);
-      });
-      links[1].addEventListener("click", function (e) {
-        e.preventDefault();
-        openModal(modal2);
-      });
-      links[2].addEventListener("click", function (e) {
-        e.preventDefault();
-        openModal(modal3);
-      });
-    }
+          var links = document.querySelectorAll(".ms-learn-link");
+          if (links.length >= 3) {
+            links[0].addEventListener("click", function (e) {
+              e.preventDefault();
+              openModal(modal1);
+            });
+            links[1].addEventListener("click", function (e) {
+              e.preventDefault();
+              openModal(modal2);
+            });
+            links[2].addEventListener("click", function (e) {
+              e.preventDefault();
+              openModal(modal3);
+            });
+          }
 
-    // Close buttons
-    document.querySelectorAll("[data-close]").forEach((btn) => {
-      btn.addEventListener("click", closeAll);
-    });
+          document.querySelectorAll("[data-close]").forEach(function (btn) {
+            btn.addEventListener("click", closeAll);
+          });
 
-    // Backdrop closes modals
-    backdrop.addEventListener("click", closeAll);
-  }
+          backdrop.addEventListener("click", closeAll);
+        }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", wireLearningModals);
-  } else {
-    wireLearningModals();
-  }
-})();
-        })();
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", wireLearningModals);
+        } else {
+          wireLearningModals();
+        }
+      })();
     </script>
   </body>
 </html>
