@@ -968,40 +968,31 @@
                     perfRows.length
                       ? `
                     <div>
-                      <div class="brief-section-label">Top moves</div>
-                      <table class="brief-table">
-                        <thead>
-                          <tr>
-                            <th>Code</th>
-                            <th>Last</th>
-                            <th>Day</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          ${perfRows
-                            .map(
-                              (r) => `
-                            <tr>
-                              <td class="brief-code-name-cell">
-                                <span class="brief-code">${escapeHtml(
-                                  r.symbol
-                                )}</span>
-                                ${
-                                  r.name
-                                    ? `<span class="brief-name">${escapeHtml(
-                                        r.name
-                                      )}</span>`
-                                    : ""
-                                }
-                              </td>
-                              <td>${escapeHtml(r.price)}</td>
-                              <td class="${r.pctClass}">
-                                ${escapeHtml(r.pctDisplay || "")}
-                              </td>
-                            </tr>`
-                            )
-                            .join("")}
-                        </tbody>
+<div class="brief-section-label">Top moves</div>
+<table class="brief-table">
+  <thead>
+    <tr>
+      <th>Company</th>
+      <th>Last</th>
+      <th style="text-align:right;">Day</th>
+    </tr>
+  </thead>
+<tbody>
+  ${perfRows
+    .map(
+      (r) => `
+    <tr>
+      <td class="brief-code-name-cell">
+        ${escapeHtml(r.name || r.symbol || "")}
+      </td>
+      <td>${escapeHtml(r.price)}</td>
+      <td class="${r.pctClass}">
+        ${escapeHtml(r.pctDisplay || "")}
+      </td>
+    </tr>`
+    )
+    .join("")}
+</tbody>
                       </table>
                     </div>`
                       : ""
@@ -1406,21 +1397,14 @@
                   if (pctNum > 0) cls = "ms-move-up";
                   else if (pctNum < 0) cls = "ms-move-down";
 
-                  return `
-                    <li>
-                      <span class="ms-mover-name-wrap">
-                        <span class="brief-code">${escapeHtml(code)}</span>
-                        ${
-                          name
-                            ? `<span class="ms-mover-name">${escapeHtml(
-                                name
-                              )}</span>`
-                            : ""
-                        }
-                      </span>
-                      <span class="${cls}">${escapeHtml(pctStr)}</span>
-                    </li>
-                  `;
+return `
+  <li>
+    <span class="ms-mover-name">
+      ${escapeHtml(name || code || "")}
+    </span>
+    <span class="${cls}">${escapeHtml(pctStr)}</span>
+  </li>
+`;
                 })
                 .join("");
             }
