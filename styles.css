@@ -3075,15 +3075,32 @@ body{
   color: #475569; /* soft slate */
   margin: 0.35rem 0;
 }
+/* === FINAL OVERRIDES FOR SNAPSHOT TABLES === */
+
+/* cell wrapper is fine, just here in case */
+.brief-code-name-cell {
+  display: flex;
+  align-items: center;
+}
+
+/* Company names in the Top moves table */
 .brief-name {
-  font-size: .88rem;           /* closer to table body text */
-  color: var(--text);          /* black / primary */
+  font-size: 0.88rem;
+  color: #0b1220;             /* <- hard-coded black/navy text */
+  max-width: 8.5rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 500;            /* optional, but looks clean */
+  font-weight: 500;
+  margin: 0;
 }
-
-
+/* Company names in "Biggest fallers" list */
+.ms-mover-name {
+  font-size: 0.88rem;
+  color: #0b1220;             /* match main text */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 
