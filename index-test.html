@@ -982,9 +982,11 @@
     .map(
       (r) => `
     <tr>
-      <td class="brief-code-name-cell">
-        ${escapeHtml(r.name || r.symbol || "")}
-      </td>
+<td class="brief-code-name-cell">
+  <span class="brief-name">
+    ${escapeHtml(r.name || r.symbol || "")}
+  </span>
+</td>
       <td>${escapeHtml(r.price)}</td>
       <td class="${r.pctClass}">
         ${escapeHtml(r.pctDisplay || "")}
