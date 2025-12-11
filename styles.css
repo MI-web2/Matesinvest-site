@@ -3073,6 +3073,14 @@ body{
   color: #475569; /* soft slate */
   margin: 0.35rem 0;
 }
+.brief-name {
+  font-size: .88rem;           /* closer to table body text */
+  color: var(--text);          /* black / primary */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;            /* optional, but looks clean */
+}
 
 
 
