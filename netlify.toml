@@ -67,5 +67,9 @@
   from = "/content/*"
   to = "/content.html"
   status = 200
-
-
+  
+[[redirects]]
+  from = "/mates-summaries.html"
+  to = "/"
+  status = 301
+  force = true
