@@ -69,7 +69,7 @@
   status = 200
   
 [[redirects]]
-  from = "/mates-summaries.html"
+  from = "/mates-summaries"
   to = "/"
   status = 301
   force = true
