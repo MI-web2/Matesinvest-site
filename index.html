@@ -518,6 +518,97 @@
           </div>
         </div>
       </section>
+      <!-- ============================
+     LEARNING MODALS (3)
+============================ -->
+
+<!-- What is a share? -->
+<div id="learnModal1" class="ms-modal" style="display:none;">
+  <div class="ms-modal-content">
+    <button class="ms-modal-close" data-close>×</button>
+
+    <h2>What is a share?</h2>
+    <p>
+      A share represents a tiny slice of a company. When the company grows or pays
+      out profits, your slice can grow too.
+    </p>
+
+    <details style="margin-top:1rem;">
+      <summary style="cursor:pointer;">Show full explainer</summary>
+      <div style="margin-top:0.75rem;">
+        <p>
+          Shares are issued by companies to raise money. Investors buy and sell them
+          on exchanges like the ASX. When you buy a share, you become a part-owner —
+          meaning your returns depend on how that business performs over time.
+        </p>
+      </div>
+    </details>
+
+    <div class="ms-modal-footer">
+      <p style="opacity:0.7;">Learning partner links coming soon…</p>
+    </div>
+  </div>
+</div>
+
+<!-- What moves the market? -->
+<div id="learnModal2" class="ms-modal" style="display:none;">
+  <div class="ms-modal-content">
+    <button class="ms-modal-close" data-close>×</button>
+
+    <h2>What moves the market?</h2>
+    <p>
+      Markets move because of interest rates, company profits, sentiment, and global
+      events — all pushing prices up or down.
+    </p>
+
+    <details style="margin-top:1rem;">
+      <summary style="cursor:pointer;">Show full explainer</summary>
+      <div style="margin-top:0.75rem;">
+        <p>
+          Every day, pricing is shaped by earnings results, inflation numbers,
+          central-bank moves, commodity swings and investor psychology. Understanding
+          these forces helps investors make sense of short-term noise.
+        </p>
+      </div>
+    </details>
+
+    <div class="ms-modal-footer">
+      <p style="opacity:0.7;">Learning partner links coming soon…</p>
+    </div>
+  </div>
+</div>
+
+<!-- How risky is this? -->
+<div id="learnModal3" class="ms-modal" style="display:none;">
+  <div class="ms-modal-content">
+    <button class="ms-modal-close" data-close>×</button>
+
+    <h2>How risky is this?</h2>
+    <p>
+      Shares go up and down every day. Some sectors move more than others — and
+      knowing the difference helps you stay calm when things get noisy.
+    </p>
+
+    <details style="margin-top:1rem;">
+      <summary style="cursor:pointer;">Show full explanation</summary>
+      <div style="margin-top:0.75rem;">
+        <p>
+          Risk comes from volatility, economic cycles, company performance and wider
+          market sentiment. Being aware of these factors helps investors avoid
+          emotional decisions and stay focused on the long term.
+        </p>
+      </div>
+    </details>
+
+    <div class="ms-modal-footer">
+      <p style="opacity:0.7;">Learning partner links coming soon…</p>
+    </div>
+  </div>
+</div>
+
+<!-- Modal backdrop -->
+<div id="learnModalBackdrop" class="ms-modal-backdrop" style="display:none;"></div>
+
     </main>
 
     <!-- FOOTER -->
@@ -1585,7 +1676,60 @@ return `
         } else {
           init();
         }
-      })();
+// Learning modals
+(function () {
+  function wireLearningModals() {
+    const modal1 = document.getElementById("learnModal1");
+    const modal2 = document.getElementById("learnModal2");
+    const modal3 = document.getElementById("learnModal3");
+    const backdrop = document.getElementById("learnModalBackdrop");
+
+    if (!modal1 || !modal2 || !modal3 || !backdrop) return;
+
+    function openModal(modal) {
+      modal.style.display = "block";
+      backdrop.style.display = "block";
+    }
+
+    function closeAll() {
+      modal1.style.display = "none";
+      modal2.style.display = "none";
+      modal3.style.display = "none";
+      backdrop.style.display = "none";
+    }
+
+    // Connect the three learning links to the three modals
+    const links = document.querySelectorAll(".ms-learn-card a");
+    if (links.length >= 3) {
+      links[0].addEventListener("click", function (e) {
+        e.preventDefault();
+        openModal(modal1);
+      });
+      links[1].addEventListener("click", function (e) {
+        e.preventDefault();
+        openModal(modal2);
+      });
+      links[2].addEventListener("click", function (e) {
+        e.preventDefault();
+        openModal(modal3);
+      });
+    }
+
+    // Close buttons
+    document.querySelectorAll("[data-close]").forEach((btn) => {
+      btn.addEventListener("click", closeAll);
+    });
+
+    // Backdrop closes modals
+    backdrop.addEventListener("click", closeAll);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", wireLearningModals);
+  } else {
+    wireLearningModals();
+  }
+})();
     </script>
   </body>
 </html>
