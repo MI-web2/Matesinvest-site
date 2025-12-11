@@ -3119,6 +3119,7 @@ body{
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  font-weight: 400 !important;
 }
 /* === FINAL OVERRIDE: "Biggest fallers" names === */
 
