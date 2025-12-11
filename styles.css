@@ -5,6 +5,7 @@
   --card: #ffffff;
   --muted: #64748b;
   --muted-2: #94a3b8;
+  --text: #0b1220;   /* ← ADD THIS LINE */
   --accent: var(--cyan);
   --accent-strong: #0093cc;
   --accent-soft: rgba(0,191,255,0.10);
@@ -14,6 +15,7 @@
   --radius: 18px;
   --gap: 1rem;
 }
+
 
 *{box-sizing:border-box}
 html,body{height:100%}
