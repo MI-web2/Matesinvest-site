@@ -3158,6 +3158,17 @@ body.open .nav nav a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-
+.headline-summary {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Limit news headline title to 3 lines */
+.headline-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;   /* number of lines */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
