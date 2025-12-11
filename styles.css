@@ -3102,5 +3102,34 @@ body{
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* === FINAL OVERRIDES: Top moves company names === */
+
+.brief-code-name-cell {
+  display: flex;
+  align-items: center;
+}
+
+/* Company names in the "Top moves" table */
+.brief-code-name-cell .brief-name,
+.brief-table .brief-name {
+  font-size: 0.88rem;
+  color: #0b1220 !important;  /* force dark text */
+  max-width: 8.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  margin: 0;
+}
+/* === FINAL OVERRIDE: "Biggest fallers" names === */
+
+.ms-movers-list .ms-mover-name {
+  font-size: 0.88rem;
+  color: #0b1220 !important;  /* match other body text */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 
 
