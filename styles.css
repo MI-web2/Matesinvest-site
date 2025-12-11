@@ -262,33 +262,35 @@ body{
   .cards{grid-template-columns:1fr 1fr}
   .nav nav{display:none}
   .menu-btn{display:block}
+/* Clean dropdown styles */
 body.open .nav nav {
   display: block;
   position: absolute;
   top: 64px;
   right: 0;
   background: #ffffff;
-  border: 1px solid #cfd8e3;
-  border-radius: 4px; /* Reduce the rounded edges */
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
-  padding: 8px 12px;
-  margin: 0; /* Remove extra margin */
-  width: auto; /* Adjust width based on dropdown items */
-  max-width: 240px; /* Ensure the dropdown isn't too wide */
+  border: 1px solid #e2e8f0; /* Light gray border */
+  border-radius: 6px; /* Subtle rounded corners */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Soft shadow */
+  padding: 8px 16px;
+  margin: 0; /* No extra margin */
+  width: auto;
+  max-width: 200px; /* Set max width */
 }
 
 body.open .nav nav a {
   display: block;
-  padding: 8px 10px;
-  border-radius: 4px; /* Consistent with dropdown box corners */
+  padding: 8px 12px;
+  border-radius: 4px; /* Subtle rounded corners for links */
   text-decoration: none;
-  color: #0b1220; /* Ensure text is readable */
-  font-weight: 500;
+  font-size: 0.9rem; /* Slightly smaller font */
+  color: #0b1220; /* Text color */
+  font-weight: 500; /* Medium font weight for clean look */
 }
 
 body.open .nav nav a:hover {
-  background: #f3f6fb;
-  color: #001220; /* Darken text on hover */
+  background: #f3f6fb; /* Light hover background */
+  color: #001220; /* Slightly darker hover text color */
 }
 }
 @media (max-width:560px){
