@@ -1631,6 +1631,38 @@
 
           renderNews();
         }
+        // NEW: server-side search across full article universe
+async function searchRemote(term) {
+  const q = (term || "").trim();
+
+  // If query is too short, fall back to local articles
+  if (!q || q.length < 3) {
+    filteredArticles = allArticles.slice();
+    renderNews();
+    return;
+  }
+
+  feedStatus.textContent = "Searching…";
+  showSkeleton(4);
+
+  try {
+    const res = await fetch(
+      "/.netlify/functions/newsFeed?region=au&q=" +
+        encodeURIComponent(q)
+    );
+
+    const data = await res.json().catch(() => ({}));
+    filteredArticles = Array.isArray(data.articles)
+      ? data.articles
+      : [];
+
+    renderNews();
+    feedStatus.textContent = "Live";
+  } catch (err) {
+    console.error("Remote search failed", err);
+    feedStatus.textContent = "Search failed";
+  }
+}
 
         function wireNewsSearch() {
           const input = document.getElementById("newsSearch");
@@ -1640,7 +1672,7 @@
           input.addEventListener("input", () => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-              applyNewsFilter(input.value);
+searchRemote(input.value);
             }, 250);
           });
         }
