@@ -3235,3 +3235,23 @@ body.open .nav nav a:hover {
     border-radius: 10px;
   }
 }
+/* === FIX: Newsfeed article font sizing (mobile + desktop) === */
+#newsList .headline-title{
+  font-size: 0.98rem !important;
+  line-height: 1.25 !important;
+  margin: 0.35rem 0 0 !important;
+  font-weight: 700 !important;
+}
+
+#newsList .headline-summary{
+  font-size: 0.92rem !important;
+  line-height: 1.35 !important;
+  margin: 0.45rem 0 0 !important;
+  color: var(--muted) !important;
+}
+
+#newsList .headline-source,
+#newsList .headline-time{
+  font-size: 0.78rem !important;
+  line-height: 1.2 !important;
+}
