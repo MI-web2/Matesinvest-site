@@ -8,8 +8,7 @@
 //  - /.netlify/functions/newsFeed?region=au
 //  - /.netlify/functions/newsFeed?symbols=AAPL,CSL&page=1&per_page=20
 //  - /.netlify/functions/newsFeed?countries=us,ca&language=en&sentiment_gte=0
-
-// If you’re on Node 18+ in Netlify, global fetch exists already.
+//  - /.netlify/functions/newsFeed?q=iron%20ore  (NEW)
 
 exports.handler = async (event) => {
   try {
@@ -19,6 +18,14 @@ exports.handler = async (event) => {
 
     const qs = event.queryStringParameters || {};
     const region = (qs.region || "au").toLowerCase();
+
+    // NEW: unified query param for full-universe search
+    // Accept both q= and search= (so you can call either)
+    const qRaw =
+      (typeof qs.q === "string" && qs.q.trim()) ||
+      (typeof qs.search === "string" && qs.search.trim()) ||
+      "";
+    const q = qRaw.trim();
 
     const regionToCountries = {
       au: "au",
@@ -44,7 +51,7 @@ exports.handler = async (event) => {
       "filter_entities",
       "must_have_entities",
       "group_similar",
-      "search",
+      "search", // MarketAux uses this
       "domains",
     ]);
 
@@ -80,7 +87,8 @@ exports.handler = async (event) => {
         !qs.countries &&
         !qs.symbols &&
         !qs.industries &&
-        !qs.entity_types;
+        !qs.entity_types &&
+        !q;
 
       if (wantsDefaultAuBusiness) {
         url.searchParams.set("countries", regionToCountries.au);
@@ -90,9 +98,20 @@ exports.handler = async (event) => {
         url.searchParams.set("group_similar", "true");
       }
 
+      // NEW: if q is provided, push it into MarketAux search
+      if (q) {
+        url.searchParams.set("search", q);
+        // When searching, it's usually better to not group similar too aggressively
+        // (but keep whatever the user passed)
+        if (!qs.group_similar) url.searchParams.set("group_similar", "false");
+      }
+
       for (const key of Object.keys(qs)) {
         if (!ALLOWED_PARAMS.has(key)) continue;
+        // Prevent overriding our computed countries mapping
         if (key === "countries" && url.searchParams.has("countries")) continue;
+        // Prevent overriding our unified q mapping (q/search are handled above)
+        if (key === "search" && q) continue;
 
         const val = qs[key];
 
@@ -151,18 +170,34 @@ exports.handler = async (event) => {
 
       if (!url.searchParams.has("page")) url.searchParams.set("page", "1");
       if (!url.searchParams.has("per_page"))
-        url.searchParams.set("per_page", "20");
-
+        url.searchParams.set("per_page", q ? "50" : "20"); // search can return more
       marketauxUrl = url;
     }
 
     // ---------- Fetch Marketaux + EODHD in parallel ----------
     const [marketauxArticles, eodhdArticles] = await Promise.all([
       fetchMarketauxArticles(marketauxUrl),
-      fetchEodhdArticles(EODHD_TOKEN, qs, region),
+      fetchEodhdArticles(EODHD_TOKEN, qs, region, q),
     ]);
 
     let combined = [...marketauxArticles, ...eodhdArticles];
+
+    // NEW: If EODHD doesn't support query well, ensure we still filter server-side when q exists
+    if (q) {
+      const ql = q.toLowerCase();
+      combined = combined.filter((a) => {
+        const title = (a.title || "").toLowerCase();
+        const desc = (a.description || "").toLowerCase();
+        const src = (a.source || "").toLowerCase();
+        const url = (a.url || "").toLowerCase();
+        return (
+          title.includes(ql) ||
+          desc.includes(ql) ||
+          src.includes(ql) ||
+          url.includes(ql)
+        );
+      });
+    }
 
     if (!combined.length) {
       const reasonPieces = [];
@@ -187,7 +222,9 @@ exports.handler = async (event) => {
     });
 
     // Limit & give stable IDs
-    const limited = combined.slice(0, 50).map((art, idx) => ({
+    // Default: 50; when searching: 50 (already plenty for UI)
+    const cap = 50;
+    const limited = combined.slice(0, cap).map((art, idx) => ({
       ...art,
       id: idx,
     }));
@@ -277,7 +314,7 @@ async function fetchMarketauxArticles(url) {
 }
 
 // EODHD ASX / Australia-focused news
-async function fetchEodhdArticles(EODHD_TOKEN, qs, region) {
+async function fetchEodhdArticles(EODHD_TOKEN, qs, region, q) {
   try {
     if (!EODHD_TOKEN) {
       console.warn("EODHD not configured – skipping");
@@ -294,9 +331,6 @@ async function fetchEodhdArticles(EODHD_TOKEN, qs, region) {
     url.searchParams.set("fmt", "json");
 
     // --- HOW WE FOCUS IT ON AUSTRALIA ---
-
-    // 1) If the frontend ever sends `symbols=BHP,CSL` etc, we can map them to EOD tickers like BHP.AU
-    //    For now this is optional – the main AU bias comes from the topic tag below.
     let mappedTickers = null;
     if (qs.symbols) {
       const symbols = String(qs.symbols)
@@ -307,9 +341,7 @@ async function fetchEodhdArticles(EODHD_TOKEN, qs, region) {
       if (symbols.length) {
         mappedTickers = symbols
           .map((sym) => {
-            // If the user already passed a full EODHD ticker (e.g. BHP.AU), keep it
             if (sym.includes(".")) return sym;
-            // Otherwise assume ASX and append .AU
             return `${sym}.AU`;
           })
           .join(",");
@@ -317,13 +349,15 @@ async function fetchEodhdArticles(EODHD_TOKEN, qs, region) {
     }
 
     if (mappedTickers) {
-      // If we have explicit symbols, use those
       url.searchParams.set("s", mappedTickers);
     } else {
-      // Otherwise: broad AU filter via topic tag
-      // EODHD tags include country names like "KENYA" in their example,
-      // so "australia" is a good generic AU filter.
       url.searchParams.set("t", "australia");
+    }
+
+    // NEW: If a query is supplied, ask EODHD to search it as well (if supported).
+    // If EODHD ignores it, we still do server-side filtering in the handler.
+    if (q) {
+      url.searchParams.set("q", q);
     }
 
     // --- limit & basic filters ---
@@ -331,10 +365,11 @@ async function fetchEodhdArticles(EODHD_TOKEN, qs, region) {
     if (qs.per_page) {
       let n = parseInt(qs.per_page, 10);
       if (!isNaN(n) && n > 0 && n <= 100) limit = n;
+    } else if (q) {
+      limit = 50; // when searching, return more candidates
     }
     url.searchParams.set("limit", String(limit));
 
-    // Optional: date filters (if you ever add them to the UI)
     if (qs.from) url.searchParams.set("from", String(qs.from));
     if (qs.to) url.searchParams.set("to", String(qs.to));
 
