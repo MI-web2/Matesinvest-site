@@ -1,0 +1,59 @@
+{
+  "types": {
+    "technical": {
+      "label": "The Numbers Person",
+      "short": "You like logic, patterns, and understanding how things work before acting.",
+      "investing_points": [
+        "You’re drawn to data, charts, and evidence over hype.",
+        "You prefer clear signals and repeatable processes.",
+        "You feel more confident when you can measure things."
+      ],
+      "good_to_know": "Overthinking can delay starting — clarity beats perfection.",
+      "default_presets": ["technical_large_liquid", "technical_trends"]
+    },
+    "value": {
+      "label": "The Planner",
+      "short": "You like structure, discipline, and knowing you’re getting value.",
+      "investing_points": [
+        "You care about fundamentals and what something is worth.",
+        "You don’t like overpaying or chasing excitement.",
+        "You tend to be steady when others are emotional."
+      ],
+      "good_to_know": "Waiting for “perfect” can sometimes mean missing “good”.",
+      "default_presets": ["value_dividends", "value_profitable"]
+    },
+    "long_term": {
+      "label": "The Long-Game Thinker",
+      "short": "You’re patient and comfortable letting things play out over time.",
+      "investing_points": [
+        "You care more about years than weeks.",
+        "Short-term noise bothers you less than most people.",
+        "You’re naturally suited to compounding."
+      ],
+      "good_to_know": "Long-term works best when you stay engaged (even lightly).",
+      "default_presets": ["longterm_quality", "longterm_large_cap"]
+    },
+    "trader": {
+      "label": "The Fast-Mover",
+      "short": "You’re decisive and comfortable acting quickly.",
+      "investing_points": [
+        "You’re drawn to momentum and what’s moving now.",
+        "You don’t like sitting on your hands.",
+        "You’re comfortable making calls with imperfect info."
+      ],
+      "good_to_know": "Faster decisions usually mean higher risk — especially early on.",
+      "default_presets": ["momentum_movers", "high_volume"]
+    },
+    "social": {
+      "label": "The Talk-It-Through Type",
+      "short": "You value shared thinking and hearing different perspectives.",
+      "investing_points": [
+        "You don’t like doing it alone — discussion helps you learn faster.",
+        "You value trusted opinions and real-world context.",
+        "You tend to make better decisions after talking it out."
+      ],
+      "good_to_know": "Consensus helps — but clarity matters too.",
+      "default_presets": ["large_cap_staples", "dividend_large_cap"]
+    }
+  }
+}
