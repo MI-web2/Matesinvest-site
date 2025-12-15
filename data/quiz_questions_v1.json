@@ -1,0 +1,61 @@
+{
+  "quiz_id": "how_you_think_v1",
+  "version": 1,
+  "questions": [
+    {
+      "id": "q1",
+      "question": "When something matters to you, what do you rely on most?",
+      "options": [
+        { "label": "Logic and numbers", "bucket": "technical" },
+        { "label": "Whether it feels like good value", "bucket": "value" },
+        { "label": "Time — I’m happy to let things play out", "bucket": "long_term" },
+        { "label": "Acting quickly while the moment’s there", "bucket": "trader" },
+        { "label": "Talking it through with people I trust", "bucket": "social" }
+      ]
+    },
+    {
+      "id": "q2",
+      "question": "If things don’t go to plan, what’s your instinct?",
+      "options": [
+        { "label": "Re-check the details and assumptions", "bucket": "technical" },
+        { "label": "Ask whether it was worth it to begin with", "bucket": "value" },
+        { "label": "Give it time before reacting", "bucket": "long_term" },
+        { "label": "Cut it and move on", "bucket": "trader" },
+        { "label": "Get another opinion", "bucket": "social" }
+      ]
+    },
+    {
+      "id": "q3",
+      "question": "Which feels most like you?",
+      "options": [
+        { "label": "I like understanding how things work", "bucket": "technical" },
+        { "label": "I hate overpaying", "bucket": "value" },
+        { "label": "I’m patient if the end result makes sense", "bucket": "long_term" },
+        { "label": "I don’t like waiting around", "bucket": "trader" },
+        { "label": "I think better out loud", "bucket": "social" }
+      ]
+    },
+    {
+      "id": "q4",
+      "question": "What makes you most uncomfortable?",
+      "options": [
+        { "label": "Not having enough information", "bucket": "technical" },
+        { "label": "Paying too much", "bucket": "value" },
+        { "label": "Constantly changing direction", "bucket": "long_term" },
+        { "label": "Sitting still for too long", "bucket": "trader" },
+        { "label": "Making decisions alone", "bucket": "social" }
+      ]
+    },
+    {
+      "id": "q5",
+      "question": "When you make a good decision, it’s usually because you:",
+      "options": [
+        { "label": "Thought it through logically", "bucket": "technical" },
+        { "label": "Stayed disciplined", "bucket": "value" },
+        { "label": "Played the long game", "bucket": "long_term" },
+        { "label": "Moved at the right time", "bucket": "trader" },
+        { "label": "Listened to others", "bucket": "social" }
+      ]
+    }
+  ]
+}
