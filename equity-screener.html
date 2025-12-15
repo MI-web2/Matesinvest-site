@@ -998,6 +998,83 @@
       let filteredItems = [];
       let miCurrentCode = null;
 let sortState = { key: "marketCap", direction: "desc" };
+// ---- MatesInvest: Preset loader (for how-you-think quiz) ----
+let SCREENER_PRESETS = null;
+
+async function loadScreenerPresets() {
+  if (SCREENER_PRESETS) return SCREENER_PRESETS;
+  try {
+    const res = await fetch("/data/screener_presets.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("Failed to load screener presets");
+    const json = await res.json();
+    SCREENER_PRESETS = json.presets || {};
+  } catch (e) {
+    console.warn("Preset load failed:", e);
+    SCREENER_PRESETS = {};
+  }
+  return SCREENER_PRESETS;
+}
+
+// Map preset filters to YOUR screener filter variables / inputs.
+// Edit this mapping once and it’ll work for all presets.
+function applyPresetFilters(preset) {
+  if (!preset || !preset.filters) return;
+
+  const f = preset.filters;
+
+  // Examples: map to whatever variables/inputs your screener uses
+  // 1) Market cap min (in $m)
+  if (f.market_cap_min_m != null) {
+    // If you have an input, set it. Otherwise set your internal filter var.
+    const elCapMin = document.querySelector("#filterMarketCapMin");
+    if (elCapMin) elCapMin.value = String(f.market_cap_min_m);
+    window.__marketCapMinM = Number(f.market_cap_min_m);
+  }
+
+  // 2) Dividend yield min (%)
+  if (f.dividend_yield_min != null) {
+    const elDivMin = document.querySelector("#filterDividendMin");
+    if (elDivMin) elDivMin.value = String(f.dividend_yield_min);
+    window.__divYieldMin = Number(f.dividend_yield_min);
+  }
+
+  // 3) Positive EBITDA / revenue (booleans)
+  if (f.ebitda_positive === true) window.__ebitdaPositiveOnly = true;
+  if (f.revenue_positive === true) window.__revenuePositiveOnly = true;
+}
+
+function applyPresetSort(preset) {
+  if (!preset || !preset.sort) return;
+  // You need to map these to however your table sorting works.
+  // Common pattern: set sortField/sortDir then rerender.
+  window.__sortField = preset.sort.field;
+  window.__sortDir = preset.sort.direction;
+}
+
+// Call this after screener data is loaded and UI inputs exist.
+async function applyPresetsFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const presetParam = params.get("preset");
+  if (!presetParam) return;
+
+  const presets = (await loadScreenerPresets()) || {};
+  const ids = presetParam.split(",").map(s => s.trim()).filter(Boolean);
+
+  ids.forEach(id => {
+    const p = presets[id];
+    if (p) {
+      applyPresetFilters(p);
+      applyPresetSort(p);
+    }
+  });
+
+  // Now re-run your normal render / filter pipeline:
+  // Replace these with your actual functions:
+  if (typeof applyFilters === "function") applyFilters();
+  if (typeof renderTable === "function") renderTable();
+  if (typeof renderScreener === "function") renderScreener();
+}
+// ---- end preset loader ----
 
 
       // Filters dropdown toggle
