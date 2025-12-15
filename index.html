@@ -1018,51 +1018,40 @@
             container.style.display = "block";
           }
         }
+  async function loadStockOfTheDay() {
+    const container = document.getElementById("stockOfDay");
+    if (!container) return;
 
-        async function loadStockOfTheDay() {
-          const container = document.getElementById("stockOfDay");
-          if (!container) return;
+    const tickerEl = document.getElementById("sotdTicker");
+    const nameEl = document.getElementById("sotdName");
+    const summaryEl = document.getElementById("sotdSummary");
+    if (!tickerEl || !nameEl || !summaryEl) return;
 
-          const tickerEl = document.getElementById("sotdTicker");
-          const nameEl = document.getElementById("sotdName");
-          const summaryEl = document.getElementById("sotdSummary");
-          if (!tickerEl || !nameEl || !summaryEl) return;
+    try {
+      // Let the backend decide (Upstash topPerformers:latest)
+      const res = await fetch(
+        "/.netlify/functions/stockOfTheDay?region=au"
+      );
 
-          let candidate = window._mates_sotd || null;
-          if (!candidate || !candidate.symbol) {
-            candidate = {
-              symbol: container.dataset.symbol || "ASX:VAS",
-              name: container.dataset.name || "Vanguard Australian Shares",
-            };
-          }
+      if (!res.ok) {
+        throw new Error("Stock of the Day request failed");
+      }
 
-          if (!candidate || !candidate.symbol) {
-            container.style.display = "none";
-            return;
-          }
+      const data = await res.json();
 
-          try {
-            const params = new URLSearchParams();
-            params.set("symbol", candidate.symbol);
-            if (candidate.name) params.set("name", candidate.name);
-            params.set("exchange", "ASX");
+      // Defensive rendering
+      tickerEl.textContent = data.ticker || "—";
+      nameEl.textContent = data.name || "";
+      summaryEl.textContent =
+        data.summary || "No snapshot available today.";
 
-            const res = await fetch(
-              "/.netlify/functions/stockOfTheDay?" + params.toString()
-            );
-            const data = await res.json();
-
-            tickerEl.textContent = data.ticker || candidate.symbol || "—";
-            nameEl.textContent = data.name || candidate.name || "";
-            summaryEl.textContent =
-              data.summary || "No snapshot available today.";
-            container.style.display = "block";
-          } catch (err) {
-            console.error("loadStockOfTheDay failed", err);
-            summaryEl.textContent = "Unable to load today’s stock.";
-            container.style.display = "block";
-          }
-        }
+      container.style.display = "block";
+    } catch (err) {
+      console.error("loadStockOfTheDay failed", err);
+      summaryEl.textContent = "Unable to load today’s stock.";
+      container.style.display = "block";
+    }
+  }
 
         function renderSummaryBlock(s) {
           if (!s) return "";
