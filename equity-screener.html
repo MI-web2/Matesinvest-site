@@ -1019,23 +1019,16 @@ async function loadScreenerPresets() {
 // Edit this mapping once and it’ll work for all presets.
 function applyPresetFilters(preset) {
   if (!preset || !preset.filters) return;
-
   const f = preset.filters;
 
-  // Examples: map to whatever variables/inputs your screener uses
-  // 1) Market cap min (in $m)
+  // market_cap_min_m is A$m in presets, but your UI is A$bn
   if (f.market_cap_min_m != null) {
-    // If you have an input, set it. Otherwise set your internal filter var.
-    const elCapMin = document.querySelector("#filterMarketCapMin");
-    if (elCapMin) elCapMin.value = String(f.market_cap_min_m);
-    window.__marketCapMinM = Number(f.market_cap_min_m);
+    mcMinInput.value = String(Number(f.market_cap_min_m) / 1000);
   }
 
-  // 2) Dividend yield min (%)
+  // dividend_yield_min is % already
   if (f.dividend_yield_min != null) {
-    const elDivMin = document.querySelector("#filterDividendMin");
-    if (elDivMin) elDivMin.value = String(f.dividend_yield_min);
-    window.__divYieldMin = Number(f.dividend_yield_min);
+    dyMinInput.value = String(f.dividend_yield_min);
   }
 
   // 3) Positive EBITDA / revenue (booleans)
@@ -1097,8 +1090,9 @@ async function applyPresetsFromQuery() {
               : "n/a"
           }`;
 
-          populateSectorFilter(rawItems);
-          applyFilters();
+populateSectorFilter(rawItems);
+await applyPresetsFromQuery(); // 👈 this is the missing “last step”
+applyFilters();
         } catch (e) {
           console.error(e);
           tableBody.innerHTML =
