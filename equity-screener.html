@@ -1038,11 +1038,19 @@ function applyPresetFilters(preset) {
 
 function applyPresetSort(preset) {
   if (!preset || !preset.sort) return;
-  // You need to map these to however your table sorting works.
-  // Common pattern: set sortField/sortDir then rerender.
-  window.__sortField = preset.sort.field;
-  window.__sortDir = preset.sort.direction;
+
+  const fieldMap = {
+    market_cap_m: "marketCap",
+    dividend_yield: "dividendYield",
+    // daily_move_pct: ???  (see note below)
+  };
+
+  const mappedKey = fieldMap[preset.sort.field] || preset.sort.field;
+
+  sortState.key = mappedKey;
+  sortState.direction = preset.sort.direction === "asc" ? "asc" : "desc";
 }
+
 
 // Call this after screener data is loaded and UI inputs exist.
 async function applyPresetsFromQuery() {
