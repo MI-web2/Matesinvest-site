@@ -3341,4 +3341,43 @@ body.open .nav nav a:hover {
     grid-column: 1;
   }
 }
+/* Adjust the snapshot section styling for desktop */
+@media (min-width: 900px) {
+  .ms-hero {
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr); /* Reduce snapshot area width */
+    gap: 2rem; /* Increase spacing between content and cards */
+  }
+
+  .ms-hero-left {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start; /* Align text to the left */
+    justify-content: center; /* Add better vertical alignment */
+    padding: 1rem; /* Add padding to make content more compact */
+  }
+
+  .ms-hero-right {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)); /* Use 3 small cards in a grid */
+    gap: 1.5rem; /* Add space between cards */
+  }
+
+  .ms-hero-statcard {
+    padding: 1rem; /* Reduce padding for compactness */
+    min-height: 150px; /* Unified height for consistency */
+  }
+}
+
+@media (max-width: 900px) {
+  /* Ensure mobile remains perfect */
+  .ms-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .ms-hero-right {
+    display: block;
+  }
+}
 
