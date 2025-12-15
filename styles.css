@@ -3380,4 +3380,40 @@ body.open .nav nav a:hover {
     display: block;
   }
 }
+/* Fix the grid layout for .card.ms-hero on desktop */
+@media (min-width: 900px) {
+  .card.ms-hero {
+    display: flex; /* Use flex instead of grid */
+    flex-direction: column; /* Stack content vertically */
+    gap: 1.5rem; /* Add spacing between items */
+    padding: 1.5rem; /* Add responsive padding */
+    width: 100%; /* Use full width */
+  }
 
+  .ms-hero-left, 
+  .briefContent, 
+  .brief-snapshot-board {
+    display: block; /* Ensure all sections are treated similarly */
+    width: 100%; /* Full width for unified appearance */
+  }
+
+  .brief-snapshot-board {
+    margin-top: 1rem; /* Slight adjustment to spacing */
+    padding: 1.5rem; /* Add padding for better structure */
+    background: #f9fbff; /* Retain background for design consistency */
+    border-radius: 14px; /* Uniform rounded edges */
+  }
+}
+
+/* Mobile layout (retain current design) */
+@media (max-width: 900px) {
+  .card.ms-hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .ms-hero-right {
+    display: block;
+  }
+}
