@@ -9,250 +9,311 @@
   <!-- Global site styles -->
   <link rel="stylesheet" href="/styles.css">
 
-  <!-- Open Graph -->
-  <meta property="og:title" content="How you usually make decisions" />
+  <!-- Open Graph (keep non-financey) -->
+  <meta property="og:title" content="How do you usually make decisions?" />
   <meta property="og:description" content="30 seconds. No sign-up. Weirdly accurate." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="/assets/matesfeed-og.png" />
 
-  <!-- Page-specific styles only -->
   <style>
-    .quiz-wrap {
-      max-width: 820px;
+    .quiz-wrap{
+      max-width: 860px;
       margin: 0 auto;
       padding: 1.25rem 1rem 3rem;
     }
 
-    .quiz-hero h1 {
-      font-size: 1.6rem;
-      line-height: 1.25;
-      margin-bottom: 0.5rem;
+    /* Hero */
+    .quiz-hero{
+      padding: 1rem 1rem 1.1rem;
+      border-radius: 24px;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.10);
+      border: 1px solid rgba(0,0,0,0.06);
     }
 
-    .quiz-sub {
+    .quiz-brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom: 10px;
+    }
+    .quiz-logo{
+      width:36px;
+      height:36px;
+      border-radius: 10px;
+      object-fit: contain;
+    }
+    .quiz-mark{
+      font-weight: 850;
+      letter-spacing:-0.3px;
+      font-size: 16px;
+      opacity: 0.92;
+      text-transform: lowercase;
+    }
+
+    /* Non-financey, “shareable” hero visual */
+    .quiz-hero-visual{
+      display:flex;
+      gap:10px;
+      overflow-x:auto;
+      padding:10px 4px 14px;
+      margin: 10px 0 14px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    .quiz-hero-visual::-webkit-scrollbar{ display:none; }
+
+    /* IMPORTANT: renamed to avoid colliding with answer badge .pill */
+    .style-pill{
+      flex:0 0 auto;
+      scroll-snap-align:start;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background:#fff;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+      border: 1px solid rgba(0,0,0,0.06);
+      white-space: nowrap;
+      user-select:none;
+    }
+
+    .hero-eyebrow{
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.78rem;
       color: var(--muted);
-      font-size: 0.95rem;
-      margin-bottom: 1rem;
+      margin: 0 0 0.55rem;
     }
 
-    .quiz-actions {
-      display: flex;
+    .quiz-hero h1{
+      font-size: 1.8rem;
+      line-height: 1.15;
+      margin: 0 0 0.55rem;
+    }
+
+    .quiz-sub{
+      color: var(--muted);
+      font-size: 1rem;
+      margin: 0 0 0.95rem;
+      max-width: 44ch;
+    }
+
+    .quiz-actions{
+      display:flex;
       gap: 0.6rem;
       flex-wrap: wrap;
+      align-items:center;
     }
 
-    .quiz-card {
-      margin-top: 1rem;
-    }
-
-    .quiz {
-      display: none;
-    }
-    .quiz.on {
-      display: block;
-    }
-
-    .progress {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.8rem;
+    .micro{
+      margin-top: 0.65rem;
+      font-size: 0.78rem;
       color: var(--muted);
-      margin-bottom: 0.75rem;
     }
 
-    .dots {
-      display: flex;
-      gap: 6px;
+    /* Quiz card */
+    .quiz-card{
+      margin-top: 1rem;
+      border-radius: 24px;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.10);
+      border: 1px solid rgba(0,0,0,0.06);
     }
-    .dot {
+
+    .quiz{ display:none; }
+    .quiz.on{ display:block; }
+
+    .progress{
+      display:flex;
+      justify-content: space-between;
+      align-items:center;
+      gap: 0.75rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 0.8rem;
+    }
+
+    .dots{ display:flex; gap: 6px; }
+    .dot{
       width: 8px;
       height: 8px;
       border-radius: 50%;
       border: 1px solid var(--border);
     }
-    .dot.on {
+    .dot.on{
       background: var(--accent);
       border-color: var(--accent);
     }
 
-    .qtitle {
-      font-size: 1.15rem;
-      margin-bottom: 0.75rem;
+    .qtitle{
+      font-size: 1.18rem;
+      line-height: 1.25;
+      margin-bottom: 0.8rem;
     }
 
-    .answers {
-      display: flex;
+    .answers{
+      display:flex;
       flex-direction: column;
-      gap: 0.6rem;
+      gap: 0.65rem;
     }
 
-    .answer {
+    .answer{
       border: 1px solid var(--border);
       background: #fff;
-      border-radius: 12px;
-      padding: 0.75rem 0.9rem;
+      border-radius: 14px;
+      padding: 0.85rem 0.95rem;
       cursor: pointer;
       transition: transform 0.08s ease, box-shadow 0.12s ease;
-      display: flex;
+      display:flex;
+      gap: 0.8rem;
+      align-items:flex-start;
+    }
+    .answer:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(15,23,42,0.10);
+    }
+
+    /* This is the answer badge. KEEP as .pill */
+    .pill{
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      flex-shrink:0;
+      background: rgba(0,0,0,0.02);
+    }
+
+    .answer strong{
+      font-size: 0.98rem;
+      display:block;
+      margin-bottom: 2px;
+    }
+    .answer span{
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.25;
+    }
+
+    /* Result */
+    .result{ display:none; margin-top: 1rem; }
+    .result.on{ display:block; }
+
+    .result h2{
+      font-size: 1.45rem;
+      margin: 0 0 0.35rem;
+      line-height: 1.15;
+    }
+
+    .bridge{
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0 0 1rem;
+      max-width: 56ch;
+    }
+
+    .result-box{
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 0.95rem;
+      background:#fff;
+      margin-bottom: 1rem;
+    }
+
+    .result-box h3{
+      font-size: 0.72rem;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.55rem;
+    }
+
+    .result-grid{
+      display:grid;
+      grid-template-columns: 1fr;
       gap: 0.75rem;
     }
 
-    .answer:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 20px rgba(15,23,42,0.12);
+    .result-chip{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      padding: 0.7rem 0.75rem;
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 14px;
+      background: rgba(0,0,0,0.02);
     }
-
-    .pill {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      border: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      font-size: 0.8rem;
-      flex-shrink: 0;
-    }
-
-    .answer strong {
-      font-size: 0.95rem;
-      display: block;
-    }
-
-    .result {
-      display: none;
-      margin-top: 1rem;
-    }
-    .result.on {
-      display: block;
-    }
-
-    .result h2 {
-      font-size: 1.4rem;
-      margin-bottom: 0.4rem;
-    }
-
-    .bridge {
-      color: var(--muted);
-      font-size: 0.9rem;
-      margin-bottom: 1rem;
-    }
-
-    .result-box {
-      border: 1px solid var(--border);
+    .result-emoji{
+      width: 34px;
+      height: 34px;
       border-radius: 12px;
-      padding: 0.9rem;
-      background: #fff;
-      margin-bottom: 1rem;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:#fff;
+      border:1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+      flex-shrink:0;
+      font-size: 18px;
     }
+    .result-chip strong{ display:block; margin-bottom: 2px; }
+    .result-chip p{ margin:0; color: var(--muted); font-size: 0.92rem; line-height:1.25; }
 
-    .result-box h3 {
-      font-size: 0.7rem;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+    .footer-note{
+      font-size: 0.78rem;
       color: var(--muted);
-      margin-bottom: 0.4rem;
+      margin-top: 0.85rem;
     }
-
-    .footer-note {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 0.75rem;
-    }
-    .quiz-brand{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  margin-bottom:14px;
-}
-
-.quiz-logo{
-  width:34px;
-  height:34px;
-  border-radius:10px;
-  object-fit:contain;
-}
-
-.quiz-mark{
-  font-weight:800;
-  letter-spacing:-0.3px;
-  font-size:16px;
-  opacity:0.9;
-}
-.quiz-hero-visual{
-  display:flex;
-  gap:10px;
-  overflow-x:auto;
-  padding:10px 4px 14px;
-  margin:14px 0 18px;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-}
-
-.quiz-hero-visual::-webkit-scrollbar{
-  display:none;
-}
-
-.pill{
-  flex:0 0 auto;
-  scroll-snap-align:start;
-  font-size:13px;
-  padding:8px 12px;
-  border-radius:999px;
-  background:#fff;
-  box-shadow:0 6px 18px rgba(0,0,0,0.06);
-  border:1px solid rgba(0,0,0,0.06);
-  white-space:nowrap;
-}
-
-    .quiz-card{
-  border-radius:24px;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.10);
-  border: 1px solid rgba(0,0,0,0.06);
-}
-
-
   </style>
 </head>
 
 <body>
-
   <div class="quiz-wrap">
 
     <!-- HERO -->
     <div class="card quiz-hero" id="hero">
-        <!-- BRAND / LOGO -->
-  <div class="quiz-brand">
-    <img src="/assets/logo-placeholder.png"
-         alt="MatesInvest"
-         class="quiz-logo" />
-    <div class="quiz-mark">matesinvest</div>
-  </div>
 
-  <!-- HERO VISUAL -->
-  <div class="quiz-hero-visual">
-    <div class="pill">🧠 Numbers</div>
-    <div class="pill">📋 Planner</div>
-    <div class="pill">🌱 Long game</div>
-    <div class="pill">⚡ Fast mover</div>
-    <div class="pill">🗣️ Talk-it-through</div>
-  </div>
+      <!-- BRAND -->
+      <div class="quiz-brand">
+        <img
+          src="/assets/matesinvest-mark.svg"
+          onerror="this.src='/assets/logo-placeholder.png';"
+          alt="MatesInvest"
+          class="quiz-logo"
+        />
+        <div class="quiz-mark">matesinvest</div>
+      </div>
+
+      <!-- HERO VISUAL (non-financey) -->
+      <div class="quiz-hero-visual" aria-hidden="true">
+        <div class="style-pill">🧠 Numbers</div>
+        <div class="style-pill">📋 Planner</div>
+        <div class="style-pill">🌱 Long game</div>
+        <div class="style-pill">⚡ Fast mover</div>
+        <div class="style-pill">🗣️ Talk-it-through</div>
+      </div>
+
       <p class="hero-eyebrow">30 seconds · no sign-up · no right answers</p>
       <h1>How do you usually make decisions?</h1>
-      <p class="quiz-sub">
-      It’s a quick look at how you think — and how people like you often approach markets.
+
+      <p class="quiz-sub" id="heroSub">
+        Quick check on how your brain works. (It’s weirdly accurate.)
       </p>
 
       <div class="quiz-actions">
         <button class="btn-primary" id="startBtn">Start</button>
         <button class="btn-ghost" id="shareLinkBtn">Copy link</button>
       </div>
+
+      <div class="micro" id="microLine">
+        Aussie-made. Built for mates. No finance jargon.
+      </div>
     </div>
 
     <!-- QUIZ -->
     <div class="card quiz quiz-card" id="quizCard" aria-live="polite">
-
       <div class="progress">
         <div class="dots" id="dots"></div>
         <div id="progressText">Question 1 of 5</div>
@@ -261,7 +322,7 @@
       <div class="qtitle" id="qTitle">Loading…</div>
       <div class="answers" id="answers"></div>
 
-      <div class="quiz-actions" style="margin-top:0.75rem;">
+      <div class="quiz-actions" style="margin-top:0.85rem;">
         <button class="btn-ghost" id="restartBtn" style="display:none;">Restart</button>
       </div>
     </div>
@@ -273,8 +334,13 @@
       <p class="bridge" id="resultBridge"></p>
 
       <div class="result-box">
-        <h3>When it comes to money and investing</h3>
-        <div id="investingBlock"></div>
+        <h3>What this can mean for money & investing</h3>
+
+        <div class="result-grid" id="resultGrid"></div>
+
+        <div class="footer-note" style="margin-top:0.75rem;">
+          Examples are educational only and not financial advice. MatesInvest doesn’t know your personal circumstances.
+        </div>
       </div>
 
       <div class="quiz-actions">
@@ -283,8 +349,8 @@
         <button class="btn-ghost" id="copyResultBtn">Copy result</button>
       </div>
 
-      <div class="footer-note">
-        Examples are educational only and not financial advice. MatesInvest doesn’t know your personal circumstances.
+      <div class="footer-note" id="footerNote">
+        Tip: share it in the group chat and see who’s the “fast mover”.
       </div>
     </div>
 
