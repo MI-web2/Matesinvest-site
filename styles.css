@@ -3279,3 +3279,18 @@ body.open .nav nav a:hover {
   font-size: 0.78rem !important;
   line-height: 1.2 !important;
 }
+/* Full-width "Today's ASX snapshot" section on desktop only */
+@media (min-width: 1001px) {
+  #today.today-full {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+  }
+
+  #today.today-full > .container {
+    max-width: 1400px;   /* adjust to taste */
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
