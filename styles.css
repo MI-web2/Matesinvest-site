@@ -3293,4 +3293,25 @@ body.open .nav nav a:hover {
     padding-right: 24px;
   }
 }
+/* Desktop layout for snapshot card content */
+@media (min-width: 1001px) {
+
+  /* Snapshot card container */
+  .ms-hero {
+    padding: 28px 32px;
+  }
+
+  /* The injected brief content */
+  .brief-content {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 20px 28px;
+  }
+
+  /* Force key blocks to span full width */
+  .brief-content > .brief-note,
+  .brief-content > .brief-stock {
+    grid-column: 1 / -1;
+  }
+}
 
