@@ -1,20 +1,37 @@
-/* /scripts/how-you-think.js 
+/* /scripts/how-you-think.js
    MatesInvest "How You Think" quiz
    - Non-financey hook
    - 5 questions
    - Scoring into 5 buckets
    - Randomised answer order (per question render)
    - Stores to localStorage
-   - Shareable result URL (?r=technical)
-   - "See examples" routes to screener preset
+   - Shareable result URL (?r=technical&s=value)
+   - "See examples" routes to thinking-style education pages
 */
 
 (() => {
   const QUIZ_ID = "how_you_think_v1";
   const LS_KEY = `mates_quiz_${QUIZ_ID}`;
 
-  // Update this if your screener page URL is different:
+  // Kept for future use (not used in current flow)
   const SCREENER_URL = "/equity-screener.html";
+
+  // NEW: Thinking-style pages (education pages)
+  const THINKING_PAGES = {
+    value: "/thinking-style/planner.html",
+    technical: "/thinking-style/numbers.html",
+    long_term: "/thinking-style/long-game.html",
+    trader: "/thinking-style/fast-mover.html",
+    social: "/thinking-style/talk-it-through.html",
+  };
+
+  function getThinkingUrl(primary, secondary) {
+    const base = THINKING_PAGES[primary] || "/thinking-style/planner.html";
+    const u = new URL(window.location.origin + base);
+    u.searchParams.set("r", primary);
+    if (secondary) u.searchParams.set("s", secondary);
+    return u.toString();
+  }
 
   const TYPES = {
     technical: {
@@ -239,7 +256,7 @@
     const secondScore = entries[1][1];
     const primaryScore = entries[0][1];
 
-    const secondary = (secondScore === primaryScore) ? second : null;
+    const secondary = secondScore === primaryScore ? second : null;
 
     return {
       quiz_id: QUIZ_ID,
@@ -255,7 +272,7 @@
       localStorage.setItem(LS_KEY, JSON.stringify(payload));
     } catch (_) {}
 
-    // CHANGED: store secondary in URL too (s=)
+    // store secondary in URL too (s=)
     const u = new URL(window.location.href);
     u.searchParams.set("r", payload.result.primary);
     if (payload.result.secondary) u.searchParams.set("s", payload.result.secondary);
@@ -305,17 +322,12 @@
       resultGrid.appendChild(el);
     });
 
+    // CHANGED: route to thinking-style pages (education)
     seeExamplesBtn.onclick = () => {
-      const presetList = secondary
-        ? [...new Set([...p.presets, ...s.presets])]
-        : p.presets;
-
-      const url = new URL(window.location.origin + SCREENER_URL);
-      url.searchParams.set("preset", presetList.join(","));
-      window.location.href = url.toString();
+      window.location.href = getThinkingUrl(primary, secondary);
     };
 
-    // CHANGED: include secondary in share URL
+    // include secondary in share URL
     const shareUrl = new URL(window.location.href);
     shareUrl.searchParams.set("r", primary);
     if (secondary) shareUrl.searchParams.set("s", secondary);
@@ -401,13 +413,12 @@
   }
 
   function tryShowSharedResult() {
-    // CHANGED: read both r (primary) and s (secondary)
     const r = getParam("r");
     const s = getParam("s");
 
     if (!r || !TYPES[r]) return false;
 
-    const secondary = (s && TYPES[s] && s !== r) ? s : null;
+    const secondary = s && TYPES[s] && s !== r ? s : null;
 
     const payload = {
       quiz_id: QUIZ_ID,
@@ -432,7 +443,6 @@
 
     doYourOwnBtn?.addEventListener("click", () => {
       const u = new URL(window.location.href);
-      // CHANGED: clear both
       u.searchParams.delete("r");
       u.searchParams.delete("s");
       window.history.replaceState({}, "", u.toString());
@@ -446,7 +456,6 @@
 
     restartBtn.addEventListener("click", () => {
       const u = new URL(window.location.href);
-      // CHANGED: clear both
       u.searchParams.delete("r");
       u.searchParams.delete("s");
       window.history.replaceState({}, "", u.toString());
