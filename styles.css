@@ -3417,3 +3417,50 @@ body.open .nav nav a:hover {
     display: block;
   }
 }
+/* ================================
+   Thinking Style pages (ts-*)
+   Additive styles for /thinking-style/*
+================================= */
+
+.container.narrow { max-width: 780px; }
+
+.ts-hero { padding: 22px 0 6px; }
+.ts-sub { margin-top: 8px; color: var(--muted); }
+
+.ts-block { padding: 16px 0; }
+.ts-block h2 { margin: 0 0 10px; }
+.ts-list { margin: 10px 0 0; padding-left: 18px; }
+.ts-note, .ts-intro { margin-top: 10px; color: var(--muted); }
+
+.ts-block.alt{
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 16px;
+  padding: 18px;
+  margin: 14px 0;
+}
+
+.ts-cards{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ts-card{
+  background: #fff;
+  border: 1px solid rgba(15,23,42,0.08);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 10px 24px rgba(15,23,42,0.06);
+}
+
+.ts-cta{ padding: 16px 0 6px; }
+
+.small{ font-size: 0.92rem; line-height: 1.45; }
+.muted{ color: var(--muted); }
+
+.ts-block.quote{
+  text-align: center;
+  font-weight: 600;
+}
