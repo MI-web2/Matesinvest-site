@@ -156,6 +156,8 @@
   const seeExamplesBtn = document.getElementById("seeExamplesBtn");
   const shareBtn = document.getElementById("shareBtn");
   const copyResultBtn = document.getElementById("copyResultBtn");
+   const doYourOwnBtn = document.getElementById("doYourOwnBtn");
+
 
   // State
   let idx = 0;
@@ -426,6 +428,15 @@
       const u = new URL(window.location.href);
       await copyToClipboard(u.toString());
     });
+     doYourOwnBtn?.addEventListener("click", () => {
+  const u = new URL(window.location.href);
+  u.searchParams.delete("r");
+  window.history.replaceState({}, "", u.toString());
+
+  hero.style.display = "";
+  quizCard.classList.remove("on");
+  resultCard.classList.remove("on");
+});
 
     startBtn.addEventListener("click", showQuiz);
 
