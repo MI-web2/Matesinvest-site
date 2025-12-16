@@ -269,7 +269,6 @@
       answersEl.appendChild(btn);
     });
   }
-
   function handleAnswer(bucket) {
     scores[bucket] += 1;
     answers.push(bucket);
@@ -287,11 +286,13 @@
     postQuizEvent({
       quiz_id: QUIZ_ID,
       session_id: getSessionId(),
-      result: result.result,     // { primary, secondary }
+      result: result.result, // { primary, secondary }
       utm: getUtm(),
     });
 
     showResult(result);
+  }
+
   function calculateResult(s) {
     const entries = Object.entries(s).sort((a, b) => b[1] - a[1]);
     const primary = entries[0][0];
