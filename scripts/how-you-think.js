@@ -3,6 +3,7 @@
    - Non-financey hook
    - 5 questions
    - Scoring into 5 buckets
+   - Randomised answer order (per question render)
    - Stores to localStorage
    - Shareable result URL (?r=technical)
    - "See examples" routes to screener preset
@@ -73,60 +74,69 @@
     },
   };
 
-  // 5 questions, each answer maps to one bucket.
-  // Keep copy everyday-life first, money later.
+  // ✅ Set A questions (mates-y)
   const QUESTIONS = [
     {
-      q: "When something matters to you, what do you rely on most?",
+      q: "When there’s a decision to make, you’re the mate who…",
       a: [
-        { k: "technical", title: "Logic and numbers", sub: "You like the facts." },
-        { k: "value", title: "Whether it feels like good value", sub: "You hate overpaying." },
-        { k: "long_term", title: "Time", sub: "You’re happy to let it play out." },
-        { k: "trader", title: "Speed", sub: "You act while the moment’s there." },
-        { k: "social", title: "People I trust", sub: "You like a second opinion." },
+        { k: "technical", title: "opens Notes and starts doing the maths", sub: "" },
+        { k: "value", title: "asks “yeah but what’s the catch?”", sub: "" },
+        { k: "long_term", title: "says “let’s not rush it”", sub: "" },
+        { k: "trader", title: "says “send it”", sub: "" },
+        { k: "social", title: "starts a group chat about it", sub: "" },
       ],
     },
     {
-      q: "If things don’t go to plan, what’s your instinct?",
+      q: "Someone pitches you an idea that sounds unreal. Your first move is:",
       a: [
-        { k: "technical", title: "Re-check the details", sub: "What changed? What did I miss?" },
-        { k: "value", title: "Ask if it was worth it", sub: "Did I pay too much for this?" },
-        { k: "long_term", title: "Give it time", sub: "No need to react straight away." },
-        { k: "trader", title: "Cut it and move on", sub: "Reset and go again." },
-        { k: "social", title: "Get another opinion", sub: "Talk it through first." },
+        { k: "technical", title: "“show me the numbers”", sub: "" },
+        { k: "value", title: "“what’s it actually worth?”", sub: "" },
+        { k: "long_term", title: "“I’ll think about it”", sub: "" },
+        { k: "trader", title: "“I’m in — I’ll see how it goes”", sub: "" },
+        { k: "social", title: "“I’ll ask a couple people”", sub: "" },
       ],
     },
     {
-      q: "Which sentence sounds most like you?",
+      q: "You get $200 you didn’t expect. What do you do?",
       a: [
-        { k: "technical", title: "I like understanding how things work", sub: "If I get it, I’m calm." },
-        { k: "value", title: "I hate overpaying", sub: "Value matters to me." },
-        { k: "long_term", title: "I’m patient if it makes sense", sub: "I can wait." },
-        { k: "trader", title: "I don’t like waiting around", sub: "I want movement." },
-        { k: "social", title: "I think better out loud", sub: "Talking helps me decide." },
+        { k: "technical", title: "compare options and optimise it", sub: "" },
+        { k: "value", title: "put it towards something sensible", sub: "" },
+        { k: "long_term", title: "chuck it somewhere and forget about it", sub: "" },
+        { k: "trader", title: "try to flip it into more quickly", sub: "" },
+        { k: "social", title: "ask mates what they’d do", sub: "" },
       ],
     },
     {
-      q: "What makes you most uncomfortable?",
+      q: "What annoys you the most?",
       a: [
-        { k: "technical", title: "Not enough info", sub: "I want clarity before I commit." },
-        { k: "value", title: "Paying too much", sub: "That feeling annoys me for ages." },
-        { k: "long_term", title: "Constantly changing direction", sub: "I prefer a steady plan." },
-        { k: "trader", title: "Sitting still too long", sub: "I want something happening." },
-        { k: "social", title: "Doing it alone", sub: "I like shared thinking." },
+        { k: "technical", title: "people making calls with no data", sub: "" },
+        { k: "value", title: "paying too much", sub: "" },
+        { k: "long_term", title: "overreacting to small stuff", sub: "" },
+        { k: "trader", title: "waiting around", sub: "" },
+        { k: "social", title: "deciding alone", sub: "" },
       ],
     },
     {
-      q: "When you make a good decision, it’s usually because you:",
+      q: "Pick the most “you” sentence:",
       a: [
-        { k: "technical", title: "Thought it through logically", sub: "You trust reasoning." },
-        { k: "value", title: "Stayed disciplined", sub: "You kept it sensible." },
-        { k: "long_term", title: "Played the long game", sub: "You didn’t rush it." },
-        { k: "trader", title: "Moved at the right time", sub: "Timing matters to you." },
-        { k: "social", title: "Listened to others", sub: "You value perspective." },
+        { k: "technical", title: "“If I understand it, I’m calm.”", sub: "" },
+        { k: "value", title: "“I just don’t want to overpay.”", sub: "" },
+        { k: "long_term", title: "“Time does the heavy lifting.”", sub: "" },
+        { k: "trader", title: "“I’d rather be early than late.”", sub: "" },
+        { k: "social", title: "“I want other views before I decide.”", sub: "" },
       ],
     },
   ];
+
+  // ---------- NEW: shuffle helper ----------
+  function shuffleArray(arr) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
 
   // DOM
   const hero = document.getElementById("hero");
@@ -150,7 +160,7 @@
   // State
   let idx = 0;
   let scores = resetScores();
-  let answers = [];
+  let answers = []; // ✅ store bucket keys, not letters
 
   function resetScores() {
     return { technical: 0, value: 0, long_term: 0, trader: 0, social: 0 };
@@ -179,21 +189,25 @@
     qTitle.textContent = q.q;
     answersEl.innerHTML = "";
 
-    q.a.forEach((opt, i) => {
+    // ✅ Randomise answer order each render
+    const shuffled = shuffleArray(q.a);
+
+    shuffled.forEach((opt) => {
       const btn = document.createElement("div");
       btn.className = "answer";
       btn.setAttribute("role", "button");
       btn.setAttribute("tabindex", "0");
 
+      // ✅ No pill / letter / emoji cues.
+      // Keep layout consistent with your CSS: strong + optional sub line.
       btn.innerHTML = `
-        <div class="pill">${String.fromCharCode(65 + i)}</div>
-        <div>
+        <div style="width:100%;">
           <strong>${opt.title}</strong>
-          <span>${opt.sub}</span>
+          ${opt.sub ? `<span>${opt.sub}</span>` : ``}
         </div>
       `;
 
-      const pick = () => handleAnswer(opt.k, String.fromCharCode(65 + i));
+      const pick = () => handleAnswer(opt.k);
 
       btn.addEventListener("click", pick);
       btn.addEventListener("keydown", (e) => {
@@ -204,9 +218,9 @@
     });
   }
 
-  function handleAnswer(bucket, letter) {
+  function handleAnswer(bucket) {
     scores[bucket] += 1;
-    answers.push(letter);
+    answers.push(bucket);
 
     if (idx < QUESTIONS.length - 1) {
       idx += 1;
@@ -225,7 +239,6 @@
     const primary = entries[0][0];
     const primaryScore = entries[0][1];
 
-    // Secondary only if tied or close (makes it feel human)
     const second = entries[1][0];
     const secondScore = entries[1][1];
 
@@ -234,7 +247,7 @@
     return {
       quiz_id: QUIZ_ID,
       completed_at: new Date().toISOString(),
-      answers,
+      answers, // ✅ bucket sequence (randomised UI won’t break it)
       scores: s,
       result: { primary, secondary },
     };
@@ -273,12 +286,11 @@
     const p = TYPES[primary];
     const s = secondary ? TYPES[secondary] : null;
 
-    // Bridge copy: friendly + Aussie tone, not finance-forward
     resultBridge.textContent = secondary
       ? `You’re a mix of ${p.label} and ${s.label}. That combo is more common than you think.`
       : `You’re closest to ${p.label}. No good or bad — just how you tend to think.`;
 
-    // Build result blocks
+    // Build result blocks (kept as-is)
     resultGrid.innerHTML = "";
     [p, s].filter(Boolean).forEach((t) => {
       const el = document.createElement("div");
@@ -295,7 +307,7 @@
       resultGrid.appendChild(el);
     });
 
-    // Wire examples button
+    // Wire examples button (kept as-is)
     seeExamplesBtn.onclick = () => {
       const presetList = secondary
         ? [...new Set([...p.presets, ...s.presets])]
@@ -306,7 +318,7 @@
       window.location.href = url.toString();
     };
 
-    // Share actions
+    // Share actions (kept as-is)
     const shareUrl = new URL(window.location.href);
     shareUrl.searchParams.set("r", primary);
 
@@ -354,7 +366,6 @@
       await navigator.clipboard.writeText(str);
       toast("Copied ✔");
     } catch (_) {
-      // Fallback
       const ta = document.createElement("textarea");
       ta.value = str;
       document.body.appendChild(ta);
@@ -366,7 +377,6 @@
   }
 
   function toast(msg) {
-    // tiny minimal toast, no CSS dependency
     const t = document.createElement("div");
     t.textContent = msg;
     t.style.position = "fixed";
@@ -397,7 +407,6 @@
     const r = getParam("r");
     if (!r || !TYPES[r]) return false;
 
-    // If someone opens shared link, show result immediately (viral loop)
     const payload = {
       quiz_id: QUIZ_ID,
       completed_at: new Date().toISOString(),
@@ -413,16 +422,14 @@
   }
 
   function init() {
-    // Copy link button (always copies the clean URL without random params except r if present)
     shareLinkBtn.addEventListener("click", async () => {
       const u = new URL(window.location.href);
-      // keep r if present, remove anything else later if you add it
       await copyToClipboard(u.toString());
     });
 
     startBtn.addEventListener("click", showQuiz);
+
     restartBtn.addEventListener("click", () => {
-      // remove r param when restarting
       const u = new URL(window.location.href);
       u.searchParams.delete("r");
       window.history.replaceState({}, "", u.toString());
@@ -437,11 +444,7 @@
 
     buildDots();
 
-    // If someone came from a share link, show the result directly
     if (tryShowSharedResult()) return;
-
-    // Otherwise, if they’ve done it before, you could optionally show “Continue” / “See your result”
-    // Keeping it simple for v1: do nothing.
   }
 
   init();
