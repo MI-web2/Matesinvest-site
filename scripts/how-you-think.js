@@ -89,11 +89,11 @@
     {
       q: "Someone pitches you an idea that sounds unreal. Your first move is:",
       a: [
-        { k: "technical", title: "“show me the numbers”", sub: "" },
-        { k: "value", title: "“what’s it actually worth?”", sub: "" },
-        { k: "long_term", title: "“I’ll think about it”", sub: "" },
-        { k: "trader", title: "“I’m in — I’ll see how it goes”", sub: "" },
-        { k: "social", title: "“I’ll ask a couple people”", sub: "" },
+        { k: "technical", title: "show me the numbers", sub: "" },
+        { k: "value", title: "what’s it actually worth?", sub: "" },
+        { k: "long_term", title: "I’ll think about it", sub: "" },
+        { k: "trader", title: "I’m in — I’ll see how it goes", sub: "" },
+        { k: "social", title: "I’ll ask a couple people", sub: "" },
       ],
     },
     {
@@ -119,11 +119,11 @@
     {
       q: "Pick the most “you” sentence:",
       a: [
-        { k: "technical", title: "“If I understand it, I’m calm.”", sub: "" },
-        { k: "value", title: "“I just don’t want to overpay.”", sub: "" },
-        { k: "long_term", title: "“Time does the heavy lifting.”", sub: "" },
-        { k: "trader", title: "“I’d rather be early than late.”", sub: "" },
-        { k: "social", title: "“I want other views before I decide.”", sub: "" },
+        { k: "technical", title: "If I understand it, I’m calm.", sub: "" },
+        { k: "value", title: "I just don’t want to overpay.", sub: "" },
+        { k: "long_term", title: "Time does the heavy lifting.", sub: "" },
+        { k: "trader", title: "I’d rather be early than late.", sub: "" },
+        { k: "social", title: "I want other views before I decide.", sub: "" },
       ],
     },
   ];
