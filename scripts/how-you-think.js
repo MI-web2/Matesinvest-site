@@ -13,6 +13,43 @@
   const QUIZ_ID = "how_you_think_v1";
   const LS_KEY = `mates_quiz_${QUIZ_ID}`;
 
+     // --- Analytics (Upstash via Netlify) ---
+  const QUIZ_EVENT_URL = "/.netlify/functions/quizEvent";
+  const SESSION_KEY = `mates_quiz_session_${QUIZ_ID}`;
+
+  function getSessionId() {
+    try {
+      let sid = localStorage.getItem(SESSION_KEY);
+      if (!sid) {
+        sid = (crypto?.randomUUID?.() || `sid_${Math.random().toString(16).slice(2)}_${Date.now()}`).slice(0, 48);
+        localStorage.setItem(SESSION_KEY, sid);
+      }
+      return sid;
+    } catch (_) {
+      return `sid_${Math.random().toString(16).slice(2)}_${Date.now()}`.slice(0, 48);
+    }
+  }
+
+  function getUtm() {
+    const u = new URL(window.location.href);
+    return {
+      source: u.searchParams.get("utm_source"),
+      medium: u.searchParams.get("utm_medium"),
+      campaign: u.searchParams.get("utm_campaign"),
+    };
+  }
+
+  async function postQuizEvent(payload) {
+    try {
+      await fetch(QUIZ_EVENT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+    } catch (_) {}
+  }
+
   // Kept for future use (not used in current flow)
   const SCREENER_URL = "/equity-screener.html";
 
@@ -245,9 +282,16 @@
 
     const result = calculateResult(scores);
     persistResult(result);
-    showResult(result);
-  }
 
+    // ✅ Send to Upstash (only on real completion)
+    postQuizEvent({
+      quiz_id: QUIZ_ID,
+      session_id: getSessionId(),
+      result: result.result,     // { primary, secondary }
+      utm: getUtm(),
+    });
+
+    showResult(result);
   function calculateResult(s) {
     const entries = Object.entries(s).sort((a, b) => b[1] - a[1]);
     const primary = entries[0][0];
