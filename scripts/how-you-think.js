@@ -1,4 +1,4 @@
-/* /scripts/how-you-think.js
+/* /scripts/how-you-think.js 
    MatesInvest "How You Think" quiz
    - Non-financey hook
    - 5 questions
@@ -128,7 +128,7 @@
     },
   ];
 
-  // ---------- NEW: shuffle helper ----------
+  // ---------- shuffle helper ----------
   function shuffleArray(arr) {
     const copy = [...arr];
     for (let i = copy.length - 1; i > 0; i--) {
@@ -156,13 +156,12 @@
   const seeExamplesBtn = document.getElementById("seeExamplesBtn");
   const shareBtn = document.getElementById("shareBtn");
   const copyResultBtn = document.getElementById("copyResultBtn");
-   const doYourOwnBtn = document.getElementById("doYourOwnBtn");
-
+  const doYourOwnBtn = document.getElementById("doYourOwnBtn");
 
   // State
   let idx = 0;
   let scores = resetScores();
-  let answers = []; // ✅ store bucket keys, not letters
+  let answers = []; // store bucket keys
 
   function resetScores() {
     return { technical: 0, value: 0, long_term: 0, trader: 0, social: 0 };
@@ -191,7 +190,6 @@
     qTitle.textContent = q.q;
     answersEl.innerHTML = "";
 
-    // ✅ Randomise answer order each render
     const shuffled = shuffleArray(q.a);
 
     shuffled.forEach((opt) => {
@@ -200,8 +198,6 @@
       btn.setAttribute("role", "button");
       btn.setAttribute("tabindex", "0");
 
-      // ✅ No pill / letter / emoji cues.
-      // Keep layout consistent with your CSS: strong + optional sub line.
       btn.innerHTML = `
         <div style="width:100%;">
           <strong>${opt.title}</strong>
@@ -230,7 +226,6 @@
       return;
     }
 
-    // Finish
     const result = calculateResult(scores);
     persistResult(result);
     showResult(result);
@@ -239,17 +234,17 @@
   function calculateResult(s) {
     const entries = Object.entries(s).sort((a, b) => b[1] - a[1]);
     const primary = entries[0][0];
-    const primaryScore = entries[0][1];
 
     const second = entries[1][0];
     const secondScore = entries[1][1];
+    const primaryScore = entries[0][1];
 
     const secondary = (secondScore === primaryScore) ? second : null;
 
     return {
       quiz_id: QUIZ_ID,
       completed_at: new Date().toISOString(),
-      answers, // ✅ bucket sequence (randomised UI won’t break it)
+      answers,
       scores: s,
       result: { primary, secondary },
     };
@@ -260,9 +255,11 @@
       localStorage.setItem(LS_KEY, JSON.stringify(payload));
     } catch (_) {}
 
-    // Build shareable URL param
+    // CHANGED: store secondary in URL too (s=)
     const u = new URL(window.location.href);
     u.searchParams.set("r", payload.result.primary);
+    if (payload.result.secondary) u.searchParams.set("s", payload.result.secondary);
+    else u.searchParams.delete("s");
     window.history.replaceState({}, "", u.toString());
   }
 
@@ -292,7 +289,6 @@
       ? `You’re a mix of ${p.label} and ${s.label}. That combo is more common than you think.`
       : `You’re closest to ${p.label}. No good or bad — just how you tend to think.`;
 
-    // Build result blocks (kept as-is)
     resultGrid.innerHTML = "";
     [p, s].filter(Boolean).forEach((t) => {
       const el = document.createElement("div");
@@ -309,7 +305,6 @@
       resultGrid.appendChild(el);
     });
 
-    // Wire examples button (kept as-is)
     seeExamplesBtn.onclick = () => {
       const presetList = secondary
         ? [...new Set([...p.presets, ...s.presets])]
@@ -320,9 +315,11 @@
       window.location.href = url.toString();
     };
 
-    // Share actions (kept as-is)
+    // CHANGED: include secondary in share URL
     const shareUrl = new URL(window.location.href);
     shareUrl.searchParams.set("r", primary);
+    if (secondary) shareUrl.searchParams.set("s", secondary);
+    else shareUrl.searchParams.delete("s");
 
     const shareText = buildShareText(primary, secondary);
     shareBtn.onclick = async () => shareSmart(shareText, shareUrl.toString());
@@ -357,9 +354,7 @@
         });
         return;
       }
-    } catch (_) {
-      // fall back to copy
-    }
+    } catch (_) {}
     await copyToClipboard(text + " " + url);
   }
 
@@ -406,16 +401,22 @@
   }
 
   function tryShowSharedResult() {
+    // CHANGED: read both r (primary) and s (secondary)
     const r = getParam("r");
+    const s = getParam("s");
+
     if (!r || !TYPES[r]) return false;
+
+    const secondary = (s && TYPES[s] && s !== r) ? s : null;
 
     const payload = {
       quiz_id: QUIZ_ID,
       completed_at: new Date().toISOString(),
       answers: [],
       scores: {},
-      result: { primary: r, secondary: null },
+      result: { primary: r, secondary },
     };
+
     hero.style.display = "none";
     quizCard.classList.remove("on");
     resultCard.classList.add("on");
@@ -428,21 +429,26 @@
       const u = new URL(window.location.href);
       await copyToClipboard(u.toString());
     });
-     doYourOwnBtn?.addEventListener("click", () => {
-  const u = new URL(window.location.href);
-  u.searchParams.delete("r");
-  window.history.replaceState({}, "", u.toString());
 
-  hero.style.display = "";
-  quizCard.classList.remove("on");
-  resultCard.classList.remove("on");
-});
+    doYourOwnBtn?.addEventListener("click", () => {
+      const u = new URL(window.location.href);
+      // CHANGED: clear both
+      u.searchParams.delete("r");
+      u.searchParams.delete("s");
+      window.history.replaceState({}, "", u.toString());
+
+      hero.style.display = "";
+      quizCard.classList.remove("on");
+      resultCard.classList.remove("on");
+    });
 
     startBtn.addEventListener("click", showQuiz);
 
     restartBtn.addEventListener("click", () => {
       const u = new URL(window.location.href);
+      // CHANGED: clear both
       u.searchParams.delete("r");
+      u.searchParams.delete("s");
       window.history.replaceState({}, "", u.toString());
       hero.style.display = "";
       quizCard.classList.remove("on");
