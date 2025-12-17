@@ -97,22 +97,6 @@
         background: rgba(15, 23, 42, 0.02);
       }
 
-      .nav-pill {
-        font-size: 0.85rem;
-        text-decoration: none;
-        padding: 0.35rem 0.9rem;
-        border-radius: 999px;
-        background: var(--accent);
-        color: #001220;
-        font-weight: 600;
-        border: 1px solid transparent;
-        box-shadow: 0 7px 16px rgba(15, 23, 42, 0.18);
-      }
-
-      .nav-pill:hover {
-        background: var(--accent-strong);
-      }
-
       header {
         margin-bottom: 1rem;
       }
@@ -246,6 +230,70 @@
         box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.08);
       }
 
+      /* ---------- NEW: Thinking-style preset buttons ---------- */
+
+      .preset-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        align-items: center;
+        margin: 0.55rem 0 0.55rem;
+        padding: 0.55rem 0.55rem 0.6rem;
+        border-radius: 16px;
+        border: 1px solid rgba(0, 32, 64, 0.08);
+        background: rgba(255, 255, 255, 0.75);
+      }
+
+      .preset-title {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin-right: 0.25rem;
+        white-space: nowrap;
+      }
+
+      .preset-btn {
+        border: 1px solid rgba(0, 32, 64, 0.12);
+        background: rgba(255, 255, 255, 0.9);
+        color: #0b1220;
+        border-radius: 999px;
+        padding: 0.42rem 0.7rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+        transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      }
+
+      .preset-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
+        background: #ffffff;
+      }
+
+      .preset-btn:active {
+        transform: translateY(0px);
+      }
+
+      .preset-btn.active {
+        border-color: rgba(0, 191, 255, 0.55);
+        background: rgba(0, 191, 255, 0.12);
+      }
+
+      .preset-btn.secondary {
+        font-weight: 600;
+        background: rgba(15, 23, 42, 0.04);
+      }
+
+      .preset-hint {
+        width: 100%;
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin-top: 0.2rem;
+      }
+
       /* ---------- TABLE / LAYOUT ---------- */
 
       .table-wrapper {
@@ -349,14 +397,14 @@
         position: sticky;
         top: 0;
         left: 0;
-        z-index: 4; /* above other headers */
+        z-index: 4;
         background: #f1f5f9;
       }
 
       td.sticky-col {
         position: sticky;
         left: 0;
-        z-index: 2; /* above body cells, below headers */
+        z-index: 2;
         background: #ffffff;
       }
 
@@ -391,14 +439,17 @@
         }
 
         .filters-caption {
-          display: none; /* hide long caption on very small screens */
+          display: none;
+        }
+
+        .preset-title {
+          width: 100%;
         }
       }
 
       /* ---------- LANDSCAPE / SHORT-HEIGHT PHONE FIX ---------- */
       @media screen and (max-height: 500px),
-             screen and (orientation: landscape) and (max-width: 1024px) {
-
+        screen and (orientation: landscape) and (max-width: 1024px) {
         header {
           margin-bottom: 0.5rem;
         }
@@ -417,268 +468,250 @@
           margin-bottom: 0.5rem;
         }
 
-        /* make table area taller in landscape so it's usable */
         .table-scroll {
           max-height: calc(100vh - 170px);
         }
       }
 
-      /* ---------- Instrument modal (shared with mates-summaries) ---------- */
+      /* ---------- Instrument modal ---------- */
 
-.mi-ins-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
+      .mi-ins-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
 
-.mi-ins-modal {
-  background: #0b1020;
-  color: #f9fafb;
-  border-radius: 18px;
-  max-width: 700px;
-  max-height: 90vh;
-  overflow-y: auto;
-  width: 100%;
-  padding: 20px 22px 22px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  position: relative;
-}
+      .mi-ins-modal {
+        background: #0b1020;
+        color: #f9fafb;
+        border-radius: 18px;
+        max-width: 700px;
+        max-height: 90vh;
+        overflow-y: auto;
+        width: 100%;
+        padding: 20px 22px 22px;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        position: relative;
+      }
 
-.mi-ins-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-  position: sticky;
-  top: 0;
-  background: #0b1020;
-  z-index: 50;
-  padding-bottom: 8px;
-  padding-top: 6px;
-}
+      .mi-ins-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 14px;
+        position: sticky;
+        top: 0;
+        background: #0b1020;
+        z-index: 50;
+        padding-bottom: 8px;
+        padding-top: 6px;
+      }
 
-.mi-ins-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
+      .mi-ins-title {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+      }
 
-.mi-ins-subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  color: #9ca3af;
-}
+      .mi-ins-subtitle {
+        margin-top: 4px;
+        font-size: 13px;
+        color: #9ca3af;
+      }
 
-.mi-ins-price-block {
-  text-align: right;
-}
+      .mi-ins-price-block {
+        text-align: right;
+      }
 
-.mi-ins-price {
-  font-size: 20px;
-  font-weight: 600;
-}
+      .mi-ins-price {
+        font-size: 20px;
+        font-weight: 600;
+      }
 
-.mi-ins-change {
-  font-size: 13px;
-  margin-top: 2px;
-}
+      .mi-ins-change {
+        font-size: 13px;
+        margin-top: 2px;
+      }
 
-.mi-ins-change.up {
-  color: #4ade80;
-}
+      .mi-ins-change.up {
+        color: #4ade80;
+      }
 
-.mi-ins-change.down {
-  color: #f97373;
-}
+      .mi-ins-change.down {
+        color: #f97373;
+      }
 
-.mi-ins-date {
-  font-size: 11px;
-  color: #6b7280;
-  margin-top: 3px;
-}
+      .mi-ins-date {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: 3px;
+      }
 
-.mi-ins-close {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  font-size: 20px;
-  color: #9ca3af;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  z-index: 200;
-}
+      .mi-ins-close {
+        position: absolute;
+        top: 8px;
+        right: 12px;
+        font-size: 20px;
+        color: #9ca3af;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        z-index: 200;
+      }
 
-.mi-ins-close:hover {
-  color: #e5e7eb;
-}
+      .mi-ins-close:hover {
+        color: #e5e7eb;
+      }
 
-.mi-ins-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 16px;
-}
+      .mi-ins-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 16px;
+      }
 
-.mi-ins-tag {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(31, 41, 55, 0.85);
-  color: #e5e7eb;
-  border: 1px solid rgba(55, 65, 81, 0.9);
-}
+      .mi-ins-tag {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: rgba(31, 41, 55, 0.85);
+        color: #e5e7eb;
+        border: 1px solid rgba(55, 65, 81, 0.9);
+      }
 
-.mi-ins-section {
-  margin-bottom: 14px;
-}
+      .mi-ins-section {
+        margin-bottom: 14px;
+      }
 
-.mi-ins-section-title {
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0 0 8px;
-  color: #d1d5db;
-}
+      .mi-ins-section-title {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 8px;
+        color: #d1d5db;
+      }
 
-.mi-ins-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 16px;
-}
+      .mi-ins-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px 16px;
+      }
 
-.mi-ins-stat-item {
-  font-size: 12px;
-}
+      .mi-ins-stat-item {
+        font-size: 12px;
+      }
 
-.mi-ins-stat-label {
-  color: #9ca3af;
-  display: block;
-  margin-bottom: 2px;
-}
+      .mi-ins-stat-label {
+        color: #9ca3af;
+        display: block;
+        margin-bottom: 2px;
+      }
 
-.mi-ins-stat-value {
-  font-weight: 500;
-}
+      .mi-ins-stat-value {
+        font-weight: 500;
+      }
 
-.mi-ins-history-summary {
-  font-size: 12px;
-  color: #9ca3af;
-  margin-bottom: 6px;
-}
+      .mi-ins-history-summary {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-bottom: 6px;
+      }
 
-#mi-ins-chart {
-  width: 100%;
-  height: 220px;
-  margin-top: 10px;
-  background: rgba(15, 23, 42, 0.7);
-  border-radius: 12px;
-}
+      #mi-ins-chart {
+        width: 100%;
+        height: 220px;
+        margin-top: 10px;
+        background: rgba(15, 23, 42, 0.7);
+        border-radius: 12px;
+      }
 
-.mi-ins-ai-summary {
-  font-size: 0.9rem;
-  color: #e5e7eb;
-  background: rgba(15, 23, 42, 0.65);
-  border-radius: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  line-height: 1.4;
-}
+      .mi-ins-ai-summary {
+        font-size: 0.9rem;
+        color: #e5e7eb;
+        background: rgba(15, 23, 42, 0.65);
+        border-radius: 12px;
+        padding: 10px 12px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        line-height: 1.4;
+      }
 
-/* News list inside modal */
-.mi-ins-news-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 0.82rem;
-}
+      .mi-ins-news-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        font-size: 0.82rem;
+      }
 
-.mi-ins-news-item {
-  padding: 8px 9px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(15, 23, 42, 0.6);
-}
+      .mi-ins-news-item {
+        padding: 8px 9px;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        background: rgba(15, 23, 42, 0.6);
+      }
 
-.mi-ins-news-item-title {
-  font-weight: 500;
-  margin-bottom: 2px;
-}
+      .mi-ins-news-item-title {
+        font-weight: 500;
+        margin-bottom: 2px;
+      }
 
-.mi-ins-news-item-meta {
-  font-size: 0.75rem;
-  color: #9ca3af;
-}
+      .mi-ins-news-item-meta {
+        font-size: 0.75rem;
+        color: #9ca3af;
+      }
 
-.mi-ins-news-item a {
-  color: #38bdf8;
-  text-decoration: none;
-  font-size: 0.8rem;
-}
+      .mi-ins-news-item a {
+        color: #38bdf8;
+        text-decoration: none;
+        font-size: 0.8rem;
+      }
 
-.mi-ins-news-item a:hover {
-  text-decoration: underline;
-}
+      .mi-ins-news-item a:hover {
+        text-decoration: underline;
+      }
 
-@media (max-width: 640px) {
-  .mi-ins-modal {
-    margin: 10px;
-    padding: 16px 14px 18px;
-  }
+      @media (max-width: 640px) {
+        .mi-ins-modal {
+          margin: 10px;
+          padding: 16px 14px 18px;
+        }
 
-  .mi-ins-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+        .mi-ins-header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
 
-  .mi-ins-price-block {
-    text-align: left;
-  }
+        .mi-ins-price-block {
+          text-align: left;
+        }
 
-  .mi-ins-stats-grid {
-    grid-template-columns: 1fr;
-  }
-}
+        .mi-ins-stats-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
       .mi-ins-details-btn {
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: #38bdf8;
-  color: #001220;
-  font-size: 14px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  text-align: center;
-  display: block;
-}
+        margin: 0.6rem 0 0.4rem;
+        width: 100%;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: #38bdf8;
+        color: #001220;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+      }
 
-.mi-ins-details-btn:hover {
-  background: #0ea5e9;
-}
-      .mi-ins-details-btn {
-  margin: 0.6rem 0 0.4rem;
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: #38bdf8;
-  color: #001220;
-  font-size: 14px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-}
-
-.mi-ins-details-btn:hover {
-  background: #0ea5e9;
-}
-
+      .mi-ins-details-btn:hover {
+        background: #0ea5e9;
+      }
     </style>
   </head>
+
   <body>
     <div class="page">
       <nav class="top-nav">
@@ -700,7 +733,8 @@
       <header>
         <h1>ASX Explorer</h1>
         <p class="muted">
-          Scan the ASX with filters and sorting like a simple spreadsheet, without leaving your browser.
+          Scan the ASX with filters and sorting like a simple spreadsheet,
+          without leaving your browser.
         </p>
       </header>
 
@@ -719,6 +753,36 @@
         </button>
 
         <div class="filters-body" id="filtersBody">
+          <!-- NEW: Thinking-style presets -->
+          <div class="preset-bar" aria-label="Thinking style presets">
+            <div class="preset-title">Pick a style (optional):</div>
+
+            <button class="preset-btn" type="button" data-preset="technical">
+              🧠 Numbers mode
+            </button>
+            <button class="preset-btn" type="button" data-preset="value">
+              📋 Planner mode
+            </button>
+            <button class="preset-btn" type="button" data-preset="long_term">
+              🌱 Long-game mode
+            </button>
+            <button class="preset-btn" type="button" data-preset="trader">
+              ⚡ Fast-mover mode
+            </button>
+            <button class="preset-btn" type="button" data-preset="social">
+              🗣️ Talk-it-through mode
+            </button>
+
+            <button class="preset-btn secondary" type="button" id="presetClearBtn">
+              Clear
+            </button>
+
+            <div class="preset-hint">
+              These are just filter shortcuts — not advice. You’re in control of
+              what you click.
+            </div>
+          </div>
+
           <div class="filters">
             <div class="filter-group">
               <label class="filter-label" for="searchInput">Search</label>
@@ -778,26 +842,22 @@
 
             <div class="filter-group">
               <label class="filter-label">Div. yield (min %)</label>
-              <input
-                id="dyMin"
-                type="number"
-                step="0.1"
-                placeholder="0"
-              />
+              <input id="dyMin" type="number" step="0.1" placeholder="0" />
             </div>
+
             <div class="filter-group">
-  <label class="filter-label" for="hideEtfs">
-    <span style="display:flex;align-items:center;gap:0.35rem;">
-      <input
-        id="hideEtfs"
-        type="checkbox"
-        checked
-        style="width:auto;margin:0;"
-      />
-      <span>Hide ETFs (name ends in “ETF”)</span>
-    </span>
-  </label>
-</div>
+              <label class="filter-label" for="hideEtfs">
+                <span style="display: flex; align-items: center; gap: 0.35rem">
+                  <input
+                    id="hideEtfs"
+                    type="checkbox"
+                    checked
+                    style="width: auto; margin: 0"
+                  />
+                  <span>Hide ETFs (name ends in “ETF”)</span>
+                </span>
+              </label>
+            </div>
           </div>
         </div>
       </section>
@@ -820,9 +880,9 @@
                 <th class="sortable" data-sort="price">
                   Price (Y'day) <span>↕</span>
                 </th>
-<th class="sortable" data-sort="marketCap">
-  Mkt Cap (A$m) <span>↕</span>
-</th>
+                <th class="sortable" data-sort="marketCap">
+                  Mkt Cap (A$m) <span>↕</span>
+                </th>
 
                 <th class="sortable" data-sort="peRatio">
                   P/E <span>↕</span>
@@ -892,6 +952,7 @@
                 </th>
               </tr>
             </thead>
+
             <tbody id="tableBody">
               <tr>
                 <td colspan="30" style="text-align: center; padding: 1rem">
@@ -908,72 +969,69 @@
         </div>
       </section>
     </div>
-    <!-- Instrument details modal for screener -->
-<div id="mi-instrument-overlay" class="mi-ins-overlay" aria-hidden="true">
-  <div class="mi-ins-modal" role="dialog" aria-modal="true" aria-labelledby="mi-ins-title">
-    <div class="mi-ins-header">
-      <div>
-        <h2 id="mi-ins-title" class="mi-ins-title">Instrument name</h2>
-        <div id="mi-ins-subtitle" class="mi-ins-subtitle">CODE • Sector</div>
-      </div>
-      <div class="mi-ins-price-block">
-        <div id="mi-ins-price" class="mi-ins-price">$0.00</div>
-        <div id="mi-ins-change" class="mi-ins-change">+0.0% today</div>
-        <div id="mi-ins-date" class="mi-ins-date">as at —</div>
-          <button
-    id="mi-ins-details-btn"
-    class="mi-ins-details-btn"
-    type="button"
-  >
-    Deep Dive →
-  </button>
-      </div>
-      <button
-        class="mi-ins-close"
-        type="button"
-        id="mi-ins-close-btn"
-        aria-label="Close"
+
+    <!-- Instrument details modal -->
+    <div id="mi-instrument-overlay" class="mi-ins-overlay" aria-hidden="true">
+      <div
+        class="mi-ins-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mi-ins-title"
       >
-        ✕
-      </button>
-    </div>
-
-    <div id="mi-ins-tags" class="mi-ins-tags"></div>
-
-    <div class="mi-ins-section">
-      <h3 class="mi-ins-section-title">Key stats</h3>
-      <div id="mi-ins-stats" class="mi-ins-stats-grid"></div>
-    </div>
-
-    <div class="mi-ins-section">
-      <h3 class="mi-ins-section-title">Price history</h3>
-      <div class="mi-ins-history">
-        <div id="mi-ins-history-summary" class="mi-ins-history-summary">
-          Showing last 6 months of daily closes.
+        <div class="mi-ins-header">
+          <div>
+            <h2 id="mi-ins-title" class="mi-ins-title">Instrument name</h2>
+            <div id="mi-ins-subtitle" class="mi-ins-subtitle">CODE • Sector</div>
+          </div>
+          <div class="mi-ins-price-block">
+            <div id="mi-ins-price" class="mi-ins-price">$0.00</div>
+            <div id="mi-ins-change" class="mi-ins-change">+0.0% today</div>
+            <div id="mi-ins-date" class="mi-ins-date">as at —</div>
+            <button id="mi-ins-details-btn" class="mi-ins-details-btn" type="button">
+              Deep Dive →
+            </button>
+          </div>
+          <button
+            class="mi-ins-close"
+            type="button"
+            id="mi-ins-close-btn"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
-        <canvas id="mi-ins-chart" width="600" height="220"></canvas>
+
+        <div id="mi-ins-tags" class="mi-ins-tags"></div>
+
+        <div class="mi-ins-section">
+          <h3 class="mi-ins-section-title">Key stats</h3>
+          <div id="mi-ins-stats" class="mi-ins-stats-grid"></div>
+        </div>
+
+        <div class="mi-ins-section">
+          <h3 class="mi-ins-section-title">Price history</h3>
+          <div class="mi-ins-history">
+            <div id="mi-ins-history-summary" class="mi-ins-history-summary">
+              Showing last 6 months of daily closes.
+            </div>
+            <canvas id="mi-ins-chart" width="600" height="220"></canvas>
+          </div>
+        </div>
+
+        <div class="mi-ins-section">
+          <h3 class="mi-ins-section-title">Company snapshot</h3>
+          <div id="mi-ins-ai-summary" class="mi-ins-ai-summary">
+            We’re loading a short AI summary for this company…
+          </div>
+        </div>
+
+        <div class="mi-ins-section">
+          <h3 class="mi-ins-section-title">Latest news</h3>
+          <div id="mi-ins-news">Loading headlines for this name…</div>
+        </div>
       </div>
     </div>
 
-    <div class="mi-ins-section">
-      <h3 class="mi-ins-section-title">Company snapshot</h3>
-      <div id="mi-ins-ai-summary" class="mi-ins-ai-summary">
-        We’re loading a short AI summary for this company…
-      </div>
-    </div>
-
-    <div class="mi-ins-section">
-      <h3 class="mi-ins-section-title">Latest news</h3>
-      <div id="mi-ins-news">
-        Loading headlines for this name…
-      </div>
-      <div class="mi-ins-section">
-
-</div>
-
-    </div>
-  </div>
-</div>
     <script>
       const API_URL = "/.netlify/functions/equity-screener";
 
@@ -994,89 +1052,14 @@
       const filtersToggle = document.getElementById("filtersToggle");
       const filtersToggleIcon = document.getElementById("filtersToggleIcon");
 
+      const presetButtons = Array.from(document.querySelectorAll(".preset-btn[data-preset]"));
+      const presetClearBtn = document.getElementById("presetClearBtn");
+
       let rawItems = [];
       let filteredItems = [];
       let miCurrentCode = null;
-let sortState = { key: "marketCap", direction: "desc" };
-// ---- MatesInvest: Preset loader (for how-you-think quiz) ----
-let SCREENER_PRESETS = null;
 
-async function loadScreenerPresets() {
-  if (SCREENER_PRESETS) return SCREENER_PRESETS;
-  try {
-    const res = await fetch("/data/screener_presets.json", { cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to load screener presets");
-    const json = await res.json();
-    SCREENER_PRESETS = json.presets || {};
-  } catch (e) {
-    console.warn("Preset load failed:", e);
-    SCREENER_PRESETS = {};
-  }
-  return SCREENER_PRESETS;
-}
-
-// Map preset filters to YOUR screener filter variables / inputs.
-// Edit this mapping once and it’ll work for all presets.
-function applyPresetFilters(preset) {
-  if (!preset || !preset.filters) return;
-  const f = preset.filters;
-
-  // market_cap_min_m is A$m in presets, but your UI is A$bn
-  if (f.market_cap_min_m != null) {
-    mcMinInput.value = String(Number(f.market_cap_min_m) / 1000);
-  }
-
-  // dividend_yield_min is % already
-  if (f.dividend_yield_min != null) {
-    dyMinInput.value = String(f.dividend_yield_min);
-  }
-
-  // 3) Positive EBITDA / revenue (booleans)
-  if (f.ebitda_positive === true) window.__ebitdaPositiveOnly = true;
-  if (f.revenue_positive === true) window.__revenuePositiveOnly = true;
-}
-
-function applyPresetSort(preset) {
-  if (!preset || !preset.sort) return;
-
-  const fieldMap = {
-    market_cap_m: "marketCap",
-    dividend_yield: "dividendYield",
-    // daily_move_pct: ???  (see note below)
-  };
-
-  const mappedKey = fieldMap[preset.sort.field] || preset.sort.field;
-
-  sortState.key = mappedKey;
-  sortState.direction = preset.sort.direction === "asc" ? "asc" : "desc";
-}
-
-
-// Call this after screener data is loaded and UI inputs exist.
-async function applyPresetsFromQuery() {
-  const params = new URLSearchParams(window.location.search);
-  const presetParam = params.get("preset");
-  if (!presetParam) return;
-
-  const presets = (await loadScreenerPresets()) || {};
-  const ids = presetParam.split(",").map(s => s.trim()).filter(Boolean);
-
-  ids.forEach(id => {
-    const p = presets[id];
-    if (p) {
-      applyPresetFilters(p);
-      applyPresetSort(p);
-    }
-  });
-
-  // Now re-run your normal render / filter pipeline:
-  // Replace these with your actual functions:
-  if (typeof applyFilters === "function") applyFilters();
-  if (typeof renderTable === "function") renderTable();
-  if (typeof renderScreener === "function") renderScreener();
-}
-// ---- end preset loader ----
-
+      let sortState = { key: "marketCap", direction: "desc" };
 
       // Filters dropdown toggle
       filtersToggle.addEventListener("click", () => {
@@ -1084,23 +1067,139 @@ async function applyPresetsFromQuery() {
         filtersToggleIcon.textContent = isOpen ? "▴" : "▾";
       });
 
+      // ----------------------------
+      // NEW: Style presets (no JSON file needed)
+      // ----------------------------
+
+      function setActivePreset(id) {
+        presetButtons.forEach((b) => b.classList.toggle("active", b.dataset.preset === id));
+      }
+
+      function clearPresetUI() {
+        setActivePreset(null);
+      }
+
+      function clearAllInputs() {
+        searchInput.value = "";
+        sectorSelect.value = "";
+        peMinInput.value = "";
+        peMaxInput.value = "";
+        mcMinInput.value = "";
+        mcMaxInput.value = "";
+        dyMinInput.value = "";
+        if (hideEtfsInput) hideEtfsInput.checked = true;
+        sortState = { key: "marketCap", direction: "desc" };
+      }
+
+      // These are intentionally “soft” defaults — just shortcuts, not advice.
+      function applyStylePreset(id) {
+        clearAllInputs();
+
+        // Keep ETFs hidden by default (you already do this)
+        if (hideEtfsInput) hideEtfsInput.checked = true;
+
+        switch (id) {
+          case "technical": {
+            // Numbers mode: prefer larger + more “established” datapoints
+            mcMinInput.value = "1"; // >= $1bn
+            peMaxInput.value = "35";
+            sortState = { key: "marketCap", direction: "desc" };
+            break;
+          }
+          case "value": {
+            // Planner mode: tilt to dividends + not-crazy PE
+            dyMinInput.value = "3"; // >= 3%
+            peMaxInput.value = "20";
+            sortState = { key: "dividendYield", direction: "desc" };
+            break;
+          }
+          case "long_term": {
+            // Long-game: big-ish names + avoid extremes
+            mcMinInput.value = "2"; // >= $2bn
+            peMinInput.value = "5";
+            peMaxInput.value = "30";
+            sortState = { key: "marketCap", direction: "desc" };
+            break;
+          }
+          case "trader": {
+            // Fast-mover: keep it liquid-ish by size; user then sorts / clicks table
+            mcMinInput.value = "1"; // >= $1bn
+            sortState = { key: "marketCap", direction: "desc" };
+            break;
+          }
+          case "social": {
+            // Talk-it-through: big, well-known names (easy to discuss + find info)
+            mcMinInput.value = "5"; // >= $5bn
+            sortState = { key: "marketCap", direction: "desc" };
+            break;
+          }
+          default:
+            break;
+        }
+
+        setActivePreset(id);
+        applyFilters();
+      }
+
+      function readPresetFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+
+        // support quiz param ?r=technical etc
+        const r = params.get("r");
+
+        // also allow ?preset=technical,value...
+        const p = params.get("preset");
+
+        // priority: explicit preset param, else quiz r=
+        const picked = (p || r || "").trim();
+
+        if (!picked) return null;
+
+        // allow comma list, apply first only (clean/simple)
+        const first = picked.split(",").map((s) => s.trim()).filter(Boolean)[0] || null;
+        return first;
+      }
+
+      presetButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.dataset.preset;
+          applyStylePreset(id);
+        });
+      });
+
+      presetClearBtn?.addEventListener("click", () => {
+        clearPresetUI();
+        clearAllInputs();
+        applyFilters();
+      });
+
+      // ----------------------------
+      // Data load + filtering
+      // ----------------------------
+
       async function loadData() {
         try {
           const res = await fetch(API_URL);
-          if (!res.ok) {
-            throw new Error("Network error " + res.status);
-          }
+          if (!res.ok) throw new Error("Network error " + res.status);
+
           const data = await res.json();
           rawItems = data.items || [];
+
           statusMeta.textContent = `Last updated: ${
-            data.generatedAt
-              ? new Date(data.generatedAt).toLocaleString()
-              : "n/a"
+            data.generatedAt ? new Date(data.generatedAt).toLocaleString() : "n/a"
           }`;
 
-populateSectorFilter(rawItems);
-await applyPresetsFromQuery(); // 👈 this is the missing “last step”
-applyFilters();
+          populateSectorFilter(rawItems);
+
+          // Apply URL preset after data exists
+          const presetFromUrl = readPresetFromUrl();
+          if (presetFromUrl) {
+            filtersCard.classList.add("open");
+            filtersToggleIcon.textContent = "▴";
+            applyStylePreset(presetFromUrl);
+          } else {
+            applyFilters();
+          }
         } catch (e) {
           console.error(e);
           tableBody.innerHTML =
@@ -1125,67 +1224,61 @@ applyFilters();
         });
       }
 
-function applyFilters() {
-  const q = searchInput.value.trim().toLowerCase();
-  const sector = sectorSelect.value;
-  const peMin = parseFloat(peMinInput.value);
-  const peMax = parseFloat(peMaxInput.value);
-  const mcMinBn = parseFloat(mcMinInput.value);
-  const mcMaxBn = parseFloat(mcMaxInput.value);
-  const dyMin = parseFloat(dyMinInput.value);
-  const hideEtfs = hideEtfsInput && hideEtfsInput.checked;
+      function applyFilters() {
+        const q = searchInput.value.trim().toLowerCase();
+        const sector = sectorSelect.value;
+        const peMin = parseFloat(peMinInput.value);
+        const peMax = parseFloat(peMaxInput.value);
+        const mcMinBn = parseFloat(mcMinInput.value);
+        const mcMaxBn = parseFloat(mcMaxInput.value);
+        const dyMin = parseFloat(dyMinInput.value);
+        const hideEtfs = hideEtfsInput && hideEtfsInput.checked;
 
-  filteredItems = rawItems.filter((item) => {
-    // Search filter
-    if (q) {
-      const haystack = `${item.code} ${item.name}`.toLowerCase();
-      if (!haystack.includes(q)) return false;
-    }
+        filteredItems = rawItems.filter((item) => {
+          if (q) {
+            const haystack = `${item.code} ${item.name}`.toLowerCase();
+            if (!haystack.includes(q)) return false;
+          }
 
-    // Sector filter
-    if (sector && item.sector !== sector) return false;
+          if (sector && item.sector !== sector) return false;
 
-    // HIDDEN FILTER: only show exact 3-letter codes
-    const code = (item.code || "").trim();
-    if (!code || code.length !== 3) return false;
+          // only exact 3-letter codes
+          const code = (item.code || "").trim();
+          if (!code || code.length !== 3) return false;
 
-    // P/E filter
-    const pe = Number(item.peRatio);
-    if (!Number.isNaN(pe)) {
-      if (!Number.isNaN(peMin) && pe < peMin) return false;
-      if (!Number.isNaN(peMax) && pe > peMax) return false;
-    }
+          const pe = Number(item.peRatio);
+          if (!Number.isNaN(pe)) {
+            if (!Number.isNaN(peMin) && pe < peMin) return false;
+            if (!Number.isNaN(peMax) && pe > peMax) return false;
+          }
 
-    // Market cap filter (inputs are in billions, stored value is dollars)
-    const mc = Number(item.marketCap);
-    const mcBn = Number.isNaN(mc) ? NaN : mc / 1_000_000_000;
-    if (!Number.isNaN(mcBn)) {
-      if (!Number.isNaN(mcMinBn) && mcBn < mcMinBn) return false;
-      if (!Number.isNaN(mcMaxBn) && mcBn > mcMaxBn) return false;
-    }
+          const mc = Number(item.marketCap);
+          const mcBn = Number.isNaN(mc) ? NaN : mc / 1_000_000_000;
+          if (!Number.isNaN(mcBn)) {
+            if (!Number.isNaN(mcMinBn) && mcBn < mcMinBn) return false;
+            if (!Number.isNaN(mcMaxBn) && mcBn > mcMaxBn) return false;
+          }
 
-    // Dividend yield filter (convert fractional to % if needed)
-    const dy = Number(item.dividendYield);
-    if (!Number.isNaN(dy) && !Number.isNaN(dyMin)) {
-      const dyPct = dy <= 1 && dy >= -1 ? dy * 100 : dy;
-      if (dyPct < dyMin) return false;
-    }
+          const dy = Number(item.dividendYield);
+          if (!Number.isNaN(dy) && !Number.isNaN(dyMin)) {
+            const dyPct = dy <= 1 && dy >= -1 ? dy * 100 : dy;
+            if (dyPct < dyMin) return false;
+          }
 
-    // Hide ETFs by name (but still keep them in rawItems)
-    if (
-      hideEtfs &&
-      typeof item.name === "string" &&
-      item.name.trim().toUpperCase().endsWith("ETF")
-    ) {
-      return false;
-    }
+          if (
+            hideEtfs &&
+            typeof item.name === "string" &&
+            item.name.trim().toUpperCase().endsWith("ETF")
+          ) {
+            return false;
+          }
 
-    return true;
-  });
+          return true;
+        });
 
-  applySort();
-  renderTable();
-}
+        applySort();
+        renderTable();
+      }
 
       function applySort() {
         const { key, direction } = sortState;
@@ -1197,8 +1290,7 @@ function applyFilters() {
 
           const na = Number(va);
           const nb = Number(vb);
-          const bothNumeric =
-            !Number.isNaN(na) && !Number.isNaN(nb) && key !== "name";
+          const bothNumeric = !Number.isNaN(na) && !Number.isNaN(nb) && key !== "name";
 
           if (bothNumeric) {
             if (na < nb) return -1 * dir;
@@ -1224,76 +1316,69 @@ function applyFilters() {
 
         const rows = filteredItems
           .map((item) => {
-const mcM = toMillions(item.marketCap);
-const revM = toMillions(item.revenue);
-const gpM = toMillions(item.grossProfit);
-const evM = toMillions(item.enterpriseValue);
+            const mcM = toMillions(item.marketCap);
+            const revM = toMillions(item.revenue);
+            const gpM = toMillions(item.grossProfit);
+            const evM = toMillions(item.enterpriseValue);
 
-return `
-  <tr data-code="${item.code}" data-type="equity">
-    <td class="sticky-col"><strong>${item.code}</strong></td>
+            return `
+              <tr data-code="${item.code}" data-type="equity">
+                <td class="sticky-col"><strong>${item.code}</strong></td>
+                <td>${item.name || ""}</td>
+                <td><span class="pill">${item.sector || "Unknown"}</span></td>
 
-    <td>${item.name || ""}</td>
-    <td><span class="pill">${item.sector || "Unknown"}</span></td>
+                <td>${formatNumber(item.price)}</td>
+                <td>${mcM}</td>
 
-    <td>${formatNumber(item.price)}</td>
-    <td>${mcM}</td>
+                <td>${formatNumber(item.peRatio)}</td>
+                <td>${formatNumber(item.eps)}</td>
+                <td>${formatNumber(item.bookValue)}</td>
+                <td>${formatNumber(item.dividendPerShare)}</td>
+                <td>${formatPercentFrac(item.dividendYield)}</td>
 
-    <td>${formatNumber(item.peRatio)}</td>
-    <td>${formatNumber(item.eps)}</td>
-    <td>${formatNumber(item.bookValue)}</td>
-    <td>${formatNumber(item.dividendPerShare)}</td>
-    <td>${formatPercentFrac(item.dividendYield)}</td>
+                <td>${formatPercentFrac(item.profitMargin)}</td>
+                <td>${formatPercentFrac(item.operatingMargin)}</td>
+                <td>${formatPercentFrac(item.returnOnAssets)}</td>
+                <td>${formatPercentFrac(item.returnOnEquity)}</td>
 
-    <td>${formatPercentFrac(item.profitMargin)}</td>
-    <td>${formatPercentFrac(item.operatingMargin)}</td>
-    <td>${formatPercentFrac(item.returnOnAssets)}</td>
-    <td>${formatPercentFrac(item.returnOnEquity)}</td>
+                <td>${revM}</td>
+                <td>${formatNumber(item.revenuePerShare)}</td>
+                <td>${gpM}</td>
+                <td>${formatNumber(item.dilutedEps)}</td>
+                <td>${formatPercentFrac(item.quarterlyRevenueGrowthYoy)}</td>
+                <td>${formatPercentFrac(item.quarterlyEarningsGrowthYoy)}</td>
 
-    <td>${revM}</td>
-    <td>${formatNumber(item.revenuePerShare)}</td>
-    <td>${gpM}</td>
-    <td>${formatNumber(item.dilutedEps)}</td>
-    <td>${formatPercentFrac(item.quarterlyRevenueGrowthYoy)}</td>
-    <td>${formatPercentFrac(item.quarterlyEarningsGrowthYoy)}</td>
-
-    <td>${formatNumber(item.trailingPE)}</td>
-    <td>${formatNumber(item.forwardPE)}</td>
-    <td>${formatNumber(item.priceToSales)}</td>
-    <td>${formatNumber(item.priceToBook)}</td>
-    <td>${evM}</td>
-    <td>${formatNumber(item.evToRevenue)}</td>
-  </tr>
-`;
-
+                <td>${formatNumber(item.trailingPE)}</td>
+                <td>${formatNumber(item.forwardPE)}</td>
+                <td>${formatNumber(item.priceToSales)}</td>
+                <td>${formatNumber(item.priceToBook)}</td>
+                <td>${evM}</td>
+                <td>${formatNumber(item.evToRevenue)}</td>
+              </tr>
+            `;
           })
           .join("");
 
         tableBody.innerHTML = rows;
+
         statusCount.textContent = `${filteredItems.length} compan${
           filteredItems.length === 1 ? "y" : "ies"
         }`;
       }
 
-function toMillions(value) {
-  const n = Number(value);
-  if (Number.isNaN(n)) return "-";
-  const m = n / 1_000_000; // now in A$m
-  return m.toLocaleString(undefined, {
-    maximumFractionDigits: 1,
-  });
-}
-
+      function toMillions(value) {
+        const n = Number(value);
+        if (Number.isNaN(n)) return "-";
+        const m = n / 1_000_000;
+        return m.toLocaleString(undefined, { maximumFractionDigits: 1 });
+      }
 
       function formatNumber(value) {
         const n = Number(value);
         if (Number.isNaN(n)) return "-";
-        return n.toLocaleString(undefined, {
-          maximumFractionDigits: 2,
-        });
+        return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
       }
 
-      // Treat n as 0.045 => 4.5%
       function formatPercentFrac(value) {
         const n = Number(value);
         if (Number.isNaN(n)) return "-";
@@ -1301,29 +1386,23 @@ function toMillions(value) {
         return `${pct.toFixed(2)}%`;
       }
 
-      // Treat n as already in percent points
-      function formatPercentRaw(value) {
-        const n = Number(value);
-        if (Number.isNaN(n)) return "-";
-        return `${n.toFixed(2)}%`;
-      }
+      // Wire up filter inputs
+      searchInput.addEventListener("input", () => { clearPresetUI(); applyFilters(); });
+      sectorSelect.addEventListener("change", () => { clearPresetUI(); applyFilters(); });
+      peMinInput.addEventListener("input", () => { clearPresetUI(); applyFilters(); });
+      peMaxInput.addEventListener("input", () => { clearPresetUI(); applyFilters(); });
+      mcMinInput.addEventListener("input", () => { clearPresetUI(); applyFilters(); });
+      mcMaxInput.addEventListener("input", () => { clearPresetUI(); applyFilters(); });
+      dyMinInput.addEventListener("input", () => { clearPresetUI(); applyFilters(); });
+      hideEtfsInput.addEventListener("change", () => { clearPresetUI(); applyFilters(); });
 
-      searchInput.addEventListener("input", applyFilters);
-      sectorSelect.addEventListener("change", applyFilters);
-      peMinInput.addEventListener("input", applyFilters);
-      peMaxInput.addEventListener("input", applyFilters);
-      mcMinInput.addEventListener("input", applyFilters);
-      mcMaxInput.addEventListener("input", applyFilters);
-      dyMinInput.addEventListener("input", applyFilters);
-      hideEtfsInput.addEventListener("change", applyFilters);
-
+      // Sorting clicks
       ths.forEach((th) => {
         th.addEventListener("click", () => {
           const key = th.dataset.sort;
           if (!key) return;
           if (sortState.key === key) {
-            sortState.direction =
-              sortState.direction === "asc" ? "desc" : "asc";
+            sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
           } else {
             sortState.key = key;
             sortState.direction = "asc";
@@ -1333,422 +1412,355 @@ function toMillions(value) {
         });
       });
 
+      // Start
       loadData();
-      // ---------- Instrument helpers (reuse instrument-details from mates-summaries) ----------
 
-async function miFetchInstrumentDetails(type, code) {
-  const url = `/.netlify/functions/instrument-details?type=${encodeURIComponent(
-    type
-  )}&code=${encodeURIComponent(code)}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`instrument-details failed: ${res.status}`);
-  }
-  return res.json();
-}
+      // ---------- Instrument helpers ----------
 
-async function miFetchAiSummary(type, code) {
-  const url = `/.netlify/functions/instrument-ai-summary?type=${encodeURIComponent(
-    type
-  )}&code=${encodeURIComponent(code)}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`instrument-ai-summary failed: ${res.status}`);
-  }
-  return res.json();
-}
-
-// Use your existing newsFeed function, but scoped to a single symbol
-async function miFetchInstrumentNews(code) {
-  // MarketAux + EODHD-backed news feed supports symbols= param already on mates-summaries. :contentReference[oaicite:4]{index=4}
-  const params = new URLSearchParams({
-    symbols: `${code}.AX`,
-    per_page: "6",
-  });
-  const res = await fetch("/.netlify/functions/newsFeed?" + params.toString());
-  if (!res.ok) {
-    throw new Error(`newsFeed failed: ${res.status}`);
-  }
-  const data = await res.json();
-  return data.articles || [];
-}
-
-// ---------- Formatting helpers ----------
-
-function miFormatCurrency(n, currency = "AUD") {
-  if (typeof n !== "number" || !isFinite(n)) return null;
-  try {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(n);
-  } catch {
-    return n.toFixed(2);
-  }
-}
-
-function miFormatCompactNumber(n) {
-  if (typeof n !== "number" || !isFinite(n)) return null;
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
-  if (abs >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (abs >= 1_000) return (n / 1_000).toFixed(1) + "k";
-  return n.toFixed(0);
-}
-
-function miFormatPercent(n, digits = 2) {
-  if (typeof n !== "number" || !isFinite(n)) return null;
-  return n.toFixed(digits) + "%";
-}
-
-function miFormatDate(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-// ---------- Chart renderer (same idea as mates-summaries) ----------
-
-function miRenderChart(history) {
-  const canvas = document.getElementById("mi-ins-chart");
-  if (!canvas || !history || !Array.isArray(history.points)) return;
-
-  const ctx = canvas.getContext("2d");
-  const pts = history.points.map((p) => p[1]).filter((x) => typeof x === "number");
-
-  const w = canvas.width;
-  const h = canvas.height;
-
-  ctx.clearRect(0, 0, w, h);
-
-  if (pts.length < 2) {
-    ctx.fillStyle = "#9ca3af";
-    ctx.font = "12px system-ui";
-    ctx.fillText("No chart data available", 12, 20);
-    return;
-  }
-
-  const min = Math.min(...pts);
-  const max = Math.max(...pts);
-  const padX = 20;
-  const padY = 10;
-
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#38bdf8";
-  ctx.beginPath();
-
-  pts.forEach((v, i) => {
-    const x = padX + (i / (pts.length - 1)) * (w - padX * 2);
-    const y = h - padY - ((v - min) / (max - min)) * (h - padY * 2);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-
-  ctx.stroke();
-
-  const gradient = ctx.createLinearGradient(0, padY, 0, h);
-  gradient.addColorStop(0, "rgba(56,189,248,0.25)");
-  gradient.addColorStop(1, "rgba(56,189,248,0.0)");
-
-  ctx.lineTo(w - padX, h - padY);
-  ctx.lineTo(padX, h - padY);
-  ctx.closePath();
-  ctx.fillStyle = gradient;
-  ctx.fill();
-}
-
-// ---------- Modal open/close + populate ----------
-
-function miOpenInstrumentModal(data) {
-    miCurrentCode = data.code || data.ticker || null;
-  const overlay = document.getElementById("mi-instrument-overlay");
-  if (!overlay) return;
-
-  const latest = data.latest || {};
-  const f = data.fundamentals || {};
-
-  const titleEl = document.getElementById("mi-ins-title");
-  const subtitleEl = document.getElementById("mi-ins-subtitle");
-  const priceEl = document.getElementById("mi-ins-price");
-  const changeEl = document.getElementById("mi-ins-change");
-  const dateEl = document.getElementById("mi-ins-date");
-  const tagsEl = document.getElementById("mi-ins-tags");
-  const statsEl = document.getElementById("mi-ins-stats");
-  const historySummaryEl = document.getElementById("mi-ins-history-summary");
-  const aiSummaryEl = document.getElementById("mi-ins-ai-summary");
-  const newsEl = document.getElementById("mi-ins-news");
-
-  const name = data.name || data.code || "";
-  const code = data.code || "";
-  const sector = f.sector || "";
-  const industry = f.industry || "";
-  const sizeBucket = f.sizeBucket || null;
-
-  // Header
-  if (titleEl) titleEl.textContent = name;
-  if (subtitleEl) {
-    const bits = [];
-    if (code) bits.push(code);
-    if (sector) bits.push(sector);
-    subtitleEl.textContent = bits.join(" • ") || "";
-  }
-
-  // Price + change
-  const priceNum =
-    typeof latest.price === "number" && isFinite(latest.price)
-      ? latest.price
-      : null;
-  const pctChange =
-    typeof latest.pctChange === "number" && isFinite(latest.pctChange)
-      ? latest.pctChange
-      : null;
-
-  if (priceEl) {
-    priceEl.textContent =
-      priceNum !== null
-        ? miFormatCurrency(priceNum, f.currency || "AUD")
-        : "—";
-  }
-
-  if (changeEl) {
-    changeEl.classList.remove("up", "down");
-    if (pctChange === null) {
-      changeEl.textContent = "Change: —";
-    } else {
-      const arrow = pctChange > 0 ? "▲" : pctChange < 0 ? "▼" : "•";
-      changeEl.textContent = `${arrow} ${pctChange.toFixed(2)}% yesterday`;
-      if (pctChange > 0) changeEl.classList.add("up");
-      else if (pctChange < 0) changeEl.classList.add("down");
-    }
-  }
-
-  if (dateEl) {
-    const d = miFormatDate(latest.date);
-    dateEl.textContent = d ? `as at ${d}` : "";
-  }
-
-  // Tags
-  if (tagsEl) {
-    tagsEl.innerHTML = "";
-    const tags = [];
-    if (sizeBucket) {
-      const label =
-        sizeBucket === "mega"
-          ? "Mega cap"
-          : sizeBucket === "large"
-          ? "Large cap"
-          : sizeBucket === "mid"
-          ? "Mid cap"
-          : sizeBucket === "small"
-          ? "Small cap"
-          : null;
-      if (label) tags.push(label);
-    }
-    if (sector) tags.push(sector);
-    if (industry) tags.push(industry);
-
-    tags.forEach((t) => {
-      const span = document.createElement("span");
-      span.className = "mi-ins-tag";
-      span.textContent = t;
-      tagsEl.appendChild(span);
-    });
-  }
-
-  // Stats
-  if (statsEl) {
-    statsEl.innerHTML = "";
-    const addStat = (label, valueStr) => {
-      if (!valueStr) return;
-      const item = document.createElement("div");
-      item.className = "mi-ins-stat-item";
-      const lab = document.createElement("span");
-      lab.className = "mi-ins-stat-label";
-      lab.textContent = label;
-      const val = document.createElement("span");
-      val.className = "mi-ins-stat-value";
-      val.textContent = valueStr;
-      item.appendChild(lab);
-      item.appendChild(val);
-      statsEl.appendChild(item);
-    };
-
-    if (typeof f.marketCap === "number" && isFinite(f.marketCap)) {
-      addStat("Market cap", miFormatCompactNumber(f.marketCap));
-    }
-    if (typeof f.revenueLastYear === "number" && isFinite(f.revenueLastYear)) {
-      addStat("Revenue (last year)", miFormatCompactNumber(f.revenueLastYear));
-    }
-    if (typeof f.netIncomeLastYear === "number" && isFinite(f.netIncomeLastYear)) {
-      addStat("Net profit (last year)", miFormatCompactNumber(f.netIncomeLastYear));
-    }
-    if (typeof f.pe === "number" && isFinite(f.pe)) {
-      addStat("P/E ratio", f.pe.toFixed(2) + "×");
-    }
-    if (typeof f.dividendYield === "number" && isFinite(f.dividendYield)) {
-      addStat("Dividend yield", miFormatPercent(f.dividendYield, 2));
-    }
-    if (typeof f.paysDividend === "boolean") {
-      addStat("Pays dividend", f.paysDividend ? "Yes" : "No");
-    }
-    if (typeof f.eps === "number" && isFinite(f.eps)) {
-      addStat("Earnings per share", f.eps.toFixed(2));
-    }
-  }
-
-  // History summary + chart
-  const h = data.history;
-  if (historySummaryEl) {
-    if (h && Array.isArray(h.points) && h.points.length > 1) {
-      const start = miFormatDate(h.startDate);
-      const end = miFormatDate(h.endDate);
-      historySummaryEl.textContent =
-        start && end
-          ? `Showing daily closes from ${start} to ${end}.`
-          : "Showing last 6 months of daily closes.";
-    } else {
-      historySummaryEl.textContent = "Price history not available.";
-    }
-  }
-  if (h) miRenderChart(h);
-
-  // AI summary
-  if (aiSummaryEl) {
-    aiSummaryEl.textContent =
-      "We’re loading a short AI snapshot for this company…";
-    miFetchAiSummary("equity", data.code || "")
-      .then((s) => {
-        if (s && s.summary) {
-          aiSummaryEl.textContent = s.summary;
-        } else {
-          aiSummaryEl.textContent =
-            "We couldn’t generate a summary right now.";
-        }
-      })
-      .catch((err) => {
-        console.error("AI summary error", err);
-        aiSummaryEl.textContent =
-          "We couldn’t generate a summary right now.";
-      });
-  }
-
-  // News
-  if (newsEl) {
-    newsEl.textContent = "Loading headlines for this name…";
-    miFetchInstrumentNews(code)
-      .then((articles) => {
-        if (!articles.length) {
-          newsEl.textContent = "No recent headlines found for this code.";
-          return;
-        }
-        const html = articles
-          .slice(0, 6)
-          .map((a) => {
-            const when = a.publishedAt || a.published || "";
-            const d = miFormatDate(when) || "";
-            const source = a.source || "";
-            const title = a.title || "";
-            return `
-              <div class="mi-ins-news-item">
-                <div class="mi-ins-news-item-title">${title}</div>
-                <div class="mi-ins-news-item-meta">
-                  ${source}${d ? " • " + d : ""}
-                </div>
-                ${
-                  a.url
-                    ? `<a href="${a.url}" target="_blank" rel="noopener">Read original →</a>`
-                    : ""
-                }
-              </div>
-            `;
-          })
-          .join("");
-        newsEl.innerHTML = `<div class="mi-ins-news-list">${html}</div>`;
-      })
-      .catch((err) => {
-        console.error("Instrument news error", err);
-        newsEl.textContent = "Couldn’t load news right now.";
-      });
-  }
-
-  overlay.style.display = "flex";
-  overlay.setAttribute("aria-hidden", "false");
-}
-
-function miCloseInstrumentModal() {
-  const overlay = document.getElementById("mi-instrument-overlay");
-  if (!overlay) return;
-  overlay.style.display = "none";
-  overlay.setAttribute("aria-hidden", "true");
-}
-
-// ---------- Wire up row clicks to open modal ----------
-
-tableBody.addEventListener("click", async (e) => {
-  const row = e.target.closest("tr[data-code]");
-  if (!row) return;
-
-  const code = row.getAttribute("data-code");
-  const type = row.getAttribute("data-type") || "equity";
-
-  try {
-    const data = await miFetchInstrumentDetails(type, code);
-    miOpenInstrumentModal(data);
-  } catch (err) {
-    console.error("Failed to load instrument details", err);
-    alert("Sorry, we couldn't load that company at the moment.");
-  }
-});
-
-// Close from X button or clicking backdrop
-document.getElementById("mi-ins-close-btn")?.addEventListener("click", miCloseInstrumentModal);
-
-document.getElementById("mi-instrument-overlay")?.addEventListener("click", (e) => {
-  if (e.target.id === "mi-instrument-overlay") {
-    miCloseInstrumentModal();
-  }
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    miCloseInstrumentModal();
-  }
-});
-      document.getElementById("mi-ins-details-btn")?.addEventListener("click", () => {
-  if (!miCurrentCode) return;
-  window.location.href = `/stocks/${miCurrentCode}.html`;
-});
-    </script>
-  <!-- REPEAT USER TRACKING -->
-  <script>
-    (() => {
-      const KEY = "mates_user_id_v1";
-
-      let uid = localStorage.getItem(KEY);
-      if (!uid) {
-        uid =
-          (crypto?.randomUUID?.() ||
-            String(Math.random()).slice(2) + Date.now());
-        localStorage.setItem(KEY, uid);
+      async function miFetchInstrumentDetails(type, code) {
+        const url = `/.netlify/functions/instrument-details?type=${encodeURIComponent(
+          type
+        )}&code=${encodeURIComponent(code)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`instrument-details failed: ${res.status}`);
+        return res.json();
       }
 
-      fetch("/.netlify/functions/track-visit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid,
-          path: window.location.pathname,
-          ts: Date.now()
-        })
-      }).catch(() => {});
-    })();
-  </script>
+      async function miFetchAiSummary(type, code) {
+        const url = `/.netlify/functions/instrument-ai-summary?type=${encodeURIComponent(
+          type
+        )}&code=${encodeURIComponent(code)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`instrument-ai-summary failed: ${res.status}`);
+        return res.json();
+      }
 
+      async function miFetchInstrumentNews(code) {
+        const params = new URLSearchParams({
+          symbols: `${code}.AX`,
+          per_page: "6",
+        });
+        const res = await fetch("/.netlify/functions/newsFeed?" + params.toString());
+        if (!res.ok) throw new Error(`newsFeed failed: ${res.status}`);
+        const data = await res.json();
+        return data.articles || [];
+      }
+
+      function miFormatCurrency(n, currency = "AUD") {
+        if (typeof n !== "number" || !isFinite(n)) return null;
+        try {
+          return new Intl.NumberFormat("en-AU", {
+            style: "currency",
+            currency,
+            maximumFractionDigits: 2,
+          }).format(n);
+        } catch {
+          return n.toFixed(2);
+        }
+      }
+
+      function miFormatCompactNumber(n) {
+        if (typeof n !== "number" || !isFinite(n)) return null;
+        const abs = Math.abs(n);
+        if (abs >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
+        if (abs >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+        if (abs >= 1_000) return (n / 1_000).toFixed(1) + "k";
+        return n.toFixed(0);
+      }
+
+      function miFormatPercent(n, digits = 2) {
+        if (typeof n !== "number" || !isFinite(n)) return null;
+        return n.toFixed(digits) + "%";
+      }
+
+      function miFormatDate(dateStr) {
+        if (!dateStr) return null;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return null;
+        return d.toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
+      }
+
+      function miRenderChart(history) {
+        const canvas = document.getElementById("mi-ins-chart");
+        if (!canvas || !history || !Array.isArray(history.points)) return;
+
+        const ctx = canvas.getContext("2d");
+        const pts = history.points.map((p) => p[1]).filter((x) => typeof x === "number");
+
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+
+        if (pts.length < 2) {
+          ctx.fillStyle = "#9ca3af";
+          ctx.font = "12px system-ui";
+          ctx.fillText("No chart data available", 12, 20);
+          return;
+        }
+
+        const min = Math.min(...pts);
+        const max = Math.max(...pts);
+        const padX = 20;
+        const padY = 10;
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#38bdf8";
+        ctx.beginPath();
+
+        pts.forEach((v, i) => {
+          const x = padX + (i / (pts.length - 1)) * (w - padX * 2);
+          const y = h - padY - ((v - min) / (max - min)) * (h - padY * 2);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+
+        ctx.stroke();
+
+        const gradient = ctx.createLinearGradient(0, padY, 0, h);
+        gradient.addColorStop(0, "rgba(56,189,248,0.25)");
+        gradient.addColorStop(1, "rgba(56,189,248,0.0)");
+
+        ctx.lineTo(w - padX, h - padY);
+        ctx.lineTo(padX, h - padY);
+        ctx.closePath();
+        ctx.fillStyle = gradient;
+        ctx.fill();
+      }
+
+      function miOpenInstrumentModal(data) {
+        miCurrentCode = data.code || data.ticker || null;
+        const overlay = document.getElementById("mi-instrument-overlay");
+        if (!overlay) return;
+
+        const latest = data.latest || {};
+        const f = data.fundamentals || {};
+
+        const titleEl = document.getElementById("mi-ins-title");
+        const subtitleEl = document.getElementById("mi-ins-subtitle");
+        const priceEl = document.getElementById("mi-ins-price");
+        const changeEl = document.getElementById("mi-ins-change");
+        const dateEl = document.getElementById("mi-ins-date");
+        const tagsEl = document.getElementById("mi-ins-tags");
+        const statsEl = document.getElementById("mi-ins-stats");
+        const historySummaryEl = document.getElementById("mi-ins-history-summary");
+        const aiSummaryEl = document.getElementById("mi-ins-ai-summary");
+        const newsEl = document.getElementById("mi-ins-news");
+
+        const name = data.name || data.code || "";
+        const code = data.code || "";
+        const sector = f.sector || "";
+        const industry = f.industry || "";
+        const sizeBucket = f.sizeBucket || null;
+
+        if (titleEl) titleEl.textContent = name;
+        if (subtitleEl) {
+          const bits = [];
+          if (code) bits.push(code);
+          if (sector) bits.push(sector);
+          subtitleEl.textContent = bits.join(" • ") || "";
+        }
+
+        const priceNum =
+          typeof latest.price === "number" && isFinite(latest.price) ? latest.price : null;
+        const pctChange =
+          typeof latest.pctChange === "number" && isFinite(latest.pctChange) ? latest.pctChange : null;
+
+        if (priceEl) {
+          priceEl.textContent =
+            priceNum !== null ? miFormatCurrency(priceNum, f.currency || "AUD") : "—";
+        }
+
+        if (changeEl) {
+          changeEl.classList.remove("up", "down");
+          if (pctChange === null) {
+            changeEl.textContent = "Change: —";
+          } else {
+            const arrow = pctChange > 0 ? "▲" : pctChange < 0 ? "▼" : "•";
+            changeEl.textContent = `${arrow} ${pctChange.toFixed(2)}% yesterday`;
+            if (pctChange > 0) changeEl.classList.add("up");
+            else if (pctChange < 0) changeEl.classList.add("down");
+          }
+        }
+
+        if (dateEl) {
+          const d = miFormatDate(latest.date);
+          dateEl.textContent = d ? `as at ${d}` : "";
+        }
+
+        if (tagsEl) {
+          tagsEl.innerHTML = "";
+          const tags = [];
+          if (sizeBucket) {
+            const label =
+              sizeBucket === "mega"
+                ? "Mega cap"
+                : sizeBucket === "large"
+                ? "Large cap"
+                : sizeBucket === "mid"
+                ? "Mid cap"
+                : sizeBucket === "small"
+                ? "Small cap"
+                : null;
+            if (label) tags.push(label);
+          }
+          if (sector) tags.push(sector);
+          if (industry) tags.push(industry);
+
+          tags.forEach((t) => {
+            const span = document.createElement("span");
+            span.className = "mi-ins-tag";
+            span.textContent = t;
+            tagsEl.appendChild(span);
+          });
+        }
+
+        if (statsEl) {
+          statsEl.innerHTML = "";
+          const addStat = (label, valueStr) => {
+            if (!valueStr) return;
+            const item = document.createElement("div");
+            item.className = "mi-ins-stat-item";
+            const lab = document.createElement("span");
+            lab.className = "mi-ins-stat-label";
+            lab.textContent = label;
+            const val = document.createElement("span");
+            val.className = "mi-ins-stat-value";
+            val.textContent = valueStr;
+            item.appendChild(lab);
+            item.appendChild(val);
+            statsEl.appendChild(item);
+          };
+
+          if (typeof f.marketCap === "number" && isFinite(f.marketCap)) {
+            addStat("Market cap", miFormatCompactNumber(f.marketCap));
+          }
+          if (typeof f.revenueLastYear === "number" && isFinite(f.revenueLastYear)) {
+            addStat("Revenue (last year)", miFormatCompactNumber(f.revenueLastYear));
+          }
+          if (typeof f.netIncomeLastYear === "number" && isFinite(f.netIncomeLastYear)) {
+            addStat("Net profit (last year)", miFormatCompactNumber(f.netIncomeLastYear));
+          }
+          if (typeof f.pe === "number" && isFinite(f.pe)) {
+            addStat("P/E ratio", f.pe.toFixed(2) + "×");
+          }
+          if (typeof f.dividendYield === "number" && isFinite(f.dividendYield)) {
+            addStat("Dividend yield", miFormatPercent(f.dividendYield, 2));
+          }
+          if (typeof f.paysDividend === "boolean") {
+            addStat("Pays dividend", f.paysDividend ? "Yes" : "No");
+          }
+          if (typeof f.eps === "number" && isFinite(f.eps)) {
+            addStat("Earnings per share", f.eps.toFixed(2));
+          }
+        }
+
+        const h = data.history;
+        if (historySummaryEl) {
+          if (h && Array.isArray(h.points) && h.points.length > 1) {
+            const start = miFormatDate(h.startDate);
+            const end = miFormatDate(h.endDate);
+            historySummaryEl.textContent =
+              start && end ? `Showing daily closes from ${start} to ${end}.` : "Showing last 6 months of daily closes.";
+          } else {
+            historySummaryEl.textContent = "Price history not available.";
+          }
+        }
+        if (h) miRenderChart(h);
+
+        if (aiSummaryEl) {
+          aiSummaryEl.textContent = "We’re loading a short AI snapshot for this company…";
+          miFetchAiSummary("equity", data.code || "")
+            .then((s) => {
+              aiSummaryEl.textContent = s && s.summary ? s.summary : "We couldn’t generate a summary right now.";
+            })
+            .catch((err) => {
+              console.error("AI summary error", err);
+              aiSummaryEl.textContent = "We couldn’t generate a summary right now.";
+            });
+        }
+
+        if (newsEl) {
+          newsEl.textContent = "Loading headlines for this name…";
+          miFetchInstrumentNews(code)
+            .then((articles) => {
+              if (!articles.length) {
+                newsEl.textContent = "No recent headlines found for this code.";
+                return;
+              }
+              const html = articles
+                .slice(0, 6)
+                .map((a) => {
+                  const when = a.publishedAt || a.published || "";
+                  const d = miFormatDate(when) || "";
+                  const source = a.source || "";
+                  const title = a.title || "";
+                  return `
+                    <div class="mi-ins-news-item">
+                      <div class="mi-ins-news-item-title">${title}</div>
+                      <div class="mi-ins-news-item-meta">
+                        ${source}${d ? " • " + d : ""}
+                      </div>
+                      ${
+                        a.url
+                          ? `<a href="${a.url}" target="_blank" rel="noopener">Read original →</a>`
+                          : ""
+                      }
+                    </div>
+                  `;
+                })
+                .join("");
+              newsEl.innerHTML = `<div class="mi-ins-news-list">${html}</div>`;
+            })
+            .catch((err) => {
+              console.error("Instrument news error", err);
+              newsEl.textContent = "Couldn’t load news right now.";
+            });
+        }
+
+        overlay.style.display = "flex";
+        overlay.setAttribute("aria-hidden", "false");
+      }
+
+      function miCloseInstrumentModal() {
+        const overlay = document.getElementById("mi-instrument-overlay");
+        if (!overlay) return;
+        overlay.style.display = "none";
+        overlay.setAttribute("aria-hidden", "true");
+      }
+
+      // Row clicks open modal
+      tableBody.addEventListener("click", async (e) => {
+        const row = e.target.closest("tr[data-code]");
+        if (!row) return;
+
+        const code = row.getAttribute("data-code");
+        const type = row.getAttribute("data-type") || "equity";
+
+        try {
+          const data = await miFetchInstrumentDetails(type, code);
+          miOpenInstrumentModal(data);
+        } catch (err) {
+          console.error("Failed to load instrument details", err);
+          alert("Sorry, we couldn't load that company at the moment.");
+        }
+      });
+
+      // Close handlers
+      document.getElementById("mi-ins-close-btn")?.addEventListener("click", miCloseInstrumentModal);
+
+      document.getElementById("mi-instrument-overlay")?.addEventListener("click", (e) => {
+        if (e.target.id === "mi-instrument-overlay") miCloseInstrumentModal();
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") miCloseInstrumentModal();
+      });
+
+      document.getElementById("mi-ins-details-btn")?.addEventListener("click", () => {
+        if (!miCurrentCode) return;
+        window.location.href = `/stocks/${miCurrentCode}.html`;
+      });
+    </script>
   </body>
 </html>
