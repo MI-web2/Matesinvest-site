@@ -1,11 +1,10 @@
 // netlify/functions/track-visit.js
-// Tracks new vs returning users + daily uniques into Upstash Redis.
+// Tracks new vs returning users + daily uniques + per-page repeat stats into Upstash Redis.
 
 const fetch = (...args) => global.fetch(...args);
 
 function getAESTDateString(ts = Date.now()) {
-  // AEST = UTC+10 (no DST handling). Good enough for now.
-  // If you want AEDT support later, we can improve this.
+  // AEST = UTC+10 (no DST handling).
   const d = new Date(ts + 10 * 60 * 60 * 1000);
   return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
@@ -30,7 +29,6 @@ async function redisCmd(cmdArray) {
   }
 
   const json = await res.json();
-  // pipeline returns [{ result: ... }]
   return json?.[0]?.result;
 }
 
@@ -102,49 +100,79 @@ exports.handler = async (event) => {
   }
 
   const uid = (payload.uid || "").trim();
-  const path = (payload.path || "/").trim().slice(0, 200);
+  const pathRaw = (payload.path || "/").trim();
+  const path = (pathRaw || "/").slice(0, 200);
   const ts = Number(payload.ts || Date.now());
 
-  if (!uid || uid.length < 8 || uid.length > 80) return bad(400, "Missing/invalid uid");
+  if (!uid || uid.length < 8 || uid.length > 80) {
+    return bad(400, "Missing/invalid uid");
+  }
 
   const day = getAESTDateString(ts);
 
+  // Global user keys
   const firstSeenKey = `mates:analytics:user:first_seen:${uid}`;
   const lastSeenKey = `mates:analytics:user:last_seen:${uid}`;
 
+  // Day keys
   const dayHash = `mates:analytics:day:${day}`;
   const dayUids = `mates:analytics:day:${day}:uids`;
-  const dayPaths = `mates:analytics:day:${day}:paths`;
+  const dayPaths = `mates:analytics:day:${day}:paths`; // simple per-path visit counts (already used)
+
+  // New per-path repeat stats keys
+  const dayPathStats = `mates:analytics:day:${day}:pathstats`; // hash: `${path}|visits`, `${path}|unique_users`, etc.
+  const dayPathUids = `mates:analytics:day:${day}:pathuids:${encodeURIComponent(path)}`; // set of uids seen on this path today
 
   try {
-    // 1) Determine if this user is new globally (SETNX first_seen)
-    // SETNX returns 1 if set, 0 if already existed
+    // 1) Determine if user is new globally (SETNX)
     const setnx = await redisCmd(["SETNX", firstSeenKey, String(ts)]);
-
     const isNewUser = setnx === 1;
 
-    // 2) Add uid to daily set; SADD returns 1 if added (first time today)
-    // 3) Increment counters
+    // 2) Main pipeline: record visit + sets
+    // Order matters because we read back SADD results by index.
     const commands = [
+      // 0: daily unique users set
       ["SADD", dayUids, uid],
+
+      // 1: day totals
       ["HINCRBY", dayHash, "visits", 1],
-      // optional per-path
+
+      // 2: old per-path visit counts (nice quick “top pages”)
       ["HINCRBY", dayPaths, path || "/", 1],
-      // update last_seen
+
+      // 3: new per-path visit totals
+      ["HINCRBY", dayPathStats, `${path || "/"}|visits`, 1],
+
+      // 4: per-path unique set (detect first time on this path today)
+      ["SADD", dayPathUids, uid],
+
+      // 5: update last_seen
       ["SET", lastSeenKey, String(ts)],
     ];
 
     const pipelineRes = await redisPipeline(commands);
 
-    const saddResult = pipelineRes?.[0]?.result; // 1 if first time today, 0 otherwise
-    const firstTimeToday = saddResult === 1;
+    const firstTimeToday = pipelineRes?.[0]?.result === 1;      // SADD dayUids
+    const firstTimeOnThisPathToday = pipelineRes?.[4]?.result === 1; // SADD dayPathUids
 
+    // 3) Counter increments (separate pipeline)
     const counterCmds = [];
 
+    // Overall new vs returning
     if (isNewUser) counterCmds.push(["HINCRBY", dayHash, "new_users", 1]);
     else counterCmds.push(["HINCRBY", dayHash, "returning_users", 1]);
 
+    // Overall uniques (per day)
     if (firstTimeToday) counterCmds.push(["HINCRBY", dayHash, "unique_users", 1]);
+
+    // Per-path new vs returning
+    if (isNewUser) counterCmds.push(["HINCRBY", dayPathStats, `${path || "/"}|new_users`, 1]);
+    else counterCmds.push(["HINCRBY", dayPathStats, `${path || "/"}|returning_users`, 1]);
+
+    // Per-path uniques (per day)
+    if (firstTimeOnThisPathToday) {
+      counterCmds.push(["HINCRBY", dayPathStats, `${path || "/"}|unique_users`, 1]);
+    }
 
     if (counterCmds.length) await redisPipeline(counterCmds);
 
@@ -154,6 +182,7 @@ exports.handler = async (event) => {
       path,
       is_new_user: isNewUser,
       first_time_today: firstTimeToday,
+      first_time_on_path_today: firstTimeOnThisPathToday,
     });
   } catch (err) {
     console.error("track-visit error:", err);
