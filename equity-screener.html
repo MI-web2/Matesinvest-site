@@ -1065,6 +1065,11 @@
       let miCurrentCode = null;
 
       let sortState = { key: "marketCap", direction: "desc" };
+      let activePresetId = null;
+
+// Fast-mover “volatile” threshold (daily move). Tweak anytime.
+const FAST_MOVER_MIN_ABS_PCT = 3; // 3%+
+
 
       // Filters dropdown toggle
       filtersToggle.addEventListener("click", () => {
@@ -1076,9 +1081,11 @@
       // NEW: Style presets (no JSON file needed)
       // ----------------------------
 
-      function setActivePreset(id) {
-        presetButtons.forEach((b) => b.classList.toggle("active", b.dataset.preset === id));
-      }
+function setActivePreset(id) {
+  activePresetId = id || null;
+  presetButtons.forEach((b) => b.classList.toggle("active", b.dataset.preset === id));
+}
+
 
       function clearPresetUI() {
         setActivePreset(null);
@@ -1126,12 +1133,14 @@
             sortState = { key: "marketCap", direction: "desc" };
             break;
           }
-          case "trader": {
-            // Fast-mover: keep it liquid-ish by size; user then sorts / clicks table
-            mcMinInput.value = "1"; // >= $1bn
-            sortState = { key: "marketCap", direction: "desc" };
-            break;
-          }
+case "trader": {
+  // Fast-mover: volatile movers (big up or down), still avoid micro illiquid names
+  mcMinInput.value = "1"; // >= $1bn
+
+  // Sort by ABS % change (custom key handled in applySort)
+  sortState = { key: "absPctChange", direction: "desc" };
+  break;
+}
           case "social": {
             // Talk-it-through: big, well-known names (easy to discuss + find info)
             mcMinInput.value = "5"; // >= $5bn
@@ -1277,7 +1286,11 @@
           ) {
             return false;
           }
-
+// Fast-mover volatility screen: require meaningful daily move
+if (activePresetId === "trader") {
+  const pc = Number(item.pctChange);
+  if (Number.isNaN(pc) || Math.abs(pc) < FAST_MOVER_MIN_ABS_PCT) return false;
+}
           return true;
         });
 
@@ -1289,9 +1302,18 @@
         const { key, direction } = sortState;
         const dir = direction === "asc" ? 1 : -1;
 
-        filteredItems.sort((a, b) => {
-          const va = a[key];
-          const vb = b[key];
+filteredItems.sort((a, b) => {
+  // Custom: absolute % change
+  if (key === "absPctChange") {
+    const aa = Math.abs(Number(a.pctChange));
+    const bb = Math.abs(Number(b.pctChange));
+    const na = Number.isFinite(aa) ? aa : -Infinity;
+    const nb = Number.isFinite(bb) ? bb : -Infinity;
+    return (na - nb) * dir;
+  }
+
+  const va = a[key];
+  const vb = b[key];
 
           const na = Number(va);
           const nb = Number(vb);
