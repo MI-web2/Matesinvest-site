@@ -404,9 +404,7 @@ async function main() {
       .replace(/{{UPDATED_AT}}/g, updatedAt.substring(0, 10));
 
     // Inject email capture + tracking into every generated page
-    html = injectBeforeBodyClose(
-      html,
-      emailCaptureBlock({ code, name }),
+html = html.replace(/{{EMAIL_CAPTURE}}/g, emailCaptureBlock({ code, name }));
       "<!-- MatesInvest: Stock page email capture -->"
     );
 
