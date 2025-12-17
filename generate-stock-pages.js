@@ -15,15 +15,15 @@ const fetch = (...args) => global.fetch(...args);
 
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
 const SITE_URL = "https://matesinvest.com"; // change if you use a different domain
 
-// Where stock-page email capture posts to (change if your endpoint differs)
+// Where stock-page email capture posts to
 const SIGNUP_ENDPOINT = "/.netlify/functions/subscribe";
 const FALLBACK_JOIN_URL = "/join.html";
 
-// 🔧 Adjust these if your key names differ
+// Adjust these if your key names differ
 const FUND_MASTER_KEY = "asx:universe:fundamentals:latest";
-// e.g. could also be "asx:universe:eod:latest" or "equity-screener:latest" if that's what you use
 const PRICE_KEY = "asx:universe:eod:latest";
 
 const TEMPLATE_PATH = path.join(__dirname, "stocks", "_template.html");
@@ -216,14 +216,11 @@ function emailCaptureBlock({ code, name }) {
         })
       });
 
-      if (!res.ok) {
-        throw new Error("bad_status_" + res.status);
-      }
+      if (!res.ok) throw new Error("bad_status_" + res.status);
 
       setMsg("You’re in ✅ Check your inbox tomorrow at 6:05am.", true);
       emailEl.value = "";
     } catch (err) {
-      // fallback to join page so we never lose the lead
       setMsg("Couldn’t add you automatically — redirecting…", false);
       const url = ${JSON.stringify(FALLBACK_JOIN_URL)} + "?code=" + encodeURIComponent(CODE);
       setTimeout(() => { window.location.href = url; }, 700);
@@ -270,15 +267,9 @@ async function loadFundamentals() {
       continue;
     }
 
-    // handle possible shapes:
-    // {items:[...]}  OR  [...]
-    if (Array.isArray(parsed)) {
-      all = all.concat(parsed);
-    } else if (Array.isArray(parsed.items)) {
-      all = all.concat(parsed.items);
-    } else {
-      console.warn(`⚠️ Fundamentals part ${partKey} has unexpected shape`);
-    }
+    if (Array.isArray(parsed)) all = all.concat(parsed);
+    else if (Array.isArray(parsed.items)) all = all.concat(parsed.items);
+    else console.warn(`⚠️ Fundamentals part ${partKey} has unexpected shape`);
   }
 
   return { items: all, generatedAt };
@@ -302,7 +293,6 @@ async function loadPrices() {
   const generatedAt = payload.generatedAt || new Date().toISOString();
 
   const byCode = {};
-
   if (!Array.isArray(items)) {
     console.warn("⚠️ Price payload items is not an array");
     return { byCode, generatedAt };
@@ -331,22 +321,18 @@ async function main() {
   }
 
   const template = fs.readFileSync(TEMPLATE_PATH, "utf8");
-
   const [fundamentals, prices] = await Promise.all([loadFundamentals(), loadPrices()]);
   const sitemapUrls = [];
 
   const fundItems = fundamentals.items;
-  const updatedAt =
-    fundamentals.generatedAt || prices.generatedAt || new Date().toISOString();
+  const updatedAt = fundamentals.generatedAt || prices.generatedAt || new Date().toISOString();
 
   if (!Array.isArray(fundItems) || fundItems.length === 0) {
     console.warn("⚠️ No fundamentals items found, nothing to generate.");
     return;
   }
 
-  if (!fs.existsSync(OUTPUT_DIR)) {
-    fs.mkdirSync(OUTPUT_DIR);
-  }
+  if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
 
   let count = 0;
 
@@ -366,6 +352,7 @@ async function main() {
         : "–";
 
     const pctChange = formatPercent(priceInfo.changePct);
+
     const marketCap = formatMoney(
       f.marketCap || f.MarketCapitalization || priceInfo.marketCap
     );
@@ -403,11 +390,10 @@ async function main() {
       .replace(/{{SUMMARY}}/g, summary)
       .replace(/{{UPDATED_AT}}/g, updatedAt.substring(0, 10));
 
-    // Inject email capture + tracking into every generated page
-html = html.replace(/{{EMAIL_CAPTURE}}/g, emailCaptureBlock({ code, name }));
-      "<!-- MatesInvest: Stock page email capture -->"
-    );
+    // ✅ Email capture: uses the template placeholder
+    html = html.replace(/{{EMAIL_CAPTURE}}/g, emailCaptureBlock({ code, name }));
 
+    // ✅ Tracking: inject near </body>
     html = injectBeforeBodyClose(
       html,
       trackingSnippet(),
@@ -423,26 +409,18 @@ html = html.replace(/{{EMAIL_CAPTURE}}/g, emailCaptureBlock({ code, name }));
 
   console.log(`✅ Generated ${count} stock pages in /stocks`);
 
-  // Write a dedicated sitemap for stock pages
   const sitemapXml =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     sitemapUrls
       .map(
         (loc) =>
-          `  <url><loc>${loc}</loc><lastmod>${updatedAt.substring(
-            0,
-            10
-          )}</lastmod></url>`
+          `  <url><loc>${loc}</loc><lastmod>${updatedAt.substring(0, 10)}</lastmod></url>`
       )
       .join("\n") +
     `\n</urlset>\n`;
 
-  fs.writeFileSync(
-    path.join(__dirname, "stocks-sitemap.xml"),
-    sitemapXml,
-    "utf8"
-  );
+  fs.writeFileSync(path.join(__dirname, "stocks-sitemap.xml"), sitemapXml, "utf8");
 }
 
 main().catch((err) => {
