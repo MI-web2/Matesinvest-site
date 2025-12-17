@@ -155,31 +155,33 @@ async function getUniversePriceMap() {
   );
   if (!raw) return null;
 
-  let arr = typeof raw === "string" ? JSON.parse(raw) : raw;
-  if (!Array.isArray(arr)) return null;
+  let parsed;
+  try {
+    parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch (_) {
+    return null;
+  }
+
+  // Support both: [ ... ] OR { items:[...], generatedAt:... }
+  const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : null;
+  if (!arr) return null;
 
   const map = {};
   for (const row of arr) {
     if (!row || !row.code) continue;
     const code = String(row.code).toUpperCase();
+
+    // Support common aliases just in case
+    const close = row.close ?? row.price ?? row.last ?? null;
+    const prevClose = row.prevClose ?? row.previousClose ?? null;
+    const pctChange = row.pctChange ?? row.changePct ?? row.change_percent ?? null;
+
     map[code] = {
       date: row.date || null,
-      close:
-        typeof row.close === "number" && Number.isFinite(row.close)
-          ? row.close
-          : null,
-      prevClose:
-        typeof row.prevClose === "number" && Number.isFinite(row.prevClose)
-          ? row.prevClose
-          : null,
-      pctChange:
-        typeof row.pctChange === "number" && Number.isFinite(row.pctChange)
-          ? row.pctChange
-          : null,
-      volume:
-        typeof row.volume === "number" && Number.isFinite(row.volume)
-          ? row.volume
-          : null,
+      close: typeof close === "number" && Number.isFinite(close) ? close : null,
+      prevClose: typeof prevClose === "number" && Number.isFinite(prevClose) ? prevClose : null,
+      pctChange: typeof pctChange === "number" && Number.isFinite(pctChange) ? pctChange : null,
+      volume: typeof row.volume === "number" && Number.isFinite(row.volume) ? row.volume : null,
     };
   }
   return map;
