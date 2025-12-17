@@ -1331,8 +1331,7 @@
                 <td class="sticky-col"><strong>${item.code}</strong></td>
                 <td>${item.name || ""}</td>
                 <td><span class="pill">${item.sector || "Unknown"}</span></td>
-
-<td>${formatNumber(item.price)}</td>
+<td>${formatPrice(item.price)}</td>
 <td>${formatPct(item.pctChange)}</td>
 <td>${mcM}</td>
                 <td>${formatNumber(item.peRatio)}</td>
@@ -1388,7 +1387,10 @@
   const sign = v > 0 ? "+" : "";
   return `${sign}${v.toFixed(2)}%`;
 }
-
+      function formatPrice(v) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return "—";
+  return v.toFixed(3);
+}
       function formatPercentFrac(value) {
         const n = Number(value);
         if (Number.isNaN(n)) return "-";
