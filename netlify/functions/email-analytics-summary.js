@@ -1,6 +1,10 @@
 // netlify/functions/email-analytics-summary.js
 // Scheduled: emails yesterday + MTD + YTD analytics summary via Resend.
 // Requires Upstash + Resend env vars.
+//
+// Also includes "Top pages (Yesterday)" using:
+//   mates:analytics:day:YYYY-MM-DD:pathstats
+// (populated by the updated track-visit.js)
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -52,16 +56,28 @@ async function upstashPipeline(commands) {
     },
     body: JSON.stringify(commands),
   });
-  if (!res.ok) throw new Error(`Upstash pipeline error: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    throw new Error(`Upstash pipeline error: ${res.status} ${await res.text()}`);
+  }
   return res.json(); // [{result: ...}, ...]
 }
 
 function hgetallArrayToObject(arr) {
-  // Upstash returns [field, value, field, value...]
+  // Numeric object (field -> number)
   const out = {};
   if (!Array.isArray(arr)) return out;
   for (let i = 0; i < arr.length; i += 2) {
     out[arr[i]] = Number(arr[i + 1] || 0);
+  }
+  return out;
+}
+
+function hgetallArrayToStringObject(arr) {
+  // String object (field -> string)
+  const out = {};
+  if (!Array.isArray(arr)) return out;
+  for (let i = 0; i < arr.length; i += 2) {
+    out[arr[i]] = arr[i + 1];
   }
   return out;
 }
@@ -119,10 +135,21 @@ exports.handler = async function () {
     const mtdDays = dateRange(mtdStart, yesterday);
     const ytdDays = dateRange(ytdStart, yesterday);
 
-    // Fetch HGETALL for each day in one pipeline per range
+    // Keys
     const dayKey = (day) => `mates:analytics:day:${day}`;
+    const pathsKey = (day) => `mates:analytics:day:${day}:paths`;
+    const pathStatsKey = (day) => `mates:analytics:day:${day}:pathstats`;
 
-    const yCmd = [["HGETALL", dayKey(yesterday)]];
+    // Fetch:
+    // - yesterday totals
+    // - MTD totals
+    // - YTD totals
+    // - yesterday per-path stats
+    const yCmd = [
+      ["HGETALL", dayKey(yesterday)],
+      ["HGETALL", pathsKey(yesterday)],
+      ["HGETALL", pathStatsKey(yesterday)],
+    ];
     const mCmd = mtdDays.map((d) => ["HGETALL", dayKey(d)]);
     const ytdCmd = ytdDays.map((d) => ["HGETALL", dayKey(d)]);
 
@@ -133,6 +160,10 @@ exports.handler = async function () {
     ]);
 
     const yObj = hgetallArrayToObject(yRes?.[0]?.result);
+
+    const pathsObj = hgetallArrayToStringObject(yRes?.[1]?.result);     // fallback visit counts
+    const pathStatsObj = hgetallArrayToStringObject(yRes?.[2]?.result); // per-page repeat stats
+
     const mObjs = (mRes || []).map((r) => hgetallArrayToObject(r.result));
     const ytdObjs = (ytdRes || []).map((r) => hgetallArrayToObject(r.result));
 
@@ -143,8 +174,54 @@ exports.handler = async function () {
     const mReturningShare = pct(mtd.returning_users || 0, mtd.visits || 0);
     const ytdReturningShare = pct(ytd.returning_users || 0, ytd.visits || 0);
 
-    const to = ANALYTICS_EMAIL_TO.split(",").map((s) => s.trim()).filter(Boolean);
+    // Build top pages list (Yesterday)
+    // Strategy:
+    // - Use mates:...:paths to find top visited pages
+    // - Then use mates:...:pathstats to show unique/returning/returning%
+    const topPages = Object.entries(pathsObj || {})
+      .map(([path, v]) => ({ path, visits: Number(v || 0) }))
+      .sort((a, b) => b.visits - a.visits)
+      .slice(0, 10)
+      .map((p) => {
+        const path = p.path || "/";
+        const visits =
+          Number(pathStatsObj[`${path}|visits`] || 0) || p.visits || 0;
 
+        const unique = Number(pathStatsObj[`${path}|unique_users`] || 0);
+        const returning = Number(pathStatsObj[`${path}|returning_users`] || 0);
+
+        return {
+          path,
+          visits,
+          unique,
+          returning,
+          returningPct: visits ? ((returning / visits) * 100).toFixed(1) + "%" : "0%",
+        };
+      });
+
+    const pagesRowsHtml = topPages.length
+      ? topPages
+          .map(
+            (r) => `
+              <tr>
+                <td style="padding:8px;border-bottom:1px solid #f5f5f5;"><b>${r.path}</b></td>
+                <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.visits}</td>
+                <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.unique}</td>
+                <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.returning}</td>
+                <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.returningPct}</td>
+              </tr>
+            `
+          )
+          .join("")
+      : `
+          <tr>
+            <td colspan="5" style="padding:8px;color:#666;">
+              No per-page stats yet (tracker may have just been enabled).
+            </td>
+          </tr>
+        `;
+
+    const to = ANALYTICS_EMAIL_TO.split(",").map((s) => s.trim()).filter(Boolean);
     const subject = `MatesInvest Daily Analytics — ${yesterday} (AEST)`;
 
     const html = `
@@ -188,6 +265,18 @@ exports.handler = async function () {
             <td style="text-align:right;padding:8px;">${ytd.returning_users}</td>
             <td style="text-align:right;padding:8px;">${ytdReturningShare}</td>
           </tr>
+        </table>
+
+        <h3 style="margin:18px 0 8px;">Top pages (Yesterday)</h3>
+        <table style="border-collapse:collapse;width:100%;max-width:640px;">
+          <tr>
+            <th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">Page</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Visits</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Unique</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Returning</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Returning %</th>
+          </tr>
+          ${pagesRowsHtml}
         </table>
 
         <p style="margin:16px 0 0;color:#666;font-size:12px;">
