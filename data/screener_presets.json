@@ -1,54 +1,42 @@
 {
+  "version": "v1",
   "presets": {
-    "technical_large_liquid": {
-      "title": "Large, liquid stocks",
-      "filters": { "market_cap_min_m": 5000 },
-      "sort": { "field": "market_cap_m", "direction": "desc" }
+    "numbers_person": {
+      "label": "🧠 Numbers Person",
+      "filters": {
+        "pe_max": 25,
+        "market_cap_min_bn": 2
+      },
+      "sort": { "field": "marketCap", "direction": "desc" }
     },
-    "technical_trends": {
-      "title": "Big movers (short-term)",
+    "planner": {
+      "label": "📋 Planner",
+      "filters": {
+        "div_yield_min_pct": 3,
+        "pe_max": 20,
+        "market_cap_min_bn": 1
+      },
+      "sort": { "field": "dividendYield", "direction": "desc" }
+    },
+    "long_game": {
+      "label": "🌱 Long-Game",
+      "filters": {
+        "market_cap_min_bn": 5,
+        "pe_max": 30
+      },
+      "sort": { "field": "marketCap", "direction": "desc" }
+    },
+    "fast_mover": {
+      "label": "⚡ Fast-Mover",
       "filters": {},
-      "sort": { "field": "daily_move_pct", "direction": "desc" }
+      "sort": { "field": "pctChange", "direction": "desc" }
     },
-    "value_dividends": {
-      "title": "Dividend + value screen",
-      "filters": { "dividend_yield_min": 2 },
-      "sort": { "field": "dividend_yield", "direction": "desc" }
-    },
-    "value_profitable": {
-      "title": "Profitable companies (fundamentals-first)",
-      "filters": { "ebitda_positive": true },
-      "sort": { "field": "market_cap_m", "direction": "desc" }
-    },
-    "longterm_quality": {
-      "title": "Quality & consistency",
-      "filters": { "revenue_positive": true, "ebitda_positive": true },
-      "sort": { "field": "market_cap_m", "direction": "desc" }
-    },
-    "longterm_large_cap": {
-      "title": "Long-term: established names",
-      "filters": { "market_cap_min_m": 10000 },
-      "sort": { "field": "market_cap_m", "direction": "desc" }
-    },
-    "momentum_movers": {
-      "title": "Momentum: biggest daily movers",
-      "filters": {},
-      "sort": { "field": "daily_move_pct", "direction": "desc" }
-    },
-    "high_volume": {
-      "title": "High interest (proxy via size)",
-      "filters": { "market_cap_min_m": 2000 },
-      "sort": { "field": "daily_move_pct", "direction": "desc" }
-    },
-    "large_cap_staples": {
-      "title": "Large cap core",
-      "filters": { "market_cap_min_m": 15000 },
-      "sort": { "field": "market_cap_m", "direction": "desc" }
-    },
-    "dividend_large_cap": {
-      "title": "Dividends + size",
-      "filters": { "market_cap_min_m": 5000, "dividend_yield_min": 2 },
-      "sort": { "field": "market_cap_m", "direction": "desc" }
+    "talk_it_through": {
+      "label": "🗣️ Talk-it-through",
+      "filters": {
+        "market_cap_min_bn": 2
+      },
+      "sort": { "field": "marketCap", "direction": "desc" }
     }
   }
 }
