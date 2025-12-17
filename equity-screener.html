@@ -876,13 +876,18 @@
                 <th class="sortable" data-sort="sector">
                   Sector <span>↕</span>
                 </th>
+<th class="sortable" data-sort="price">
+  Price (last close) <span>↕</span>
+</th>
 
-                <th class="sortable" data-sort="price">
-                  Price (Y'day) <span>↕</span>
-                </th>
-                <th class="sortable" data-sort="marketCap">
-                  Mkt Cap (A$m) <span>↕</span>
-                </th>
+<th class="sortable" data-sort="yesterdayPrice">
+  Prev close <span>↕</span>
+</th>
+
+<th class="sortable" data-sort="marketCap">
+  Mkt Cap (A$m) <span>↕</span>
+</th>
+
 
                 <th class="sortable" data-sort="peRatio">
                   P/E <span>↕</span>
@@ -955,7 +960,7 @@
 
             <tbody id="tableBody">
               <tr>
-                <td colspan="30" style="text-align: center; padding: 1rem">
+                <td colspan="31" style="text-align: center; padding: 1rem">
                   Loading companies…
                 </td>
               </tr>
@@ -1203,7 +1208,7 @@
         } catch (e) {
           console.error(e);
           tableBody.innerHTML =
-            '<tr><td colspan="30" style="text-align:center;padding:1rem;color:#dc2626">Failed to load data. Refresh to try again.</td></tr>';
+            '<tr><td colspan="31" style="text-align:center;padding:1rem;color:#dc2626">Failed to load data. Refresh to try again.</td></tr>';
         }
       }
 
@@ -1309,7 +1314,7 @@
       function renderTable() {
         if (!filteredItems.length) {
           tableBody.innerHTML =
-            '<tr><td colspan="30" style="text-align:center;padding:1rem;">No companies match your filters.</td></tr>';
+            '<tr><td colspan="31" style="text-align:center;padding:1rem;">No companies match your filters.</td></tr>';
           statusCount.textContent = "0 companies";
           return;
         }
@@ -1327,8 +1332,9 @@
                 <td>${item.name || ""}</td>
                 <td><span class="pill">${item.sector || "Unknown"}</span></td>
 
-                <td>${formatNumber(item.price)}</td>
-                <td>${mcM}</td>
+<td>${formatNumber(item.price)}</td>
+<td>${formatNumber(item.yesterdayPrice)}</td>
+<td>${mcM}</td>
 
                 <td>${formatNumber(item.peRatio)}</td>
                 <td>${formatNumber(item.eps)}</td>
