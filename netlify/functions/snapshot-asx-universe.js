@@ -196,6 +196,13 @@ exports.handler = async function (event) {
       body: JSON.stringify({ error: "Missing Upstash env" }),
     };
   }
+  const today = new Date().toISOString().slice(0, 10);
+const lastRunDate = await redisGet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:lastRunDate");
+
+if (lastRunDate !== today) {
+  await redisSet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:offset", "0");
+  await redisSet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:lastRunDate", today);
+}
 
   const qs = (event && event.queryStringParameters) || {};
   const TRY_SUFFIXES = (
