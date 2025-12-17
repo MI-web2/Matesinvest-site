@@ -29,16 +29,16 @@
   # Run email-daily-brief Mon–Fri at 06:05 AEST
   # (which is Sun–Thu 20:05 UTC)
   schedule = "5 20 * * 0-4"
-  
+
 [functions."email-weekly-brief"]
   # Weekly brief: Sat 06:05 AEST (Fri 20:05 UTC)
   schedule = "5 20 * * 5"
-  
+
 [functions."snapshot-crypto"]
   # Crypto snapshot daily at 20:00 UTC (~6am AEST / 7am AEDT)
   # Used by morning-brief + daily email for BTC/ETH/SOL/ADA
   schedule = "0 20 * * *"
-  
+
 [functions."snapshot-asx200-fundamentals"]
   # run overnight Mon–Fri AEST-ish
   schedule = "30 21 * * 1-5"
@@ -52,11 +52,15 @@
 [functions."snapshot-asx-universe-prices"]
   # Run repeatedly overnight in the same window (every 2 minutes between 11:00–23:59 UTC)
   schedule = "*/2 11-23 * * *"
-  
-  # Merge job: run shortly after snapshot window ends so all parts are expected to be written.
+
+# Merge job: run shortly after snapshot window ends so all parts are expected to be written.
 # Runs daily at 00:05 UTC; second run at 02:05 UTC as a fallback.
 [functions."merge-asx-universe"]
   schedule = "5 0,2 * * *"
+
+# ✅ NEW: Daily analytics email summary at 05:00 AEST (19:00 UTC)
+[functions."email-analytics-summary"]
+  schedule = "0 19 * * *"
 
 [[redirects]]
   from = "/content/articles"
@@ -67,19 +71,12 @@
   from = "/content/*"
   to = "/content.html"
   status = 200
-  
+
 [[redirects]]
   from = "/mates-summaries"
   to = "/"
   status = 301
   force = true
-  
+
 [build.environment]
   NODE_VERSION = "20"
-
-[functions]
-  node_bundler = "esbuild"
-
-[[scheduled.functions]]
-  function = "email-analytics-summary"
-  cron = "0 19 * * *"
