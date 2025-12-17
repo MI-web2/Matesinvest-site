@@ -880,8 +880,8 @@
   Price (last close) <span>↕</span>
 </th>
 
-<th class="sortable" data-sort="yesterdayPrice">
-  Prev close <span>↕</span>
+<th class="sortable" data-sort="pctChange">
+  % Chg <span>↕</span>
 </th>
 
 <th class="sortable" data-sort="marketCap">
@@ -1333,9 +1333,8 @@
                 <td><span class="pill">${item.sector || "Unknown"}</span></td>
 
 <td>${formatNumber(item.price)}</td>
-<td>${formatNumber(item.yesterdayPrice)}</td>
+<td>${formatPct(item.pctChange)}</td>
 <td>${mcM}</td>
-
                 <td>${formatNumber(item.peRatio)}</td>
                 <td>${formatNumber(item.eps)}</td>
                 <td>${formatNumber(item.bookValue)}</td>
@@ -1384,6 +1383,11 @@
         if (Number.isNaN(n)) return "-";
         return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
       }
+      function formatPct(v) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return "—";
+  const sign = v > 0 ? "+" : "";
+  return `${sign}${v.toFixed(2)}%`;
+}
 
       function formatPercentFrac(value) {
         const n = Number(value);
