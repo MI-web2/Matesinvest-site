@@ -5,6 +5,8 @@
 //      asx:universe:fundamentals:latest
 // - Reads latest prices from Upstash:
 //      asx:universe:eod:latest
+// - Derives "yesterday close" from cached daily keys:
+//      asx:universe:eod:YYYY-MM-DD  (looks back up to 7 days)
 // - Optionally can filter by code query (?code=BHP) or inAsx200 flag.
 // - Optional screener-level ETF exclusion via ?excludeETF=1 or env EXCLUDE_ETF_DEFAULT=1
 //
@@ -70,6 +72,13 @@ function isEtfName(name) {
   return /\bETF$/i.test(cleaned);
 }
 
+function isoMinusDays(dateStr, days) {
+  // dateStr "YYYY-MM-DD", interpret at UTC midnight
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 // ---------------------------
 // Helpers to load snapshots
 // ---------------------------
@@ -127,7 +136,11 @@ async function getUniverseFundamentals() {
           continue;
         }
       } catch (e) {
-        console.warn("equity-screener: failed to fetch part", pk, e && e.message);
+        console.warn(
+          "equity-screener: failed to fetch part",
+          pk,
+          e && e.message
+        );
       }
     }
 
@@ -163,7 +176,11 @@ async function getUniversePriceMap() {
   }
 
   // Support both: [ ... ] OR { items:[...], generatedAt:... }
-  const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : null;
+  const arr = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.items)
+    ? parsed.items
+    : null;
   if (!arr) return null;
 
   const map = {};
@@ -179,12 +196,56 @@ async function getUniversePriceMap() {
     map[code] = {
       date: row.date || null,
       close: typeof close === "number" && Number.isFinite(close) ? close : null,
-      prevClose: typeof prevClose === "number" && Number.isFinite(prevClose) ? prevClose : null,
-      pctChange: typeof pctChange === "number" && Number.isFinite(pctChange) ? pctChange : null,
-      volume: typeof row.volume === "number" && Number.isFinite(row.volume) ? row.volume : null,
+      prevClose:
+        typeof prevClose === "number" && Number.isFinite(prevClose) ? prevClose : null,
+      pctChange:
+        typeof pctChange === "number" && Number.isFinite(pctChange) ? pctChange : null,
+      volume:
+        typeof row.volume === "number" && Number.isFinite(row.volume) ? row.volume : null,
     };
   }
   return map;
+}
+
+// Derive yesterday close from your cached daily keys: asx:universe:eod:YYYY-MM-DD
+// We look back up to 7 days (weekends/holidays) for a valid cached array.
+async function getPrevDayCloseMapFromCache(latestDateStr) {
+  if (!latestDateStr) return { prevDate: null, map: null };
+
+  for (let i = 1; i <= 7; i++) {
+    const prevDate = isoMinusDays(latestDateStr, i);
+    const key = `asx:universe:eod:${prevDate}`;
+
+    const raw = await redisGet(UPSTASH_URL, UPSTASH_TOKEN, key);
+    if (!raw) continue;
+
+    let parsed;
+    try {
+      parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    } catch (e) {
+      continue;
+    }
+
+    const arr = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.items)
+      ? parsed.items
+      : null;
+
+    if (!arr || arr.length < 50) continue;
+
+    const map = {};
+    for (const row of arr) {
+      if (!row || !row.code) continue;
+      const code = String(row.code).toUpperCase();
+      const close = row.close ?? row.price ?? row.last ?? null;
+      map[code] = typeof close === "number" && Number.isFinite(close) ? close : null;
+    }
+
+    return { prevDate, map };
+  }
+
+  return { prevDate: null, map: null };
 }
 
 exports.handler = async function (event) {
@@ -214,10 +275,7 @@ exports.handler = async function (event) {
 
   // screener-level ETF exclusion: per-request override or env default
   const EXCLUDE_ETF_DEFAULT = String(process.env.EXCLUDE_ETF_DEFAULT || "0") === "1";
-  const excludeETF =
-    qs.excludeETF === "1" ||
-    qs.excludeETF === "true" ||
-    EXCLUDE_ETF_DEFAULT;
+  const excludeETF = qs.excludeETF === "1" || qs.excludeETF === "true" || EXCLUDE_ETF_DEFAULT;
 
   try {
     // Load fundamentals snapshot
@@ -228,9 +286,7 @@ exports.handler = async function (event) {
       });
     }
 
-    let items = Array.isArray(fundamentals.items)
-      ? fundamentals.items.slice()
-      : [];
+    let items = Array.isArray(fundamentals.items) ? fundamentals.items.slice() : [];
 
     // Apply screener-level ETF exclusion early (so price merge skips them)
     if (excludeETF) {
@@ -239,8 +295,24 @@ exports.handler = async function (event) {
 
     // Load prices (best-effort; if missing we just fall back to fundamentals)
     let priceMap = null;
+    let prevCloseMap = null;
+    let prevDateUsed = null;
+
     try {
       priceMap = await getUniversePriceMap();
+
+      // derive latest snapshot date from any row that has a date
+      const anyRow = priceMap
+        ? Object.values(priceMap).find((v) => v && v.date)
+        : null;
+
+      const latestDateStr = anyRow?.date ? String(anyRow.date).slice(0, 10) : null;
+
+      if (latestDateStr) {
+        const prev = await getPrevDayCloseMapFromCache(latestDateStr);
+        prevCloseMap = prev.map;
+        prevDateUsed = prev.prevDate;
+      }
     } catch (e) {
       console.warn("equity-screener: failed to load price map", e && e.message);
       priceMap = null;
@@ -252,32 +324,47 @@ exports.handler = async function (event) {
         const code = String(it.code || "").toUpperCase();
         const p = priceMap[code];
 
-        if (!p) {
-          // No dedicated price row; just return fundamentals row as-is
-          return it;
-        }
+        if (!p) return it;
 
         const mergedPrice =
           typeof p.close === "number" && Number.isFinite(p.close)
             ? p.close
             : it.price ?? null;
 
-        const mergedPct =
+        const cachedPrev =
+          prevCloseMap && typeof prevCloseMap[code] === "number" && Number.isFinite(prevCloseMap[code])
+            ? prevCloseMap[code]
+            : null;
+
+        const mergedYesterday =
+          typeof p.prevClose === "number" && Number.isFinite(p.prevClose)
+            ? p.prevClose
+            : cachedPrev ?? it.yesterdayPrice ?? null;
+
+        // pctChange: prefer snapshot pctChange; else compute from close + yesterday close
+        let mergedPct =
           typeof p.pctChange === "number" && Number.isFinite(p.pctChange)
             ? p.pctChange
             : typeof it.pctChange === "number" && Number.isFinite(it.pctChange)
             ? it.pctChange
             : null;
 
+        if (
+          mergedPct == null &&
+          mergedPrice != null &&
+          mergedYesterday != null &&
+          mergedYesterday !== 0
+        ) {
+          const pc = ((mergedPrice - mergedYesterday) / mergedYesterday) * 100;
+          if (Number.isFinite(pc)) mergedPct = pc;
+        }
+
         return {
           ...it,
           price: mergedPrice,
           pctChange: mergedPct,
           lastDate: p.date || it.lastDate || null,
-          yesterdayPrice:
-            typeof p.prevClose === "number" && Number.isFinite(p.prevClose)
-              ? p.prevClose
-              : it.yesterdayPrice ?? null,
+          yesterdayPrice: mergedYesterday,
           volume:
             typeof p.volume === "number" && Number.isFinite(p.volume)
               ? p.volume
@@ -295,16 +382,17 @@ exports.handler = async function (event) {
     }
 
     // Normalize universeSize field for compatibility
-    const universeSize =
-      fundamentals.universeSize || fundamentals.universeTotal || items.length;
+    const universeSize = fundamentals.universeSize || fundamentals.universeTotal || items.length;
 
     return json(200, {
       generatedAt: fundamentals.generatedAt || null,
       universeSize,
       count: items.length,
       items,
-      // echo the exclusion mode so callers can see it in responses
       excludeETF: !!excludeETF,
+
+      // helpful debug so you can confirm which prior cached day was used
+      prevDateUsed: prevDateUsed || null,
     });
   } catch (err) {
     console.error("equity-screener error", err);
