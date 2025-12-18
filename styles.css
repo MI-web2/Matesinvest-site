@@ -3469,3 +3469,6 @@ body.open .nav nav a:hover {
   text-align: center;
   font-weight: 600;
 }
+#joinCommunityCard a {
+  text-decoration: none;
+}
