@@ -13,7 +13,7 @@
   const QUIZ_ID = "how_you_think_v1";
   const LS_KEY = `mates_quiz_${QUIZ_ID}`;
 
-     // --- Analytics (Upstash via Netlify) ---
+  // --- Analytics (Upstash via Netlify) ---
   const QUIZ_EVENT_URL = "/.netlify/functions/quizEvent";
   const SESSION_KEY = `mates_quiz_session_${QUIZ_ID}`;
 
@@ -212,6 +212,9 @@
   const copyResultBtn = document.getElementById("copyResultBtn");
   const doYourOwnBtn = document.getElementById("doYourOwnBtn");
 
+  // NEW: Join community card (should only show after quiz completes)
+  const joinCommunityCard = document.getElementById("joinCommunityCard");
+
   // State
   let idx = 0;
   let scores = resetScores();
@@ -269,6 +272,7 @@
       answersEl.appendChild(btn);
     });
   }
+
   function handleAnswer(bucket) {
     scores[bucket] += 1;
     answers.push(bucket);
@@ -329,6 +333,10 @@
     hero.style.display = "none";
     quizCard.classList.add("on");
     resultCard.classList.remove("on");
+
+    // NEW: hide CTA while taking quiz
+    joinCommunityCard?.classList.remove("on");
+
     restartBtn.style.display = "inline-flex";
     idx = 0;
     scores = resetScores();
@@ -340,6 +348,9 @@
   function showResult(payload) {
     quizCard.classList.remove("on");
     resultCard.classList.add("on");
+
+    // NEW: show CTA only when results are visible
+    joinCommunityCard?.classList.add("on");
 
     const primary = payload.result.primary;
     const secondary = payload.result.secondary;
@@ -495,6 +506,9 @@
       hero.style.display = "";
       quizCard.classList.remove("on");
       resultCard.classList.remove("on");
+
+      // NEW: hide CTA when returning to start
+      joinCommunityCard?.classList.remove("on");
     });
 
     startBtn.addEventListener("click", showQuiz);
@@ -507,6 +521,10 @@
       hero.style.display = "";
       quizCard.classList.remove("on");
       resultCard.classList.remove("on");
+
+      // NEW: hide CTA on restart
+      joinCommunityCard?.classList.remove("on");
+
       restartBtn.style.display = "none";
       idx = 0;
       scores = resetScores();
