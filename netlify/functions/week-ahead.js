@@ -1,8 +1,9 @@
 // netlify/functions/week-ahead.js
-// Generates and caches Week Ahead payload (Monday email):
-// 1) AU macro bullets (manual, stored in Upstash)
+// Week Ahead generator (Monday email):
+// 1) AU macro bullets auto-picked from repo text file (no Upstash for macro)
 // 2) Sector ETF proxy trends (6M / 3M / 1M) from EODHD EOD prices
-// 3) Optional chart: AU CPI vs chosen sector proxy (5y, rebased) via QuickChart URL
+// 3) Chart: AU CPI vs chosen sector proxy (5y rebased) via QuickChart URL
+// 4) Cache final payload to Upstash: weekAhead:au:YYYY-MM-DD
 //
 // Env required:
 //   UPSTASH_REDIS_REST_URL
@@ -12,8 +13,15 @@
 // Optional env:
 //   WEEK_AHEAD_CHART_SECTOR   (default: OZF.AU)
 //   WEEK_AHEAD_DISABLE_CHART  ("1" to disable)
+//
+// Repo file required:
+//   data/au-macro-key-dates-2026.txt
+//
+// Note: Netlify Functions run in a Node environment, so fs is available.
 
 const fetch = (...args) => global.fetch(...args);
+const fs = require("fs");
+const path = require("path");
 
 exports.handler = async function () {
   const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
@@ -28,9 +36,9 @@ exports.handler = async function () {
   }
 
   // ---------------------------------
-  // Time / date helpers (AEST fixed)
+  // AEST helpers (Brisbane)
   // ---------------------------------
-  const AEST_OFFSET_MINUTES = 10 * 60; // Brisbane UTC+10
+  const AEST_OFFSET_MINUTES = 10 * 60;
 
   function getAestDate(base = new Date()) {
     return new Date(base.getTime() + AEST_OFFSET_MINUTES * 60 * 1000);
@@ -49,28 +57,16 @@ exports.handler = async function () {
     return `${y}-${m}-${d}`;
   }
 
-  function ymdUtc(d) {
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(d.getUTCDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }
-
   function getThisOrNextMondayAest(base = new Date()) {
-    // If today (AEST) is Mon-Fri, use this week's Monday.
-    // If Sat/Sun, use next Monday.
     const d = startOfAestDay(base);
-    const day = d.getUTCDay(); // 0 Sun .. 6 Sat
-
+    const day = d.getUTCDay(); // 0 Sun..6 Sat
     const monday = new Date(d.getTime());
 
     if (day >= 1 && day <= 5) {
-      // go back to Monday
       monday.setUTCDate(monday.getUTCDate() - (day - 1));
       return monday;
     }
 
-    // Sat/Sun -> next Monday
     const add = (8 - day) % 7 || 7;
     monday.setUTCDate(monday.getUTCDate() + add);
     return monday;
@@ -87,7 +83,7 @@ exports.handler = async function () {
   }
 
   // ---------------------------------
-  // HTTP / Redis helpers
+  // HTTP + Upstash
   // ---------------------------------
   async function fetchWithTimeout(url, opts = {}, timeout = 12000) {
     const controller = new AbortController();
@@ -100,18 +96,6 @@ exports.handler = async function () {
       clearTimeout(id);
       throw e;
     }
-  }
-
-  async function redisGet(key) {
-    const url = `${UPSTASH_URL}/get/` + encodeURIComponent(key);
-    const res = await fetchWithTimeout(
-      url,
-      { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
-      8000
-    );
-    if (!res.ok) return null;
-    const j = await res.json().catch(() => null);
-    return j ? j.result : null;
   }
 
   async function redisSet(key, value, ttlSeconds) {
@@ -139,24 +123,6 @@ exports.handler = async function () {
   }
 
   // ---------------------------------
-  // Sector proxies (AU ETFs)
-  // ---------------------------------
-  // v1 set (as discussed):
-  // - Tech: ATEC.AU
-  // - Financials: QFN.AU
-  // - Financials ex-REITs: OZF.AU
-  // - Resources: QRE.AU or OZR.AU (we include both and you can keep/remove)
-  // - Property / A-REITs: SLF.AU
-  const SECTOR_PROXIES = [
-    { key: "financials", label: "Financials", ticker: "QFN.AU" },
-    { key: "financialsExReit", label: "Financials (ex-REIT)", ticker: "OZF.AU" },
-    { key: "resources", label: "Resources", ticker: "OZR.AU" }, // SPDR resources
-    { key: "resourcesAlt", label: "Resources (alt)", ticker: "QRE.AU" }, // BetaShares resources
-    { key: "tech", label: "Tech", ticker: "ATEC.AU" },
-    { key: "property", label: "A-REITs", ticker: "SLF.AU" },
-  ];
-
-  // ---------------------------------
   // Week keys
   // ---------------------------------
   const mondayAest = getThisOrNextMondayAest(new Date());
@@ -168,51 +134,119 @@ exports.handler = async function () {
   const weekLabel = niceWeekLabel(mondayAest, fridayAest);
 
   const payloadKey = `weekAhead:au:${weekStart}`;
-  const macroKey = `weekAhead:au:${weekStart}:macro`; // manual bullets
 
   // ---------------------------------
-  // 1) Macro bullets (manual)
+  // 1) Macro bullets (from repo text file)
   // ---------------------------------
+  function parseMacroFile(txt) {
+    // Expected lines like:
+    // • Tue 3 Feb 2026   – RBA Cash Rate Decision
+    // Accepts multiple spaces, hyphen types.
+    const lines = String(txt || "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    const items = [];
+
+    for (const l of lines) {
+      if (!l.startsWith("•")) continue;
+
+      // Normalize dash
+      const line = l.replace(/\s+–\s+/, " - ").replace(/\s+—\s+/, " - ");
+      // Example: "• Tue 3 Feb 2026 - RBA Cash Rate Decision"
+      const m = line.match(/^•\s+[A-Za-z]{3}\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+-\s+(.+)$/);
+      if (!m) continue;
+
+      const day = parseInt(m[1], 10);
+      const monStr = m[2];
+      const year = parseInt(m[3], 10);
+      const title = m[4].trim();
+
+      const monthMap = {
+        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+      };
+      const month = monthMap[monStr];
+      if (month === undefined) continue;
+
+      // Create a UTC date that represents the AEST calendar day
+      const d = new Date(Date.UTC(year, month, day, 0, 0, 0));
+      items.push({ dateUtc: d, ymd: `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`, title });
+    }
+
+    return items;
+  }
+
+  function pickMacroBullets(items, weekStartYmd, weekEndYmd) {
+    // Filter to week window inclusive
+    const inWeek = items.filter((it) => it.ymd >= weekStartYmd && it.ymd <= weekEndYmd);
+
+    // Priority: RBA, CPI, Labour/Employment, then anything else
+    const score = (title) => {
+      const t = title.toLowerCase();
+      if (t.includes("rba") || t.includes("cash rate")) return 100;
+      if (t.includes("cpi") || t.includes("inflation")) return 90;
+      if (t.includes("labour") || t.includes("labor") || t.includes("employment") || t.includes("unemployment")) return 80;
+      return 10;
+    };
+
+    inWeek.sort((a, b) => score(b.title) - score(a.title) || a.ymd.localeCompare(b.ymd));
+
+    // Format bullets: "Tue: RBA Cash Rate Decision"
+    const bullets = inWeek.slice(0, 6).map((it) => {
+      const d = new Date(Date.UTC(
+        parseInt(it.ymd.slice(0,4),10),
+        parseInt(it.ymd.slice(5,7),10)-1,
+        parseInt(it.ymd.slice(8,10),10),
+        0,0,0
+      ));
+      const dow = d.toLocaleDateString("en-AU", { weekday: "short", timeZone: "Australia/Brisbane" });
+      return `${dow} ${it.ymd}: ${it.title}`;
+    });
+
+    return bullets;
+  }
+
   let macro = { title: "Important AU macro this week", bullets: [] };
 
-  const macroRaw = await redisGet(macroKey);
-  if (macroRaw) {
-    try {
-      const parsed = JSON.parse(macroRaw);
-      if (parsed && Array.isArray(parsed.bullets)) macro = parsed;
-    } catch {
-      // allow simple text format: one bullet per line
-      macro.bullets = String(macroRaw)
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .slice(0, 8);
-    }
+  try {
+    const filePath = path.join(process.cwd(), "data", "au-macro-key-dates-2026.txt");
+    const txt = fs.readFileSync(filePath, "utf8");
+    const items = parseMacroFile(txt);
+    macro.bullets = pickMacroBullets(items, weekStart, weekEnd);
+  } catch (e) {
+    // If file missing, don't fail the whole generator
+    macro.bullets = [];
+    macro.error = e && e.message ? e.message : "macro file read failed";
   }
 
   // ---------------------------------
-  // 2) Sector trends (6/3/1 month)
+  // 2) Sector trends (ETFs, from EODHD)
   // ---------------------------------
+  const SECTOR_PROXIES = [
+    { key: "financials", label: "Financials", ticker: "QFN.AU" },
+    { key: "financialsExReit", label: "Financials (ex-REIT)", ticker: "OZF.AU" },
+    { key: "resources", label: "Resources", ticker: "OZR.AU" },
+    { key: "resourcesAlt", label: "Resources (alt)", ticker: "QRE.AU" },
+    { key: "tech", label: "Tech", ticker: "ATEC.AU" },
+    { key: "property", label: "A-REITs", ticker: "SLF.AU" },
+  ];
+
   function isoDate(d) {
     return d.toISOString().slice(0, 10);
   }
 
-  // Target dates (calendar offsets, then we snap to nearest trading day on/before)
   const today = new Date();
   const toISO = isoDate(today);
 
   const from = new Date(today.getTime());
-  from.setUTCDate(from.getUTCDate() - 320); // enough history to cover 6M windows
+  from.setUTCDate(from.getUTCDate() - 320);
   const fromISO = isoDate(from);
 
-  const t1m = new Date(today.getTime());
-  t1m.setUTCDate(t1m.getUTCDate() - 31);
-
-  const t3m = new Date(today.getTime());
-  t3m.setUTCDate(t3m.getUTCDate() - 93);
-
-  const t6m = new Date(today.getTime());
-  t6m.setUTCDate(t6m.getUTCDate() - 186);
+  const t1m = new Date(today.getTime()); t1m.setUTCDate(t1m.getUTCDate() - 31);
+  const t3m = new Date(today.getTime()); t3m.setUTCDate(t3m.getUTCDate() - 93);
+  const t6m = new Date(today.getTime()); t6m.setUTCDate(t6m.getUTCDate() - 186);
 
   const t1mISO = isoDate(t1m);
   const t3mISO = isoDate(t3m);
@@ -233,7 +267,6 @@ exports.handler = async function () {
   }
 
   function closeOnOrBefore(seriesAsc, targetISO) {
-    // seriesAsc sorted ascending by date
     for (let i = seriesAsc.length - 1; i >= 0; i--) {
       const row = seriesAsc[i];
       if (row && row.date && row.date <= targetISO) {
@@ -259,7 +292,6 @@ exports.handler = async function () {
   }
 
   const sectorRows = [];
-
   for (const p of SECTOR_PROXIES) {
     try {
       const s = await fetchEodSeries(p.ticker);
@@ -302,11 +334,10 @@ exports.handler = async function () {
     }
   }
 
-  // Sort by 3M return desc (generally best “trend” read)
   sectorRows.sort((a, b) => (b.returnsPct.m3 ?? -Infinity) - (a.returnsPct.m3 ?? -Infinity));
 
   // ---------------------------------
-  // 3) Chart (CPI vs sector, ~5y rebased) via QuickChart
+  // 3) Chart: CPI vs sector (~5y rebased)
   // ---------------------------------
   const disableChart = String(process.env.WEEK_AHEAD_DISABLE_CHART || "").trim() === "1";
   const chartSector = String(process.env.WEEK_AHEAD_CHART_SECTOR || "OZF.AU").trim();
@@ -350,7 +381,6 @@ exports.handler = async function () {
   }
 
   async function buildCpiVsSectorChartUrl(sectorTicker) {
-    // CPI macro indicator (AU)
     const cpiUrl =
       `https://eodhd.com/api/macro-indicator/AUS` +
       `?indicator=consumer_price_index&api_token=${EODHD_API_TOKEN}&fmt=json`;
@@ -360,22 +390,15 @@ exports.handler = async function () {
 
     const cpiRaw = await cpiRes.json().catch(() => []);
     const cpiByMonth = new Map();
-
-    // CPI is usually monthly/quarterly; we map to YYYY-MM
     for (const r of Array.isArray(cpiRaw) ? cpiRaw : []) {
       const m = isoMonth(r.date || r.period || r.datetime);
-      const v =
-        typeof r.value === "number" && Number.isFinite(r.value)
-          ? r.value
-          : null;
+      const v = (typeof r.value === "number" && Number.isFinite(r.value)) ? r.value : null;
       if (m) cpiByMonth.set(m, v);
     }
 
-    // Sector series: get daily last 5y, then keep last close in each month
     const to = new Date();
     const from5 = new Date(to.getTime());
     from5.setUTCFullYear(from5.getUTCFullYear() - 5);
-
     const from5ISO = isoDate(from5);
     const to5ISO = isoDate(to);
 
@@ -390,16 +413,13 @@ exports.handler = async function () {
     const secByMonth = new Map();
     for (const r of Array.isArray(secRaw) ? secRaw : []) {
       const m = isoMonth(r.date);
-      const v =
-        typeof r.close === "number" && Number.isFinite(r.close)
-          ? r.close
-          : null;
-      if (m) secByMonth.set(m, v); // overwrite -> last close in month
+      const v = (typeof r.close === "number" && Number.isFinite(r.close)) ? r.close : null;
+      if (m) secByMonth.set(m, v);
     }
 
     const months = Array.from(new Set([...cpiByMonth.keys(), ...secByMonth.keys()]))
       .sort()
-      .slice(-60); // ~60 months
+      .slice(-60);
 
     const cpiVals = months.map((m) => cpiByMonth.get(m) ?? null);
     const secVals = months.map((m) => secByMonth.get(m) ?? null);
@@ -424,7 +444,7 @@ exports.handler = async function () {
       const url = await buildCpiVsSectorChartUrl(chartSector);
       if (url) chart = { enabled: true, sector: chartSector, url };
     } catch {
-      // ignore chart failures (email can still send without it)
+      // chart is optional
     }
   }
 
@@ -447,14 +467,12 @@ exports.handler = async function () {
     sectors: {
       title: "Sector trends (6M / 3M / 1M)",
       sort: "3m_desc",
-      asOf: ymdUtc(getAestDate(new Date())),
       proxies: SECTOR_PROXIES,
       results: sectorRows,
     },
     chart,
   };
 
-  // Cache for ~10 days (covers the week)
   await redisSet(payloadKey, JSON.stringify(payload), 60 * 60 * 24 * 10);
 
   return {
