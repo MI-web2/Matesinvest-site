@@ -6,7 +6,8 @@
   directory = "netlify/functions"
   included_files = [
     "netlify/functions/asx200.txt",
-    "netlify/functions/asx-universe.txt"
+    "netlify/functions/asx-universe.txt",
+    "netlify/functions/au-macro-key-dates-2026.txt"
   ]
   node_bundler = "esbuild"
 
