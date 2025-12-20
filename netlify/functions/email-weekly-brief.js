@@ -112,6 +112,29 @@ exports.handler = async function () {
       throw new Error("Failed to send weekly email");
     }
   }
+// ✅ Send MANY individual emails in one HTTP request (each item has its own `to`)
+async function sendBatchEmails(emailItems, idempotencyKey) {
+  // emailItems: [{ from, to: [email], subject, html }, ...] max 100
+  const res = await fetch("https://api.resend.com/emails/batch", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+    },
+    body: JSON.stringify(emailItems),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    console.error("Resend batch send failed", res.status, txt);
+    throw new Error("Failed to send weekly email batch");
+  }
+
+  const j = await res.json().catch(() => null);
+  return j; // typically { data: [{id}, ...] }
+}
+  
   async function redisGet(key) {
     const url = `${UPSTASH_URL}/get/` + encodeURIComponent(key);
     const res = await fetchWithTimeout(
