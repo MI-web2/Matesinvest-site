@@ -446,7 +446,7 @@ exports.handler = async function () {
       new Set(seriesByMonth.flatMap((m) => Array.from(m.keys())))
     )
       .sort()
-      .slice(-60);
+      .slice(-36);
 
     const datasets = months.length
       ? seriesByMonth.map((m, i) => {
