@@ -1,21 +1,5 @@
 // netlify/functions/email-week-ahead.js
 // Scheduled function: sends the Monday "Week Ahead" email to all subscribers.
-//
-// Depends on:
-//   - ./week-ahead (generates + caches payload in Upstash)
-// Uses:
-//   - Upstash Redis set "email:subscribers" for recipients
-//   - Resend to send emails
-//
-// Env required:
-//   UPSTASH_REDIS_REST_URL
-//   UPSTASH_REDIS_REST_TOKEN
-//   RESEND_API_KEY
-//   EODHD_API_TOKEN          (required by week-ahead.js)
-// Optional:
-//   EMAIL_FROM              (default hello@matesinvest.com)
-//   WEEK_AHEAD_EMAIL_PREVIEW_TO (comma emails to send preview only, no subscriber blast)
-//   WEEK_AHEAD_EMAIL_DISABLE_SEND ("1" to disable sending, still returns html for testing)
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -71,14 +55,12 @@ exports.handler = async function () {
   }
 
   async function getSubscribers() {
-    const key = "email:subscribers0";
+    const key = "email:subscribers";
     const url = `${UPSTASH_URL}/smembers/` + encodeURIComponent(key);
 
     const res = await fetchWithTimeout(
       url,
-      {
-        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
-      },
+      { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
       8000
     );
 
@@ -118,9 +100,7 @@ exports.handler = async function () {
       "/" +
       encodeURIComponent(value);
 
-    if (ttlSeconds && Number.isFinite(ttlSeconds)) {
-      url += `?EX=${ttlSeconds}`;
-    }
+    if (ttlSeconds && Number.isFinite(ttlSeconds)) url += `?EX=${ttlSeconds}`;
 
     const res = await fetchWithTimeout(
       url,
@@ -187,25 +167,29 @@ exports.handler = async function () {
       .replace(/'/g, "&#039;");
   }
 
+  function pctColor(v) {
+    if (typeof v !== "number" || !Number.isFinite(v)) return "#64748b";
+    if (v > 0) return "#16a34a";
+    if (v < 0) return "#dc2626";
+    return "#64748b";
+  }
+
   function buildEmailHtml(payload) {
     const week = payload.week || {};
     const macro = payload.macro || { bullets: [] };
     const sectors = payload.sectors || { results: [] };
     const charts = payload.charts || {};
 
-    const aestNow = getAestDate(new Date());
-    const niceDate = aestNow.toLocaleDateString("en-AU", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-
     const macroBullets = Array.isArray(macro.bullets) ? macro.bullets : [];
     const macroHtml =
       macroBullets.length > 0
         ? `<ul style="margin:8px 0 0 18px;padding:0;color:#0b1220;font-size:13px;line-height:1.5;">
-            ${macroBullets.map((b) => `<li style="margin:6px 0;">${escapeHtml(b)}</li>`).join("")}
+            ${macroBullets
+              .map(
+                (b) =>
+                  `<li style="margin:6px 0;">${escapeHtml(b)}</li>`
+              )
+              .join("")}
           </ul>`
         : `<div style="margin-top:8px;font-size:13px;color:#64748b;line-height:1.45;">
             No major Australian macro releases scheduled.
@@ -214,28 +198,9 @@ exports.handler = async function () {
     const rows = Array.isArray(sectors.results) ? sectors.results : [];
     const sectorRowsHtml = rows
       .map((r) => {
-        const move3m =
-          typeof r?.returnsPct?.m3 === "number" ? r.returnsPct.m3 : null;
-        const move1m =
-          typeof r?.returnsPct?.m1 === "number" ? r.returnsPct.m1 : null;
-
-        const color3m =
-          move3m == null
-            ? "#64748b"
-            : move3m > 0
-            ? "#16a34a"
-            : move3m < 0
-            ? "#dc2626"
-            : "#64748b";
-
-        const color1m =
-          move1m == null
-            ? "#64748b"
-            : move1m > 0
-            ? "#16a34a"
-            : move1m < 0
-            ? "#dc2626"
-            : "#64748b";
+        const m6 = r?.returnsPct?.m6;
+        const m3 = r?.returnsPct?.m3;
+        const m1 = r?.returnsPct?.m1;
 
         return `
           <tr>
@@ -248,11 +213,20 @@ exports.handler = async function () {
             <td style="padding:8px 10px;font-size:13px;text-align:right;color:#0b1220;">
               ${typeof r.close === "number" ? "$" + formatMoney(r.close) : "—"}
             </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${color3m};white-space:nowrap;font-weight:600;">
-              ${formatPct(r?.returnsPct?.m3)}
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+              m6
+            )};white-space:nowrap;font-weight:600;">
+              ${formatPct(m6)}
             </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${color1m};white-space:nowrap;">
-              ${formatPct(r?.returnsPct?.m1)}
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+              m3
+            )};white-space:nowrap;font-weight:600;">
+              ${formatPct(m3)}
+            </td>
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+              m1
+            )};white-space:nowrap;">
+              ${formatPct(m1)}
             </td>
           </tr>
         `;
@@ -298,7 +272,7 @@ exports.handler = async function () {
                     Week Ahead
                   </h1>
                   <div style="font-size:13px;color:#64748b;">
-                    ${escapeHtml(week.label || niceDate)}
+                    ${escapeHtml(week.label || "")}
                   </div>
                 </div>
                 <div style="text-align:right;font-size:11px;color:#94a3b8;line-height:1.4;max-width:180px;">
@@ -309,11 +283,11 @@ exports.handler = async function () {
             </td>
           </tr>
 
-          <!-- Section 1: Macro this week -->
+          <!-- Section 1 -->
           <tr>
             <td style="padding:14px 20px 10px 20px;">
               <h2 style="margin:0 0 4px 0;font-size:14px;color:#002040;">
-                1) ${escapeHtml(macro.title || "Important AU macro this week")}
+               ${escapeHtml(macro.title || "Important AU macro this week")}
               </h2>
               <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;">
                 ${macroHtml}
@@ -321,11 +295,11 @@ exports.handler = async function () {
             </td>
           </tr>
 
-          <!-- Section 2: Sector trends -->
+          <!-- Section 2 -->
           <tr>
             <td style="padding:6px 20px 12px 20px;">
               <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">
-                2) ${escapeHtml(sectors.title || "Sector trends (6M / 3M / 1M)")}
+               ${escapeHtml(sectors.title || "Sector trends (6M / 3M / 1M)")}
               </h2>
 
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
@@ -337,6 +311,9 @@ exports.handler = async function () {
                     </th>
                     <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">
                       Close
+                    </th>
+                    <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">
+                      6M
                     </th>
                     <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">
                       3M
@@ -357,11 +334,11 @@ exports.handler = async function () {
             </td>
           </tr>
 
-          <!-- Section 3: Charts -->
+          <!-- Section 3 -->
           <tr>
             <td style="padding:4px 20px 16px 20px;">
               <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">
-                3) Charts
+                Macro Visualisations
               </h2>
 
               ${
@@ -432,20 +409,14 @@ exports.handler = async function () {
             </td>
           </tr>
 
-          <!-- Footer -->
           <tr>
             <td style="padding:12px 20px 18px 20px;border-top:1px solid #e2e8f0;background-color:#ffffff;">
-              <p style="margin:0 0 6px 0;font-size:12px;color:#64748b;">
-                View the live version and full AI summaries on
-                <a href="https://matesinvest.com/mates-summaries" style="color:#00BFFF;text-decoration:none;font-weight:600;">
-                  MatesFeed
-                </a>.
-              </p>
               <p style="margin:0;font-size:11px;color:#94a3b8;">
                 This email is general information only and is not financial advice.
               </p>
             </td>
           </tr>
+
         </table>
 
         <div style="max-width:640px;margin-top:8px;font-size:10px;color:#94a3b8;">
@@ -460,7 +431,7 @@ exports.handler = async function () {
   }
 
   try {
-    // 1) Generate the week-ahead payload by calling the existing handler
+    // Generate week-ahead payload
     const waResponse = await weekAheadFn.handler({}, {});
     if (!waResponse || waResponse.statusCode !== 200) {
       console.error("week-ahead handler failed", waResponse);
@@ -483,20 +454,19 @@ exports.handler = async function () {
       return { statusCode: 500, body: "Week-ahead payload missing weekStart" };
     }
 
-    // 2) Build subject + HTML
     const subjectDate = formatAestForSubject(new Date());
     const subject = `MatesMorning – Week Ahead (${payload.week.label || subjectDate})`;
     const html = buildEmailHtml(payload);
 
-    // Optional: allow preview send to a fixed list without blasting subscribers
+    // Preview mode
     const previewTo = String(process.env.WEEK_AHEAD_EMAIL_PREVIEW_TO || "")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
 
-    const disableSend = String(process.env.WEEK_AHEAD_EMAIL_DISABLE_SEND || "").trim() === "1";
+    const disableSend =
+      String(process.env.WEEK_AHEAD_EMAIL_DISABLE_SEND || "").trim() === "1";
 
-    // 3) If preview recipients provided, just send to them and return
     if (previewTo.length) {
       if (disableSend) {
         return {
@@ -515,57 +485,37 @@ exports.handler = async function () {
       return {
         statusCode: 200,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          mode: "preview",
-          sentTo: previewTo.length,
-          weekStart,
-        }),
+        body: JSON.stringify({ mode: "preview", sentTo: previewTo.length, weekStart }),
       };
     }
 
-    // 4) Get subscribers
+    // Subscriber blast
     const subscribers = await getSubscribers();
-    if (!subscribers.length) {
-      console.log("No subscribers – skipping send");
-      return { statusCode: 200, body: "No subscribers" };
-    }
+    if (!subscribers.length) return { statusCode: 200, body: "No subscribers" };
 
-    // 5) Per-recipient idempotency keys (weekly)
-    const sendKeyPrefix = `email:weekAhead:${weekStart}`; // weekStart is YYYY-MM-DD (AEST Monday)
-    const perRecipientTtlSeconds = 60 * 60 * 24 * 14; // 14 days
+    const sendKeyPrefix = `email:weekAhead:${weekStart}`;
+    const perRecipientTtlSeconds = 60 * 60 * 24 * 14;
 
     let sentCount = 0;
 
-    // 6) Send one email per recipient
     for (const email of subscribers) {
       const personKey = `${sendKeyPrefix}:${email}`;
       const already = await redisGet(personKey);
-      if (already) {
-        console.log("Already sent to", email, "- skipping");
-        continue;
-      }
+      if (already) continue;
 
-      if (disableSend) {
-        console.log("WEEK_AHEAD_EMAIL_DISABLE_SEND=1; skipping actual send to", email);
-        continue;
-      }
+      if (disableSend) continue;
 
       try {
         await sendEmail(email, subject, html);
         sentCount += 1;
         await redisSet(personKey, "sent", perRecipientTtlSeconds);
-        await sleep(300); // be kind to Resend
+        await sleep(300);
       } catch (err) {
         console.error("Failed sending to", email, err && err.message);
       }
     }
 
-    console.log(`${sendKeyPrefix} – sent to ${sentCount} subscribers`);
-
-    return {
-      statusCode: 200,
-      body: `Sent week-ahead to ${sentCount} subscribers`,
-    };
+    return { statusCode: 200, body: `Sent week-ahead to ${sentCount} subscribers` };
   } catch (err) {
     console.error("email-week-ahead error", err && (err.stack || err.message));
     return { statusCode: 500, body: "Internal error" };
