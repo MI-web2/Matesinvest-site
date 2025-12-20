@@ -430,33 +430,36 @@ exports.handler = async function () {
     return `${label} ${year}`;
   }
 
-  async function createQuickChartShortUrl(cfg) {
-    // Outlook often fails on huge encoded URLs. This creates a short hosted URL.
-    const res = await fetchWithTimeout(
-      "https://quickchart.io/chart/create",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          chart: cfg,
-          width: 640,
-          height: 320,
-          format: "png",
-          backgroundColor: "white",
-        }),
-      },
-      15000
-    );
+async function createQuickChartShortUrl(cfg, version) {
+  const payload = {
+    chart: cfg,
+    width: 640,
+    height: 320,
+    format: "png",
+    backgroundColor: "white",
+  };
 
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw new Error(`quickchart create failed: ${res.status} ${txt}`);
-    }
+  if (version) payload.version = version; // e.g. "2.9.4"
 
-    const j = await res.json().catch(() => null);
-    if (!j || !j.url) throw new Error("quickchart create returned no url");
-    return j.url;
+  const res = await fetchWithTimeout(
+    "https://quickchart.io/chart/create",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    15000
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`quickchart create failed: ${res.status} ${txt}`);
   }
+
+  const j = await res.json().catch(() => null);
+  if (!j || !j.url) throw new Error("quickchart create returned no url");
+  return j.url;
+}
 
   async function buildEtfMonthlyOverlayChart(tickers, labels) {
     // last ~5y daily -> compress to monthly end closes
@@ -542,87 +545,97 @@ exports.handler = async function () {
     return byYear;
   }
 
-  async function buildMacroAnnualOverlayChart() {
-    // Indicators (annual)
-    const CPI = "consumer_price_index"; // index (2010=100)
-    const REAL = "real_interest_rate"; // %
-    const UNEMP = "unemployment_total_percent"; // %
+async function buildMacroAnnualOverlayChart() {
+  // Indicators (annual)
+  const CPI = "consumer_price_index"; // index (2010=100)
+  const REAL = "real_interest_rate"; // %
+  const UNEMP = "unemployment_total_percent"; // %
 
-    const [cpiRows, realRows, unempRows] = await Promise.all([
-      fetchMacroIndicatorAUS(CPI),
-      fetchMacroIndicatorAUS(REAL),
-      fetchMacroIndicatorAUS(UNEMP),
-    ]);
+  const [cpiRows, realRows, unempRows] = await Promise.all([
+    fetchMacroIndicatorAUS(CPI),
+    fetchMacroIndicatorAUS(REAL),
+    fetchMacroIndicatorAUS(UNEMP),
+  ]);
 
-    const cpi = macroAnnualMap(cpiRows);
-    const real = macroAnnualMap(realRows);
-    const unemp = macroAnnualMap(unempRows);
+  const cpi = macroAnnualMap(cpiRows);
+  const real = macroAnnualMap(realRows);
+  const unemp = macroAnnualMap(unempRows);
 
-    const years = Array.from(
-      new Set([...cpi.keys(), ...real.keys(), ...unemp.keys()])
-    )
-      .sort()
-      .slice(-15);
+  const years = Array.from(
+    new Set([...cpi.keys(), ...real.keys(), ...unemp.keys()])
+  )
+    .sort()
+    .slice(-15);
 
-    const cfg = {
-      type: "line",
-      data: {
-        labels: years,
-        datasets: [
+  // Chart.js v2 config (QuickChart most reliable)
+  const cfg = {
+    type: "line",
+    data: {
+      labels: years,
+      datasets: [
+        {
+          label: "CPI Index (2010=100)",
+          data: years.map((y) => cpi.get(y) ?? null),
+          yAxisID: "y",
+          fill: false,
+          borderWidth: 2,
+          pointRadius: 2,
+        },
+        {
+          label: "Real Interest Rate (%)",
+          data: years.map((y) => real.get(y) ?? null),
+          yAxisID: "y1",
+          fill: false,
+          borderWidth: 2,
+          pointRadius: 2,
+        },
+        {
+          label: "Unemployment (%)",
+          data: years.map((y) => unemp.get(y) ?? null),
+          yAxisID: "y1",
+          fill: false,
+          borderWidth: 2,
+          pointRadius: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      title: {
+        display: true,
+        text: "Where is Australia now? (annual macro)",
+      },
+      legend: {
+        display: true,
+      },
+      scales: {
+        xAxes: [
           {
-            label: "CPI Index (2010=100)",
-            data: years.map((y) => cpi.get(y) ?? null),
-            yAxisID: "y",
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 2,
+            ticks: { maxRotation: 0 },
+          },
+        ],
+        yAxes: [
+          {
+            id: "y",
+            position: "left",
+            scaleLabel: { display: true, labelString: "CPI Index" },
+            ticks: {},
           },
           {
-            label: "Real Interest Rate (%)",
-            data: years.map((y) => real.get(y) ?? null),
-            yAxisID: "y1",
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 2,
-          },
-          {
-            label: "Unemployment (%)",
-            data: years.map((y) => unemp.get(y) ?? null),
-            yAxisID: "y1",
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 2,
+            id: "y1",
+            position: "right",
+            scaleLabel: { display: true, labelString: "%" },
+            gridLines: { drawOnChartArea: false },
+            ticks: {},
           },
         ],
       },
-      options: {
-        responsive: true,
-        plugins: {
-          title: {
-            display: true,
-            text: "Where is Australia now? (annual macro)",
-          },
-          legend: { display: true },
-        },
-        scales: {
-          x: { ticks: { maxRotation: 0 } },
-          y: {
-            position: "left",
-            title: { display: true, text: "CPI Index" },
-            ticks: {},
-          },
-          y1: {
-            position: "right",
-            grid: { drawOnChartArea: false },
-            title: { display: true, text: "%" },
-            ticks: {},
-          },
-        },
-      },
-    };
+    },
+  };
 
-    return await createQuickChartShortUrl(cfg);
-  }
+  // Force QuickChart to use Chart.js v2 syntax
+  return await createQuickChartShortUrl(cfg, "2.9.4");
+}
 
   // ETF tickers/labels for chart
   const defaultEtfTickers = ["OZR.AU", "QFN.AU", "ATEC.AU"];
