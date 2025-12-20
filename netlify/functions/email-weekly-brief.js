@@ -88,7 +88,7 @@ exports.handler = async function () {
     return j.result.filter((e) => typeof e === "string" && e.includes("@"));
   }
 
-  // 🔧 send a single email (to one or a small list of recipients)
+  // 🔧 send a single email (kept for compatibility / testing)
   async function sendEmail(to, subject, html) {
     const toList = Array.isArray(to) ? to : [to];
 
@@ -112,29 +112,30 @@ exports.handler = async function () {
       throw new Error("Failed to send weekly email");
     }
   }
-// ✅ Send MANY individual emails in one HTTP request (each item has its own `to`)
-async function sendBatchEmails(emailItems, idempotencyKey) {
-  // emailItems: [{ from, to: [email], subject, html }, ...] max 100
-  const res = await fetch("https://api.resend.com/emails/batch", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
-    },
-    body: JSON.stringify(emailItems),
-  });
 
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    console.error("Resend batch send failed", res.status, txt);
-    throw new Error("Failed to send weekly email batch");
+  // ✅ Send MANY individual emails in one HTTP request (each item has its own `to`)
+  // emailItems: [{ from, to:[email], subject, html }, ...] max 100
+  async function sendBatchEmails(emailItems, idempotencyKey) {
+    const res = await fetch("https://api.resend.com/emails/batch", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
+      body: JSON.stringify(emailItems),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.error("Resend batch send failed", res.status, txt);
+      throw new Error("Failed to send weekly email batch");
+    }
+
+    const j = await res.json().catch(() => null);
+    return j;
   }
 
-  const j = await res.json().catch(() => null);
-  return j; // typically { data: [{id}, ...] }
-}
-  
   async function redisGet(key) {
     const url = `${UPSTASH_URL}/get/` + encodeURIComponent(key);
     const res = await fetchWithTimeout(
@@ -342,8 +343,7 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
     for (const snap of asxDaily) {
       const { rows } = snap;
       for (const row of rows) {
-        const pct =
-          typeof row.pctChange === "number" ? row.pctChange : 0;
+        const pct = typeof row.pctChange === "number" ? row.pctChange : 0;
 
         // Prefer GICS-style buckets, then fall back
         const rawSector =
@@ -401,8 +401,7 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
         metalsHistoryBySymbol[sym] ||= [];
         metalsHistoryBySymbol[sym].push({
           date,
-          priceAUD:
-            typeof m.priceAUD === "number" ? m.priceAUD : null,
+          priceAUD: typeof m.priceAUD === "number" ? m.priceAUD : null,
         });
       }
     }
@@ -467,10 +466,7 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
     let latestUsdToAud = null;
     if (metalsDaily && metalsDaily.length) {
       const lastMetalsPayload = metalsDaily[metalsDaily.length - 1].payload;
-      if (
-        lastMetalsPayload &&
-        typeof lastMetalsPayload.usdToAud === "number"
-      ) {
+      if (lastMetalsPayload && typeof lastMetalsPayload.usdToAud === "number") {
         latestUsdToAud = lastMetalsPayload.usdToAud;
       }
     }
@@ -479,9 +475,7 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
     for (const [sym, points] of Object.entries(cryptoHistoryBySymbol)) {
       const valid = points
         .filter(
-          (p) =>
-            typeof p.priceUSD === "number" ||
-            typeof p.priceAUD === "number"
+          (p) => typeof p.priceUSD === "number" || typeof p.priceAUD === "number"
         )
         .sort((a, b) => a.date.localeCompare(b.date));
       if (!valid.length) continue;
@@ -570,12 +564,8 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
   // HTML builder
   // -------------------------------
   function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc) {
-    const {
-      weeklyTopSectors,
-      weeklyBottomSectors,
-      metalsWeekly,
-      cryptoWeekly,
-    } = aggregates;
+    const { weeklyTopSectors, weeklyBottomSectors, metalsWeekly, cryptoWeekly } =
+      aggregates;
 
     const aestNow = getAestDate();
     const niceDate = aestNow.toLocaleDateString("en-AU", {
@@ -607,15 +597,10 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
       list
         .map((s) => {
           const pct = s.avgPct;
-          const pctStr =
-            typeof pct === "number" ? pct.toFixed(2) + "%" : "—";
+          const pctStr = typeof pct === "number" ? pct.toFixed(2) + "%" : "—";
           const isUp = typeof pct === "number" && pct > 0;
           const isDown = typeof pct === "number" && pct < 0;
-          const color = isUp
-            ? "#16a34a"
-            : isDown
-            ? "#dc2626"
-            : "#64748b";
+          const color = isUp ? "#16a34a" : isDown ? "#dc2626" : "#64748b";
           const arrow = isUp ? "▲" : isDown ? "▼" : "";
           return `
             <tr>
@@ -629,9 +614,7 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
         .join("");
 
     const topRowsHtml =
-      weeklyTopSectors && weeklyTopSectors.length
-        ? sectorRows(weeklyTopSectors)
-        : "";
+      weeklyTopSectors && weeklyTopSectors.length ? sectorRows(weeklyTopSectors) : "";
     const bottomRowsHtml =
       weeklyBottomSectors && weeklyBottomSectors.length
         ? sectorRows(weeklyBottomSectors)
@@ -643,22 +626,12 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
         const label = friendlyCommodity[sym] || sym;
 
         const lastPrice =
-          typeof m.lastPriceAUD === "number"
-            ? "$" + formatMoney(m.lastPriceAUD)
-            : "—";
+          typeof m.lastPriceAUD === "number" ? "$" + formatMoney(m.lastPriceAUD) : "—";
         const weeklyPct =
-          typeof m.weeklyPct === "number"
-            ? m.weeklyPct.toFixed(2) + "%"
-            : "—";
-        const isUp =
-          typeof m.weeklyPct === "number" && m.weeklyPct > 0;
-        const isDown =
-          typeof m.weeklyPct === "number" && m.weeklyPct < 0;
-        const color = isUp
-          ? "#16a34a"
-          : isDown
-          ? "#dc2626"
-          : "#64748b";
+          typeof m.weeklyPct === "number" ? m.weeklyPct.toFixed(2) + "%" : "—";
+        const isUp = typeof m.weeklyPct === "number" && m.weeklyPct > 0;
+        const isDown = typeof m.weeklyPct === "number" && m.weeklyPct < 0;
+        const color = isUp ? "#16a34a" : isDown ? "#dc2626" : "#64748b";
         const arrow = isUp ? "▲" : isDown ? "▼" : "";
 
         return `
@@ -682,22 +655,12 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
         const label = friendlyCrypto[sym] || sym;
 
         const lastPrice =
-          typeof c.lastPriceAUD === "number"
-            ? "$" + formatMoney(c.lastPriceAUD)
-            : "—";
+          typeof c.lastPriceAUD === "number" ? "$" + formatMoney(c.lastPriceAUD) : "—";
         const weeklyPct =
-          typeof c.weeklyPct === "number"
-            ? c.weeklyPct.toFixed(2) + "%"
-            : "—";
-        const isUp =
-          typeof c.weeklyPct === "number" && c.weeklyPct > 0;
-        const isDown =
-          typeof c.weeklyPct === "number" && c.weeklyPct < 0;
-        const color = isUp
-          ? "#16a34a"
-          : isDown
-          ? "#dc2626"
-          : "#64748b";
+          typeof c.weeklyPct === "number" ? c.weeklyPct.toFixed(2) + "%" : "—";
+        const isUp = typeof c.weeklyPct === "number" && c.weeklyPct > 0;
+        const isDown = typeof c.weeklyPct === "number" && c.weeklyPct < 0;
+        const color = isUp ? "#16a34a" : isDown ? "#dc2626" : "#64748b";
         const arrow = isUp ? "▲" : isDown ? "▼" : "";
 
         return `
@@ -953,13 +916,12 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
   try {
     const datesAsc = getLastNMarketDaysAest(5);
 
-    const [subscribers, asxDaily, metalsDaily, cryptoDaily] =
-      await Promise.all([
-        getSubscribers(),
-        getAsxDailySnapshots(datesAsc),
-        getMetalsDailySnapshots(datesAsc),
-        getCryptoDailySnapshots(datesAsc),
-      ]);
+    const [subscribers, asxDaily, metalsDaily, cryptoDaily] = await Promise.all([
+      getSubscribers(),
+      getAsxDailySnapshots(datesAsc),
+      getMetalsDailySnapshots(datesAsc),
+      getCryptoDailySnapshots(datesAsc),
+    ]);
 
     if (!subscribers.length) {
       console.log("No subscribers – skipping weekly send");
@@ -971,11 +933,7 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
       return { statusCode: 200, body: "No weekly data" };
     }
 
-    const aggregates = buildWeeklyAggregates(
-      asxDaily,
-      metalsDaily,
-      cryptoDaily
-    );
+    const aggregates = buildWeeklyAggregates(asxDaily, metalsDaily, cryptoDaily);
     const weeklyNote = await getWeeklyNote(aggregates);
 
     const rangeStr = formatWeekRangeForSubject(datesAsc);
@@ -984,7 +942,7 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
     const html = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc);
 
     // ---------------------------
-    // Per-recipient idempotency
+    // Per-recipient idempotency + Resend Batch sending
     // ---------------------------
     const aestNow = getAestDate();
     const yyyy = aestNow.getFullYear();
@@ -992,17 +950,20 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
     const dd = String(aestNow.getDate()).padStart(2, "0");
 
     const sendKeyPrefix = `email:weekly:${yyyy}-${mm}-${dd}`;
-    const perRecipientTtlSeconds = 60 * 60 * 24 * 21; // 21 days is plenty
-
-    const batchSize = 40; // up to 40 recipients per Resend call
-    const batches = chunkArray(subscribers, batchSize);
+    const perRecipientTtlSeconds = 60 * 60 * 24 * 21; // 21 days
 
     let sentCount = 0;
 
-    for (const batch of batches) {
-      // Filter out addresses that already got this week's brief
+    // Resend batch endpoint supports up to 100 email objects per request
+    const RESEND_BATCH_LIMIT = 100;
+    const chunks = chunkArray(subscribers, RESEND_BATCH_LIMIT);
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+
+      // Filter out recipients already sent this week's brief
       const pending = [];
-      for (const email of batch) {
+      for (const email of chunk) {
         const personKey = `${sendKeyPrefix}:${email}`;
         const already = await redisGet(personKey);
         if (already) {
@@ -1012,51 +973,51 @@ async function sendBatchEmails(emailItems, idempotencyKey) {
         pending.push({ email, personKey });
       }
 
-      if (!pending.length) {
-        continue;
-      }
+      if (!pending.length) continue;
 
-      const toList = pending.map((p) => p.email);
+      // One email per subscriber (privacy-safe)
+      const emailItems = pending.map((p) => ({
+        from: `MatesInvest <${EMAIL_FROM}>`,
+        to: [p.email],
+        subject,
+        html,
+      }));
+
+      // Idempotency key per batch request (protects against Netlify retries)
+      const batchIdempotencyKey = `${sendKeyPrefix}:batch:${i}`;
 
       try {
-        for (const p of pending) {
-  await sendEmail(p.email, subject, html);
-  await redisSet(p.personKey, "sent", perRecipientTtlSeconds);
-  await sleep(300);   // gentle pacing to avoid rate limit
-}
+        await sendBatchEmails(emailItems, batchIdempotencyKey);
+
+        // Mark as sent ONLY after Resend accepted the batch
+        await Promise.all(
+          pending.map((p) => redisSet(p.personKey, "sent", perRecipientTtlSeconds))
+        );
+
         sentCount += pending.length;
 
-        // Mark each as sent
-        await Promise.all(
-          pending.map((p) =>
-            redisSet(p.personKey, "sent", perRecipientTtlSeconds)
-          )
-        );
-
-        // Gentle pause between batches
-        await sleep(1500);
+        // Light pause between batches (2 batches for ~150 subs)
+        await sleep(400);
       } catch (err) {
         console.error(
-          "Failed sending weekly batch to",
-          toList,
+          "Failed sending weekly batch index",
+          i,
+          "size",
+          pending.length,
           err && err.message
         );
-        // continue with next batch
+        // Do NOT mark as sent; next run can retry safely
+        continue;
       }
     }
 
-    console.log(
-      `Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`
-    );
+    console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`);
     return {
       statusCode: 200,
       body: `Sent weekly brief to ${sentCount} subscribers`,
     };
   } catch (err) {
-    console.error(
-      "email-weekly-brief error",
-      err && (err.stack || err.message)
-    );
+    console.error("email-weekly-brief error", err && (err.stack || err.message));
     return {
       statusCode: 500,
       body: "Internal error",
