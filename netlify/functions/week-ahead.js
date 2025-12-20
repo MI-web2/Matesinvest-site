@@ -383,7 +383,7 @@ exports.handler = async function () {
   }
 
   sectorRows.sort(
-    (a, b) => (b.returnsPct.m3 ?? -Infinity) - (a.returnsPct.m3 ?? -Infinity)
+    (a, b) => (b?.returnsPct?.m3 ?? -Infinity) - (a?.returnsPct?.m3 ?? -Infinity)
   );
 
   // ---------------------------------
@@ -407,12 +407,6 @@ exports.handler = async function () {
     );
   }
 
-  function buildQuickChartUrl(cfg) {
-    return `https://quickchart.io/chart?width=640&height=320&c=${encodeURIComponent(
-      JSON.stringify(cfg)
-    )}`;
-  }
-
   function monthEndCloseByMonth(eodRowsAsc) {
     // last close per YYYY-MM
     const byMonth = new Map();
@@ -420,9 +414,48 @@ exports.handler = async function () {
       const m = isoMonth(r.date);
       const c = toNum(r.close);
       if (!m || c == null) continue;
-      byMonth.set(m, c); // overwrites until last row in month (we iterate asc)
+      byMonth.set(m, c); // asc overwrite => last in month remains
     }
     return byMonth;
+  }
+
+  function monthLabelPretty(yyyyMm) {
+    // input: "2023-01" -> "Jan 2023"
+    const m = String(yyyyMm || "").match(/^(\d{4})-(\d{2})$/);
+    if (!m) return yyyyMm;
+    const year = m[1];
+    const month = parseInt(m[2], 10);
+    const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const label = names[month - 1] || m[2];
+    return `${label} ${year}`;
+  }
+
+  async function createQuickChartShortUrl(cfg) {
+    // Outlook often fails on huge encoded URLs. This creates a short hosted URL.
+    const res = await fetchWithTimeout(
+      "https://quickchart.io/chart/create",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chart: cfg,
+          width: 640,
+          height: 320,
+          format: "png",
+          backgroundColor: "white",
+        }),
+      },
+      15000
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`quickchart create failed: ${res.status} ${txt}`);
+    }
+
+    const j = await res.json().catch(() => null);
+    if (!j || !j.url) throw new Error("quickchart create returned no url");
+    return j.url;
   }
 
   async function buildEtfMonthlyOverlayChart(tickers, labels) {
@@ -441,12 +474,14 @@ exports.handler = async function () {
       seriesByMonth.push(monthEndCloseByMonth(rows));
     }
 
-    // union of months, last 60 months
+    // union of months, last 60 months (~5y)
     const months = Array.from(
       new Set(seriesByMonth.flatMap((m) => Array.from(m.keys())))
     )
       .sort()
-      .slice(-36);
+      .slice(-60);
+
+    const prettyLabels = months.map(monthLabelPretty);
 
     const datasets = months.length
       ? seriesByMonth.map((m, i) => {
@@ -463,7 +498,7 @@ exports.handler = async function () {
 
     const cfg = {
       type: "line",
-      data: { labels: months, datasets },
+      data: { labels: prettyLabels, datasets },
       options: {
         responsive: true,
         plugins: {
@@ -471,13 +506,13 @@ exports.handler = async function () {
           legend: { display: true },
         },
         scales: {
-          x: { ticks: { maxRotation: 0 } },
+          x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
           y: { ticks: {} },
         },
       },
     };
 
-    return buildQuickChartUrl(cfg);
+    return await createQuickChartShortUrl(cfg);
   }
 
   async function fetchMacroIndicatorAUS(indicator) {
@@ -496,7 +531,7 @@ exports.handler = async function () {
   }
 
   function macroAnnualMap(rows) {
-    // Your observed shape: { Date, Value, Period: "Annual" }
+    // Observed shape: { Date, Value, Period: "Annual" }
     const byYear = new Map();
     for (const r of rows) {
       const d = r.Date || r.date;
@@ -529,13 +564,6 @@ exports.handler = async function () {
       .sort()
       .slice(-15);
 
-    const cpiVals = years.map((y) => cpi.get(y) ?? null);
-    const realVals = years.map((y) => real.get(y) ?? null);
-    const unempVals = years.map((y) => unemp.get(y) ?? null);
-
-    // Dual axes:
-    // - CPI index on left axis (y)
-    // - Rates/Unemployment % on right axis (y1)
     const cfg = {
       type: "line",
       data: {
@@ -543,7 +571,7 @@ exports.handler = async function () {
         datasets: [
           {
             label: "CPI Index (2010=100)",
-            data: cpiVals,
+            data: years.map((y) => cpi.get(y) ?? null),
             yAxisID: "y",
             fill: false,
             borderWidth: 2,
@@ -551,7 +579,7 @@ exports.handler = async function () {
           },
           {
             label: "Real Interest Rate (%)",
-            data: realVals,
+            data: years.map((y) => real.get(y) ?? null),
             yAxisID: "y1",
             fill: false,
             borderWidth: 2,
@@ -559,7 +587,7 @@ exports.handler = async function () {
           },
           {
             label: "Unemployment (%)",
-            data: unempVals,
+            data: years.map((y) => unemp.get(y) ?? null),
             yAxisID: "y1",
             fill: false,
             borderWidth: 2,
@@ -593,7 +621,7 @@ exports.handler = async function () {
       },
     };
 
-    return buildQuickChartUrl(cfg);
+    return await createQuickChartShortUrl(cfg);
   }
 
   // ETF tickers/labels for chart
@@ -617,7 +645,11 @@ exports.handler = async function () {
 
   let charts = {
     enabled: !disableCharts,
-    etfMonthly: { title: "Sector ETFs (monthly, rebased)", tickers: finalEtfTickers, url: null },
+    etfMonthly: {
+      title: "Sector ETFs (monthly, rebased)",
+      tickers: finalEtfTickers,
+      url: null,
+    },
     macroAnnual: { title: "Where is Australia now? (annual macro)", url: null },
   };
 
@@ -634,8 +666,7 @@ exports.handler = async function () {
     try {
       charts.macroAnnual.url = await buildMacroAnnualOverlayChart();
     } catch (e) {
-      charts.macroAnnual.error =
-        e && e.message ? e.message : "Macro chart failed";
+      charts.macroAnnual.error = e && e.message ? e.message : "Macro chart failed";
     }
   }
 
