@@ -598,8 +598,8 @@ exports.handler = async function () {
                 maxRotation: 0,
                 minRotation: 0,
                 autoSkip: true,
-                // 120 points => ~12 ticks ~ yearly labels
-                maxTicksLimit: 12,
+                // 120 points => ~6 ticks ~ yearly labels
+                maxTicksLimit: 6,
               },
             },
           ],
