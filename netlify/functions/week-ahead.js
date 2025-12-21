@@ -3,7 +3,7 @@
 // 1) AU macro bullets from local txt file (bundled with functions)
 // 2) Sector ETF proxy trends (6M / 3M / 1M) from EODHD EOD prices
 // 3) Charts:
-//    - Major markets (10y, monthly, rebased): ASX200 + S&P500 + Nasdaq (via AU ETFs)
+//    - Major markets (10y, monthly, rebased): ASX200 + Nasdaq (via AU ETFs)
 //    - ETF overlay (monthly, rebased): Resources + Financials + 1 other
 //    - Macro overlay (annual): CPI index + Real interest rate + Unemployment (dual axis)
 // 4) Cache payload to Upstash: weekAhead:au:YYYY-MM-DD
@@ -17,8 +17,8 @@
 //   WEEK_AHEAD_DISABLE_CHARTS ("1" to disable charts)
 //   WEEK_AHEAD_ETF_TICKERS     (comma list of 3 tickers, default: "OZR.AU,QFN.AU,ATEC.AU")
 //   WEEK_AHEAD_ETF_LABELS      (comma list of 3 labels, default: "Resources,Financials,Tech")
-//   WEEK_AHEAD_MARKETS_TICKERS (comma list of 3 tickers, default: "STW.AU,IVV.AU,NDQ.AU")
-//   WEEK_AHEAD_MARKETS_LABELS  (comma list of 3 labels, default: "ASX 200,US S&P 500,US Nasdaq 100")
+//   WEEK_AHEAD_MARKETS_TICKERS (comma list of 2–3 tickers, default: "STW.AU,NDQ.AU")
+//   WEEK_AHEAD_MARKETS_LABELS  (comma list of 2–3 labels, default: "ASX 200,US Nasdaq 100")
 //
 // Local file required (and must be included via netlify.toml included_files):
 //   netlify/functions/au-macro-key-dates-2026.txt
@@ -339,7 +339,7 @@ exports.handler = async function () {
   function pctReturn(now, then) {
     if (!Number.isFinite(now) || !Number.isFinite(then) || then === 0)
       return null;
-    return ((now / then) - 1) * 100;
+    return (now / then - 1) * 100;
   }
 
   const sectorRows = [];
@@ -482,6 +482,10 @@ exports.handler = async function () {
   }
 
   async function buildEtfMonthlyOverlayChart(tickers, labels) {
+    const n = Math.min(tickers.length, labels.length);
+    const useTickers = tickers.slice(0, n);
+    const useLabels = labels.slice(0, n);
+
     // last ~5y daily -> compress to monthly end closes
     const to = new Date();
     const from5 = new Date(to.getTime());
@@ -491,7 +495,7 @@ exports.handler = async function () {
     const toISO5 = isoDate(to);
 
     const seriesByMonth = [];
-    for (const t of tickers) {
+    for (const t of useTickers) {
       const rows = await fetchEodSeries(t, fromISO5, toISO5);
       rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
       seriesByMonth.push(monthEndCloseByMonth(rows));
@@ -510,7 +514,7 @@ exports.handler = async function () {
       ? seriesByMonth.map((m, i) => {
           const vals = months.map((k) => m.get(k) ?? null);
           return {
-            label: `${labels[i]} (${tickers[i]})`,
+            label: `${useLabels[i]} (${useTickers[i]})`,
             data: rebaseTo100(vals),
             fill: false,
             borderWidth: 2,
@@ -519,7 +523,6 @@ exports.handler = async function () {
         })
       : [];
 
-    // Chart.js v2 config (JSON-safe ticks)
     const cfg = {
       type: "line",
       data: { labels: prettyLabels, datasets },
@@ -534,7 +537,6 @@ exports.handler = async function () {
                 maxRotation: 0,
                 minRotation: 0,
                 autoSkip: true,
-                // ~60 points => 10 ticks ~ every 6 months
                 maxTicksLimit: 10,
               },
             },
@@ -548,6 +550,10 @@ exports.handler = async function () {
   }
 
   async function buildMarkets10yChart(tickers, labels) {
+    const n = Math.min(tickers.length, labels.length);
+    const useTickers = tickers.slice(0, n);
+    const useLabels = labels.slice(0, n);
+
     const to = new Date();
     const from10 = new Date(to.getTime());
     from10.setUTCFullYear(from10.getUTCFullYear() - 10);
@@ -556,7 +562,7 @@ exports.handler = async function () {
     const toISO10 = isoDate(to);
 
     const seriesByMonth = [];
-    for (const t of tickers) {
+    for (const t of useTickers) {
       const rows = await fetchEodSeries(t, fromISO10, toISO10);
       rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
       seriesByMonth.push(monthEndCloseByMonth(rows));
@@ -575,7 +581,7 @@ exports.handler = async function () {
       ? seriesByMonth.map((m, i) => {
           const vals = months.map((k) => m.get(k) ?? null);
           return {
-            label: `${labels[i]} (${tickers[i]})`,
+            label: `${useLabels[i]} (${useTickers[i]})`,
             data: rebaseTo100(vals),
             fill: false,
             borderWidth: 2,
@@ -598,7 +604,6 @@ exports.handler = async function () {
                 maxRotation: 0,
                 minRotation: 0,
                 autoSkip: true,
-                // 120 points => ~6 ticks ~ yearly labels
                 maxTicksLimit: 6,
               },
             },
@@ -629,7 +634,6 @@ exports.handler = async function () {
   }
 
   function macroAnnualMap(rows) {
-    // Observed shape: { Date, Value, Period: "Annual" }
     const byYear = new Map();
     for (const r of rows) {
       const d = r.Date || r.date;
@@ -641,7 +645,6 @@ exports.handler = async function () {
   }
 
   async function buildMacroAnnualOverlayChart() {
-    // Indicators (annual)
     const CPI = "consumer_price_index"; // index (2010=100)
     const REAL = "real_interest_rate"; // %
     const UNEMP = "unemployment_total_percent"; // %
@@ -662,7 +665,6 @@ exports.handler = async function () {
       .sort()
       .slice(-15);
 
-    // Chart.js v2 config (QuickChart most reliable)
     const cfg = {
       type: "line",
       data: {
@@ -736,11 +738,13 @@ exports.handler = async function () {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const finalEtfTickers = etfTickers.length === 3 ? etfTickers : defaultEtfTickers;
+  const finalEtfTickers =
+    etfTickers.length === 3 ? etfTickers : defaultEtfTickers;
   const finalEtfLabels = etfLabels.length === 3 ? etfLabels : defaultEtfLabels;
 
-  const defaultMarketsTickers = ["STW.AU", "IVV.AU", "NDQ.AU"];
-  const defaultMarketsLabels = ["ASX 200", "US S&P 500", "US Nasdaq 100"];
+  // ✅ IVV.AU removed from defaults
+  const defaultMarketsTickers = ["STW.AU", "NDQ.AU"];
+  const defaultMarketsLabels = ["ASX 200", "US Nasdaq 100"];
 
   const marketsTickers = String(process.env.WEEK_AHEAD_MARKETS_TICKERS || "")
     .split(",")
@@ -752,16 +756,32 @@ exports.handler = async function () {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const finalMarketsTickers =
-    marketsTickers.length === 3 ? marketsTickers : defaultMarketsTickers;
-  const finalMarketsLabels =
-    marketsLabels.length === 3 ? marketsLabels : defaultMarketsLabels;
+  // Allow 2–3 markets series, but always keep tickers/labels aligned
+  function alignTickersAndLabels(tickers, labels, fallbackTickers, fallbackLabels) {
+    const t = Array.isArray(tickers) ? tickers : [];
+    const l = Array.isArray(labels) ? labels : [];
+
+    if (t.length >= 2 && l.length >= 2) {
+      const n = Math.min(t.length, l.length);
+      return { tickers: t.slice(0, n), labels: l.slice(0, n) };
+    }
+
+    // if someone sets only tickers but not labels, or vice-versa, fall back to defaults
+    return { tickers: fallbackTickers, labels: fallbackLabels };
+  }
+
+  const alignedMarkets = alignTickersAndLabels(
+    marketsTickers,
+    marketsLabels,
+    defaultMarketsTickers,
+    defaultMarketsLabels
+  );
 
   let charts = {
     enabled: !disableCharts,
     markets10y: {
       title: "Major markets (10y, rebased)",
-      tickers: finalMarketsTickers,
+      tickers: alignedMarkets.tickers,
       url: null,
     },
     etfMonthly: {
@@ -778,8 +798,8 @@ exports.handler = async function () {
   if (!disableCharts) {
     try {
       charts.markets10y.url = await buildMarkets10yChart(
-        finalMarketsTickers,
-        finalMarketsLabels
+        alignedMarkets.tickers,
+        alignedMarkets.labels
       );
     } catch (e) {
       charts.markets10y.error =
@@ -812,7 +832,9 @@ exports.handler = async function () {
       id: "week_ahead_v1",
       region: "au",
       timezone: "Australia/Brisbane",
-      generatedAtAEST: getAestDate(new Date()).toISOString().replace("Z", "+10:00"),
+      generatedAtAEST: getAestDate(new Date())
+        .toISOString()
+        .replace("Z", "+10:00"),
     },
     week: {
       weekStartAEST: weekStart,
