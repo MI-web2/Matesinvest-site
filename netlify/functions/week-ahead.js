@@ -1,27 +1,5 @@
 // netlify/functions/week-ahead.js
-// Week Ahead generator (Monday email):
-// 1) AU macro bullets from local txt file (bundled with functions)
-// 2) Sector ETF proxy trends (6M / 3M / 1M) from EODHD EOD prices
-// 3) Charts:
-//    - Major markets (10y, monthly, rebased): ASX200 + Nasdaq (via AU ETFs)
-//    - ETF overlay (monthly, rebased): Resources + Financials + 1 other
-//    - Macro overlay (annual): CPI index + Real interest rate + Unemployment (dual axis)
-// 4) Cache payload to Upstash: weekAhead:au:YYYY-MM-DD
-//
-// Env required:
-//   UPSTASH_REDIS_REST_URL
-//   UPSTASH_REDIS_REST_TOKEN
-//   EODHD_API_TOKEN
-//
-// Optional env:
-//   WEEK_AHEAD_DISABLE_CHARTS ("1" to disable charts)
-//   WEEK_AHEAD_ETF_TICKERS     (comma list of 3 tickers, default: "OZR.AU,QFN.AU,ATEC.AU")
-//   WEEK_AHEAD_ETF_LABELS      (comma list of 3 labels, default: "Resources,Financials,Tech")
-//   WEEK_AHEAD_MARKETS_TICKERS (comma list of 2–3 tickers, default: "STW.AU,NDQ.AU")
-//   WEEK_AHEAD_MARKETS_LABELS  (comma list of 2–3 labels, default: "ASX 200,US Nasdaq 100")
-//
-// Local file required (and must be included via netlify.toml included_files):
-//   netlify/functions/au-macro-key-dates-2026.txt
+// Week Ahead generator (Monday email)
 
 const fetch = (...args) => global.fetch(...args);
 const fs = require("fs");
@@ -66,13 +44,11 @@ exports.handler = async function () {
     const day = d.getUTCDay(); // 0 Sun..6 Sat
     const monday = new Date(d.getTime());
 
-    // Mon..Fri => this week's Monday
     if (day >= 1 && day <= 5) {
       monday.setUTCDate(monday.getUTCDate() - (day - 1));
       return monday;
     }
 
-    // Sat/Sun => next Monday
     const add = (8 - day) % 7 || 7;
     monday.setUTCDate(monday.getUTCDate() + add);
     return monday;
@@ -155,10 +131,7 @@ exports.handler = async function () {
     for (const l of lines) {
       if (!l.startsWith("•")) continue;
 
-      // normalize dash types
       const line = l.replace(/\s+–\s+/, " - ").replace(/\s+—\s+/, " - ");
-
-      // "• Tue 3 Feb 2026 - RBA Cash Rate Decision"
       const m = line.match(
         /^•\s+[A-Za-z]{3}\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+-\s+(.+)$/
       );
@@ -170,18 +143,8 @@ exports.handler = async function () {
       const title = m[4].trim();
 
       const monthMap = {
-        Jan: 0,
-        Feb: 1,
-        Mar: 2,
-        Apr: 3,
-        May: 4,
-        Jun: 5,
-        Jul: 6,
-        Aug: 7,
-        Sep: 8,
-        Oct: 9,
-        Nov: 10,
-        Dec: 11,
+        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
       };
       const month = monthMap[monStr];
       if (month === undefined) continue;
@@ -200,13 +163,7 @@ exports.handler = async function () {
     const t = String(title || "").toLowerCase();
     if (t.includes("rba") || t.includes("cash rate")) return 100;
     if (t.includes("cpi") || t.includes("inflation")) return 90;
-    if (
-      t.includes("labour") ||
-      t.includes("labor") ||
-      t.includes("employment") ||
-      t.includes("unemployment")
-    )
-      return 80;
+    if (t.includes("labour") || t.includes("labor") || t.includes("employment") || t.includes("unemployment")) return 80;
     return 10;
   }
 
@@ -398,10 +355,7 @@ exports.handler = async function () {
     String(process.env.WEEK_AHEAD_DISABLE_CHARTS || "").trim() === "1";
 
   function isoMonth(d) {
-    return String(d || "").slice(0, 7); // YYYY-MM
-  }
-  function isoYear(d) {
-    return String(d || "").slice(0, 4); // YYYY
+    return String(d || "").slice(0, 7);
   }
 
   function rebaseTo100(values) {
@@ -415,39 +369,23 @@ exports.handler = async function () {
   }
 
   function monthEndCloseByMonth(eodRowsAsc) {
-    // last close per YYYY-MM
     const byMonth = new Map();
     for (const r of eodRowsAsc) {
       const m = isoMonth(r.date);
       const c = toNum(r.close);
       if (!m || c == null) continue;
-      byMonth.set(m, c); // asc overwrite => last in month remains
+      byMonth.set(m, c);
     }
     return byMonth;
   }
 
   function monthLabelPretty(yyyyMm) {
-    // "2023-01" -> "Jan 2023"
     const m = String(yyyyMm || "").match(/^(\d{4})-(\d{2})$/);
     if (!m) return yyyyMm;
     const year = m[1];
     const month = parseInt(m[2], 10);
-    const names = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    const label = names[month - 1] || m[2];
-    return `${label} ${year}`;
+    const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${names[month - 1] || m[2]} ${year}`;
   }
 
   async function createQuickChartShortUrl(cfg, version) {
@@ -458,8 +396,7 @@ exports.handler = async function () {
       format: "png",
       backgroundColor: "white",
     };
-
-    if (version) payload.version = version; // e.g. "2.9.4"
+    if (version) payload.version = version;
 
     const res = await fetchWithTimeout(
       "https://quickchart.io/chart/create",
@@ -486,7 +423,6 @@ exports.handler = async function () {
     const useTickers = tickers.slice(0, n);
     const useLabels = labels.slice(0, n);
 
-    // last ~5y daily -> compress to monthly end closes
     const to = new Date();
     const from5 = new Date(to.getTime());
     from5.setUTCFullYear(from5.getUTCFullYear() - 5);
@@ -501,7 +437,6 @@ exports.handler = async function () {
       seriesByMonth.push(monthEndCloseByMonth(rows));
     }
 
-    // union of months, last 60 months (~5y)
     const months = Array.from(
       new Set(seriesByMonth.flatMap((m) => Array.from(m.keys())))
     )
@@ -531,16 +466,7 @@ exports.handler = async function () {
         title: { display: true, text: "Sector ETFs (monthly, rebased to 100)" },
         legend: { display: true },
         scales: {
-          xAxes: [
-            {
-              ticks: {
-                maxRotation: 0,
-                minRotation: 0,
-                autoSkip: true,
-                maxTicksLimit: 10,
-              },
-            },
-          ],
+          xAxes: [{ ticks: { maxRotation: 0, minRotation: 0, autoSkip: true, maxTicksLimit: 10 } }],
           yAxes: [{ ticks: {} }],
         },
       },
@@ -568,7 +494,6 @@ exports.handler = async function () {
       seriesByMonth.push(monthEndCloseByMonth(rows));
     }
 
-    // union of months, last 120 months (10y)
     const months = Array.from(
       new Set(seriesByMonth.flatMap((m) => Array.from(m.keys())))
     )
@@ -598,125 +523,8 @@ exports.handler = async function () {
         title: { display: true, text: "Major markets (10y, rebased to 100)" },
         legend: { display: true },
         scales: {
-          xAxes: [
-            {
-              ticks: {
-                maxRotation: 0,
-                minRotation: 0,
-                autoSkip: true,
-                maxTicksLimit: 6,
-              },
-            },
-          ],
+          xAxes: [{ ticks: { maxRotation: 0, minRotation: 0, autoSkip: true, maxTicksLimit: 6 } }],
           yAxes: [{ ticks: {} }],
-        },
-      },
-    };
-
-    return await createQuickChartShortUrl(cfg, "2.9.4");
-  }
-
-  async function fetchMacroIndicatorAUS(indicator) {
-    const url =
-      `https://eodhd.com/api/macro-indicator/AUS` +
-      `?indicator=${encodeURIComponent(indicator)}` +
-      `&api_token=${EODHD_API_TOKEN}&fmt=json`;
-
-    const res = await fetchWithTimeout(url, {}, 15000);
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw new Error(
-        `macro-indicator ${indicator} failed: ${res.status} ${txt}`
-      );
-    }
-    const raw = await res.json().catch(() => []);
-    return Array.isArray(raw) ? raw : [];
-  }
-
-  function macroAnnualMap(rows) {
-    const byYear = new Map();
-    for (const r of rows) {
-      const d = r.Date || r.date;
-      const y = isoYear(d);
-      const v = toNum(r.Value ?? r.value);
-      if (y && v != null) byYear.set(y, v);
-    }
-    return byYear;
-  }
-
-  async function buildMacroAnnualOverlayChart() {
-    const CPI = "consumer_price_index"; // index (2010=100)
-    const REAL = "real_interest_rate"; // %
-    const UNEMP = "unemployment_total_percent"; // %
-
-    const [cpiRows, realRows, unempRows] = await Promise.all([
-      fetchMacroIndicatorAUS(CPI),
-      fetchMacroIndicatorAUS(REAL),
-      fetchMacroIndicatorAUS(UNEMP),
-    ]);
-
-    const cpi = macroAnnualMap(cpiRows);
-    const real = macroAnnualMap(realRows);
-    const unemp = macroAnnualMap(unempRows);
-
-    const years = Array.from(
-      new Set([...cpi.keys(), ...real.keys(), ...unemp.keys()])
-    )
-      .sort()
-      .slice(-15);
-
-    const cfg = {
-      type: "line",
-      data: {
-        labels: years,
-        datasets: [
-          {
-            label: "CPI Index (2010=100)",
-            data: years.map((y) => cpi.get(y) ?? null),
-            yAxisID: "y",
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 2,
-          },
-          {
-            label: "Real Interest Rate (%)",
-            data: years.map((y) => real.get(y) ?? null),
-            yAxisID: "y1",
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 2,
-          },
-          {
-            label: "Unemployment (%)",
-            data: years.map((y) => unemp.get(y) ?? null),
-            yAxisID: "y1",
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 2,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        title: { display: true, text: "Where is Australia now? (annual macro)" },
-        legend: { display: true },
-        scales: {
-          xAxes: [{ ticks: { maxRotation: 0 } }],
-          yAxes: [
-            {
-              id: "y",
-              position: "left",
-              scaleLabel: { display: true, labelString: "CPI Index" },
-              ticks: {},
-            },
-            {
-              id: "y1",
-              position: "right",
-              scaleLabel: { display: true, labelString: "%" },
-              gridLines: { drawOnChartArea: false },
-              ticks: {},
-            },
-          ],
         },
       },
     };
@@ -729,44 +537,30 @@ exports.handler = async function () {
   const defaultEtfLabels = ["Resources", "Financials", "Tech"];
 
   const etfTickers = String(process.env.WEEK_AHEAD_ETF_TICKERS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+    .split(",").map((s) => s.trim()).filter(Boolean);
 
   const etfLabels = String(process.env.WEEK_AHEAD_ETF_LABELS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+    .split(",").map((s) => s.trim()).filter(Boolean);
 
-  const finalEtfTickers =
-    etfTickers.length === 3 ? etfTickers : defaultEtfTickers;
+  const finalEtfTickers = etfTickers.length === 3 ? etfTickers : defaultEtfTickers;
   const finalEtfLabels = etfLabels.length === 3 ? etfLabels : defaultEtfLabels;
 
-  // ✅ IVV.AU removed from defaults
   const defaultMarketsTickers = ["STW.AU", "NDQ.AU"];
   const defaultMarketsLabels = ["ASX 200", "US Nasdaq 100"];
 
   const marketsTickers = String(process.env.WEEK_AHEAD_MARKETS_TICKERS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+    .split(",").map((s) => s.trim()).filter(Boolean);
 
   const marketsLabels = String(process.env.WEEK_AHEAD_MARKETS_LABELS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+    .split(",").map((s) => s.trim()).filter(Boolean);
 
-  // Allow 2–3 markets series, but always keep tickers/labels aligned
   function alignTickersAndLabels(tickers, labels, fallbackTickers, fallbackLabels) {
     const t = Array.isArray(tickers) ? tickers : [];
     const l = Array.isArray(labels) ? labels : [];
-
     if (t.length >= 2 && l.length >= 2) {
       const n = Math.min(t.length, l.length);
       return { tickers: t.slice(0, n), labels: l.slice(0, n) };
     }
-
-    // if someone sets only tickers but not labels, or vice-versa, fall back to defaults
     return { tickers: fallbackTickers, labels: fallbackLabels };
   }
 
@@ -779,19 +573,13 @@ exports.handler = async function () {
 
   let charts = {
     enabled: !disableCharts,
-    markets10y: {
-      title: "Major markets (10y, rebased)",
-      tickers: alignedMarkets.tickers,
-      url: null,
-    },
-    etfMonthly: {
-      title: "Sector ETFs (monthly, rebased)",
-      tickers: finalEtfTickers,
-      url: null,
-    },
+    markets10y: { title: "Major markets (10y, rebased)", tickers: alignedMarkets.tickers, url: null },
+    etfMonthly: { title: "Sector ETFs (monthly, rebased)", tickers: finalEtfTickers, url: null },
     macroAnnual: {
       title: "Where is Australia now? (annual macro)",
       url: null,
+      disabled: true,              // ✅ TEMP: disabled
+      note: "Temporarily disabled", // ✅ helps debugging
     },
   };
 
@@ -802,8 +590,7 @@ exports.handler = async function () {
         alignedMarkets.labels
       );
     } catch (e) {
-      charts.markets10y.error =
-        e && e.message ? e.message : "Markets chart failed";
+      charts.markets10y.error = e && e.message ? e.message : "Markets chart failed";
     }
 
     try {
@@ -812,35 +599,20 @@ exports.handler = async function () {
         finalEtfLabels
       );
     } catch (e) {
-      charts.etfMonthly.error =
-        e && e.message ? e.message : "ETF chart failed";
+      charts.etfMonthly.error = e && e.message ? e.message : "ETF chart failed";
     }
 
-    try {
-      charts.macroAnnual.url = await buildMacroAnnualOverlayChart();
-    } catch (e) {
-      charts.macroAnnual.error =
-        e && e.message ? e.message : "Macro chart failed";
-    }
+    // ✅ Macro annual intentionally skipped while disabled
   }
 
-  // ---------------------------------
-  // Final payload + cache
-  // ---------------------------------
   const payload = {
     meta: {
       id: "week_ahead_v1",
       region: "au",
       timezone: "Australia/Brisbane",
-      generatedAtAEST: getAestDate(new Date())
-        .toISOString()
-        .replace("Z", "+10:00"),
+      generatedAtAEST: getAestDate(new Date()).toISOString().replace("Z", "+10:00"),
     },
-    week: {
-      weekStartAEST: weekStart,
-      weekEndAEST: weekEnd,
-      label: weekLabel,
-    },
+    week: { weekStartAEST: weekStart, weekEndAEST: weekEnd, label: weekLabel },
     macro,
     sectors: {
       title: "Sector trends (6M / 3M / 1M)",
@@ -851,7 +623,6 @@ exports.handler = async function () {
     charts,
   };
 
-  // Cache for ~10 days
   await redisSet(payloadKey, JSON.stringify(payload), 60 * 60 * 24 * 10);
 
   return {
