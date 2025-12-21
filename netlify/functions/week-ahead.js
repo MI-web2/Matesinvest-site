@@ -502,17 +502,27 @@ async function createQuickChartShortUrl(cfg, version) {
     const cfg = {
       type: "line",
       data: { labels: prettyLabels, datasets },
-      options: {
-        responsive: true,
-        plugins: {
-          title: { display: true, text: "Sector ETFs (monthly, rebased to 100)" },
-          legend: { display: true },
-        },
-        scales: {
-          x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
-          y: { ticks: {} },
+options: {
+  responsive: true,
+  title: { display: true, text: "Sector ETFs (monthly, rebased to 100)" },
+  legend: { display: true },
+  scales: {
+    xAxes: [
+      {
+        ticks: {
+          maxRotation: 0,
+          autoSkip: false,              // we’ll do our own skipping
+          callback: function (value, index) {
+            // show label every 6 months
+            return index % 6 === 0 ? value : "";
+          },
         },
       },
+    ],
+    yAxes: [{ ticks: {} }],
+  },
+},
+
     };
 
     return await createQuickChartShortUrl(cfg);
