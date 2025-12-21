@@ -2,7 +2,6 @@
 // Scheduled function: sends the Monday "Week Ahead" email to all subscribers.
 
 const fetch = (...args) => global.fetch(...args);
-
 const weekAheadFn = require("./week-ahead");
 
 exports.handler = async function () {
@@ -37,7 +36,6 @@ exports.handler = async function () {
     }
   }
 
-  // Australia/Brisbane: UTC+10, no DST
   const AEST_OFFSET_MINUTES = 10 * 60;
 
   function getAestDate(baseDate = new Date()) {
@@ -175,20 +173,19 @@ exports.handler = async function () {
   }
 
   function renderChartCard({ title, url, alt }) {
-    if (!url) {
-      return `
-        <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;font-size:13px;color:#64748b;">
-          Chart unavailable.
-        </div>
-      `;
-    }
+    if (!url) return ""; // ✅ don’t render placeholder cards
 
     return `
       <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
         <div style="padding:10px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#334155;font-weight:700;">
           ${escapeHtml(title || "Chart")}
         </div>
-        <img src="${url}" alt="${escapeHtml(alt || title || "Chart")}" style="display:block;width:100%;height:auto;"/>
+        <img
+          src="${url}"
+          alt="${escapeHtml(alt || title || "Chart")}"
+          width="640"
+          style="display:block;width:100%;max-width:640px;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;"
+        />
       </div>
     `;
   }
@@ -197,10 +194,14 @@ exports.handler = async function () {
     const week = payload.week || {};
     const macro = payload.macro || { bullets: [] };
     const sectors = payload.sectors || { results: [] };
-    const charts = payload.charts || {}; // charts live under payload.charts
+    const charts = payload.charts || {};
 
-    // ✅ NEW: Memo intro (simple, "good morning" tone)
+    // ✅ FIXED memo HTML (valid + wrapped)
     const memoHtml = `
+      <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;">
+        <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">
+          Memo
+        </div>
         <div style="font-size:13px;color:#0b1220;line-height:1.5;">
           Good morning — welcome to a new week.<br/>
           Let’s check in on where the market is sitting and what’s on the calendar.
@@ -212,9 +213,7 @@ exports.handler = async function () {
     const macroHtml =
       macroBullets.length > 0
         ? `<ul style="margin:8px 0 0 18px;padding:0;color:#0b1220;font-size:13px;line-height:1.5;">
-            ${macroBullets
-              .map((b) => `<li style="margin:6px 0;">${escapeHtml(b)}</li>`)
-              .join("")}
+            ${macroBullets.map((b) => `<li style="margin:6px 0;">${escapeHtml(b)}</li>`).join("")}
           </ul>`
         : `<div style="margin-top:8px;font-size:13px;color:#64748b;line-height:1.45;">
             No major Australian macro releases scheduled.
@@ -231,26 +230,18 @@ exports.handler = async function () {
           <tr>
             <td style="padding:8px 10px;font-size:13px;color:#0b1220;font-weight:600;">
               ${escapeHtml(r.label || r.key || "")}
-              <span style="color:#94a3b8;font-weight:500;">(${escapeHtml(
-                r.ticker || ""
-              )})</span>
+              <span style="color:#94a3b8;font-weight:500;">(${escapeHtml(r.ticker || "")})</span>
             </td>
             <td style="padding:8px 10px;font-size:13px;text-align:right;color:#0b1220;">
               ${typeof r.close === "number" ? "$" + formatMoney(r.close) : "—"}
             </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
-              m6
-            )};white-space:nowrap;font-weight:600;">
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(m6)};white-space:nowrap;font-weight:600;">
               ${formatPct(m6)}
             </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
-              m3
-            )};white-space:nowrap;font-weight:600;">
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(m3)};white-space:nowrap;font-weight:600;">
               ${formatPct(m3)}
             </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
-              m1
-            )};white-space:nowrap;">
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(m1)};white-space:nowrap;">
               ${formatPct(m1)}
             </td>
           </tr>
@@ -258,21 +249,18 @@ exports.handler = async function () {
       })
       .join("");
 
-    // 10y markets chart (ASX200 + US majors)
     const indicesUrl = charts?.markets10y?.url || null;
-    const indicesTitle =
-      charts?.markets10y?.title || "Major markets (10y, rebased)";
+    const indicesTitle = charts?.markets10y?.title || "Major markets (10y, rebased)";
     const indicesAlt = "ASX200 vs US indices chart";
 
-    // Existing charts
     const etfChartUrl = charts?.etfMonthly?.url || null;
-    const etfTitle =
-      charts?.etfMonthly?.title || "Sector ETFs (monthly, rebased)";
+    const etfTitle = charts?.etfMonthly?.title || "Sector ETFs (monthly, rebased)";
     const etfAlt = "Sector ETFs chart";
 
-    const macroChartUrl = charts?.macroAnnual?.url || null;
-    const macroTitle =
-      charts?.macroAnnual?.title || "Where is Australia now? (annual macro)";
+    // ✅ Hide macro annual when disabled OR missing URL
+    const macroDisabled = charts?.macroAnnual?.disabled === true;
+    const macroChartUrl = !macroDisabled ? (charts?.macroAnnual?.url || null) : null;
+    const macroTitle = charts?.macroAnnual?.title || "Where is Australia now? (annual macro)";
     const macroAlt = "Australia macro chart";
 
     return `
@@ -288,41 +276,30 @@ exports.handler = async function () {
       <td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background-color:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 30px rgba(15,23,42,0.10);">
 
-          <!-- Header -->
+          <!-- Header (table-based for email client compatibility) -->
           <tr>
             <td style="padding:18px 20px 10px 20px;border-bottom:1px solid #e2e8f0;background:radial-gradient(circle at top left,#e2ebff 0,#f5f7fb 60%);">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-                <div>
-                  <div style="font-size:12px;color:#64748b;margin-bottom:4px;">
-                    <span style="
-                      display:inline-block;
-                      padding:2px 9px;
-                      border-radius:999px;
-                      background:#e7f7ff;
-                      border:1px solid #c5e5ff;
-                      color:#083a59;
-                      font-size:11px;
-                      font-weight:600;
-                    ">
-                      MatesInvest · MatesMorning
-                    </span>
-                  </div>
-                  <h1 style="margin:2px 0 2px 0;font-size:19px;color:#002040;">
-                    Week Ahead
-                  </h1>
-                  <div style="font-size:13px;color:#64748b;">
-                    ${escapeHtml(week.label || "")}
-                  </div>
-                </div>
-                <div style="text-align:right;font-size:11px;color:#94a3b8;line-height:1.4;max-width:180px;">
-                  Built for Australian retail investors.<br/>
-                  Short, plain-English, not financial advice.
-                </div>
-              </div>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="left" valign="top">
+                    <div style="font-size:12px;color:#64748b;margin-bottom:4px;">
+                      <span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f7ff;border:1px solid #c5e5ff;color:#083a59;font-size:11px;font-weight:600;">
+                        MatesInvest · MatesMorning
+                      </span>
+                    </div>
+                    <h1 style="margin:2px 0 2px 0;font-size:19px;color:#002040;">Week Ahead</h1>
+                    <div style="font-size:13px;color:#64748b;">${escapeHtml(week.label || "")}</div>
+                  </td>
+                  <td align="right" valign="top" style="font-size:11px;color:#94a3b8;line-height:1.4;">
+                    Built for Australian retail investors.<br/>
+                    Short, plain-English, not financial advice.
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
-          <!-- ✅ NEW Memo block -->
+          <!-- Memo -->
           <tr>
             <td style="padding:14px 20px 6px 20px;">
               ${memoHtml}
@@ -333,7 +310,7 @@ exports.handler = async function () {
           <tr>
             <td style="padding:10px 20px 10px 20px;">
               <h2 style="margin:0 0 4px 0;font-size:14px;color:#002040;">
-               ${escapeHtml(macro.title || "Important AU macro this week")}
+                ${escapeHtml(macro.title || "Important AU macro this week")}
               </h2>
               <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;">
                 ${macroHtml}
@@ -345,33 +322,21 @@ exports.handler = async function () {
           <tr>
             <td style="padding:6px 20px 12px 20px;">
               <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">
-               ${escapeHtml(sectors.title || "Sector trends (6M / 3M / 1M)")}
+                ${escapeHtml(sectors.title || "Sector trends (6M / 3M / 1M)")}
               </h2>
 
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
                 style="border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:#f9fafb;">
                 <thead>
                   <tr style="background:#edf2ff;">
-                    <th align="left" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">
-                      Sector proxy
-                    </th>
-                    <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">
-                      Close
-                    </th>
-                    <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">
-                      6M
-                    </th>
-                    <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">
-                      3M
-                    </th>
-                    <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">
-                      1M
-                    </th>
+                    <th align="left" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Sector proxy</th>
+                    <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Close</th>
+                    <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">6M</th>
+                    <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">3M</th>
+                    <th align="right" style="padding:6px 10px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">1M</th>
                   </tr>
                 </thead>
-                <tbody>
-                  ${sectorRowsHtml || ""}
-                </tbody>
+                <tbody>${sectorRowsHtml || ""}</tbody>
               </table>
 
               <div style="margin-top:6px;font-size:11px;color:#94a3b8;">
@@ -380,26 +345,18 @@ exports.handler = async function () {
             </td>
           </tr>
 
-          <!-- Section 3 -->
+          <!-- Charts -->
           <tr>
             <td style="padding:6px 20px 16px 20px;">
-              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">
-                Big Picture
-              </h2>
+              <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Big Picture</h2>
 
               ${renderChartCard({ title: indicesTitle, url: indicesUrl, alt: indicesAlt })}
-
               <div style="height:10px;"></div>
 
               ${renderChartCard({ title: etfTitle, url: etfChartUrl, alt: etfAlt })}
 
-              <div style="height:10px;"></div>
-${charts?.macroAnnual?.disabled ? "" : renderChartCard({
-  title: macroTitle,
-  url: macroChartUrl,
-  alt: macroAlt
-})}
-
+              ${macroChartUrl ? `<div style="height:10px;"></div>` : ""}
+              ${renderChartCard({ title: macroTitle, url: macroChartUrl, alt: macroAlt })}
 
               <div style="margin-top:8px;font-size:11px;color:#94a3b8;">
                 Macro series can lag official releases. Not financial advice.
@@ -415,18 +372,8 @@ ${charts?.macroAnnual?.disabled ? "" : renderChartCard({
                 <p style="margin:0 0 10px 0;font-size:12px;color:#64748b;line-height:1.4;">
                   Know someone who’d enjoy the Week Ahead? Send them this link:
                 </p>
-
                 <a href="https://matesinvest.com/mates-summaries#subscribe"
-                   style="
-                     display:inline-block;
-                     padding:8px 14px;
-                     background:#00BFFF;
-                     color:#ffffff;
-                     text-decoration:none;
-                     border-radius:999px;
-                     font-size:13px;
-                     font-weight:600;
-                   ">
+                   style="display:inline-block;padding:8px 14px;background:#00BFFF;color:#ffffff;text-decoration:none;border-radius:999px;font-size:13px;font-weight:600;">
                   Subscribe to MatesMorning
                 </a>
               </div>
@@ -455,7 +402,6 @@ ${charts?.macroAnnual?.disabled ? "" : renderChartCard({
   }
 
   try {
-    // Generate week-ahead payload
     const waResponse = await weekAheadFn.handler({}, {});
     if (!waResponse || waResponse.statusCode !== 200) {
       console.error("week-ahead handler failed", waResponse);
@@ -482,7 +428,6 @@ ${charts?.macroAnnual?.disabled ? "" : renderChartCard({
     const subject = `MatesMorning – Week Ahead (${payload.week.label || subjectDate})`;
     const html = buildEmailHtml(payload);
 
-    // Preview mode
     const previewTo = String(process.env.WEEK_AHEAD_EMAIL_PREVIEW_TO || "")
       .split(",")
       .map((s) => s.trim())
@@ -517,7 +462,6 @@ ${charts?.macroAnnual?.disabled ? "" : renderChartCard({
       };
     }
 
-    // Subscriber blast
     const subscribers = await getSubscribers();
     if (!subscribers.length) return { statusCode: 200, body: "No subscribers" };
 
@@ -543,10 +487,7 @@ ${charts?.macroAnnual?.disabled ? "" : renderChartCard({
       }
     }
 
-    return {
-      statusCode: 200,
-      body: `Sent week-ahead to ${sentCount} subscribers`,
-    };
+    return { statusCode: 200, body: `Sent week-ahead to ${sentCount} subscribers` };
   } catch (err) {
     console.error("email-week-ahead error", err && (err.stack || err.message));
     return { statusCode: 500, body: "Internal error" };
