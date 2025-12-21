@@ -172,21 +172,32 @@ exports.handler = async function () {
     return "#64748b";
   }
 
+  // ✅ Outlook-safe chart card (table-based)
   function renderChartCard({ title, url, alt }) {
-    if (!url) return ""; // ✅ don’t render placeholder cards
+    if (!url) return "";
+
+    const safeTitle = escapeHtml(title || "Chart");
+    const safeAlt = escapeHtml(alt || title || "Chart");
 
     return `
-      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-        <div style="padding:10px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#334155;font-weight:700;">
-          ${escapeHtml(title || "Chart")}
-        </div>
-        <img
-          src="${url}"
-          alt="${escapeHtml(alt || title || "Chart")}"
-          width="640"
-          style="display:block;width:100%;max-width:640px;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;"
-        />
-      </div>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+        style="border-collapse:separate;border-spacing:0;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;">
+        <tr>
+          <td style="padding:10px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#334155;font-weight:700;border-top-left-radius:12px;border-top-right-radius:12px;">
+            ${safeTitle}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0;">
+            <img
+              src="${url}"
+              alt="${safeAlt}"
+              width="640"
+              style="display:block;width:100%;max-width:640px;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;"
+            />
+          </td>
+        </tr>
+      </table>
     `;
   }
 
@@ -196,12 +207,9 @@ exports.handler = async function () {
     const sectors = payload.sectors || { results: [] };
     const charts = payload.charts || {};
 
-    // ✅ FIXED memo HTML (valid + wrapped)
+    // ✅ Memo heading removed (text only)
     const memoHtml = `
       <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;">
-        <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">
-          Memo
-        </div>
         <div style="font-size:13px;color:#0b1220;line-height:1.5;">
           Good morning — welcome to a new week.<br/>
           Let’s check in on where the market is sitting and what’s on the calendar.
@@ -213,7 +221,9 @@ exports.handler = async function () {
     const macroHtml =
       macroBullets.length > 0
         ? `<ul style="margin:8px 0 0 18px;padding:0;color:#0b1220;font-size:13px;line-height:1.5;">
-            ${macroBullets.map((b) => `<li style="margin:6px 0;">${escapeHtml(b)}</li>`).join("")}
+            ${macroBullets
+              .map((b) => `<li style="margin:6px 0;">${escapeHtml(b)}</li>`)
+              .join("")}
           </ul>`
         : `<div style="margin-top:8px;font-size:13px;color:#64748b;line-height:1.45;">
             No major Australian macro releases scheduled.
@@ -230,18 +240,26 @@ exports.handler = async function () {
           <tr>
             <td style="padding:8px 10px;font-size:13px;color:#0b1220;font-weight:600;">
               ${escapeHtml(r.label || r.key || "")}
-              <span style="color:#94a3b8;font-weight:500;">(${escapeHtml(r.ticker || "")})</span>
+              <span style="color:#94a3b8;font-weight:500;">(${escapeHtml(
+                r.ticker || ""
+              )})</span>
             </td>
             <td style="padding:8px 10px;font-size:13px;text-align:right;color:#0b1220;">
               ${typeof r.close === "number" ? "$" + formatMoney(r.close) : "—"}
             </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(m6)};white-space:nowrap;font-weight:600;">
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+              m6
+            )};white-space:nowrap;font-weight:600;">
               ${formatPct(m6)}
             </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(m3)};white-space:nowrap;font-weight:600;">
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+              m3
+            )};white-space:nowrap;font-weight:600;">
               ${formatPct(m3)}
             </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(m1)};white-space:nowrap;">
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+              m1
+            )};white-space:nowrap;">
               ${formatPct(m1)}
             </td>
           </tr>
@@ -250,17 +268,22 @@ exports.handler = async function () {
       .join("");
 
     const indicesUrl = charts?.markets10y?.url || null;
-    const indicesTitle = charts?.markets10y?.title || "Major markets (10y, rebased)";
+    const indicesTitle =
+      charts?.markets10y?.title || "Major markets (10y, rebased)";
     const indicesAlt = "ASX200 vs US indices chart";
 
     const etfChartUrl = charts?.etfMonthly?.url || null;
-    const etfTitle = charts?.etfMonthly?.title || "Sector ETFs (monthly, rebased)";
+    const etfTitle =
+      charts?.etfMonthly?.title || "Sector ETFs (monthly, rebased)";
     const etfAlt = "Sector ETFs chart";
 
     // ✅ Hide macro annual when disabled OR missing URL
     const macroDisabled = charts?.macroAnnual?.disabled === true;
-    const macroChartUrl = !macroDisabled ? (charts?.macroAnnual?.url || null) : null;
-    const macroTitle = charts?.macroAnnual?.title || "Where is Australia now? (annual macro)";
+    const macroChartUrl = !macroDisabled
+      ? charts?.macroAnnual?.url || null
+      : null;
+    const macroTitle =
+      charts?.macroAnnual?.title || "Where is Australia now? (annual macro)";
     const macroAlt = "Australia macro chart";
 
     return `
@@ -288,7 +311,9 @@ exports.handler = async function () {
                       </span>
                     </div>
                     <h1 style="margin:2px 0 2px 0;font-size:19px;color:#002040;">Week Ahead</h1>
-                    <div style="font-size:13px;color:#64748b;">${escapeHtml(week.label || "")}</div>
+                    <div style="font-size:13px;color:#64748b;">${escapeHtml(
+                      week.label || ""
+                    )}</div>
                   </td>
                   <td align="right" valign="top" style="font-size:11px;color:#94a3b8;line-height:1.4;">
                     Built for Australian retail investors.<br/>
@@ -350,13 +375,30 @@ exports.handler = async function () {
             <td style="padding:6px 20px 16px 20px;">
               <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Big Picture</h2>
 
-              ${renderChartCard({ title: indicesTitle, url: indicesUrl, alt: indicesAlt })}
-              <div style="height:10px;"></div>
+              ${renderChartCard({
+                title: indicesTitle,
+                url: indicesUrl,
+                alt: indicesAlt,
+              })}
 
-              ${renderChartCard({ title: etfTitle, url: etfChartUrl, alt: etfAlt })}
+              <div style="height:10px;line-height:10px;font-size:10px;">&nbsp;</div>
 
-              ${macroChartUrl ? `<div style="height:10px;"></div>` : ""}
-              ${renderChartCard({ title: macroTitle, url: macroChartUrl, alt: macroAlt })}
+              ${renderChartCard({
+                title: etfTitle,
+                url: etfChartUrl,
+                alt: etfAlt,
+              })}
+
+              ${
+                macroChartUrl
+                  ? `<div style="height:10px;line-height:10px;font-size:10px;">&nbsp;</div>`
+                  : ""
+              }
+              ${renderChartCard({
+                title: macroTitle,
+                url: macroChartUrl,
+                alt: macroAlt,
+              })}
 
               <div style="margin-top:8px;font-size:11px;color:#94a3b8;">
                 Macro series can lag official releases. Not financial advice.
@@ -425,7 +467,9 @@ exports.handler = async function () {
     }
 
     const subjectDate = formatAestForSubject(new Date());
-    const subject = `MatesMorning – Week Ahead (${payload.week.label || subjectDate})`;
+    const subject = `MatesMorning – Week Ahead (${
+      payload.week.label || subjectDate
+    })`;
     const html = buildEmailHtml(payload);
 
     const previewTo = String(process.env.WEEK_AHEAD_EMAIL_PREVIEW_TO || "")
@@ -487,7 +531,10 @@ exports.handler = async function () {
       }
     }
 
-    return { statusCode: 200, body: `Sent week-ahead to ${sentCount} subscribers` };
+    return {
+      statusCode: 200,
+      body: `Sent week-ahead to ${sentCount} subscribers`,
+    };
   } catch (err) {
     console.error("email-week-ahead error", err && (err.stack || err.message));
     return { statusCode: 500, body: "Internal error" };
