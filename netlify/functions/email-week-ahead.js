@@ -249,11 +249,12 @@ exports.handler = async function () {
       })
       .join("");
 
-    // NEW: 10y indices chart (ASX200 + US majors)
-    const indicesUrl = charts?.indices10y?.url || null;
-    const indicesTitle =
-      charts?.indices10y?.title || "ASX200 vs US indices (10y, rebased)";
-    const indicesAlt = "ASX200 vs US indices chart";
+// NEW: 10y markets chart (ASX200 + US majors)
+const indicesUrl = charts?.markets10y?.url || null;
+const indicesTitle =
+  charts?.markets10y?.title || "Major markets (10y, rebased)";
+const indicesAlt = "ASX200 vs US indices chart";
+
 
     // Existing charts
     const etfChartUrl = charts?.etfMonthly?.url || null;
