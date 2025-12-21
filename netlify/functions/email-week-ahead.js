@@ -174,21 +174,37 @@ exports.handler = async function () {
     return "#64748b";
   }
 
+  function renderChartCard({ title, url, alt }) {
+    if (!url) {
+      return `
+        <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;font-size:13px;color:#64748b;">
+          Chart unavailable.
+        </div>
+      `;
+    }
+
+    return `
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+        <div style="padding:10px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#334155;font-weight:700;">
+          ${escapeHtml(title || "Chart")}
+        </div>
+        <img src="${url}" alt="${escapeHtml(alt || title || "Chart")}" style="display:block;width:100%;height:auto;"/>
+      </div>
+    `;
+  }
+
   function buildEmailHtml(payload) {
     const week = payload.week || {};
     const macro = payload.macro || { bullets: [] };
     const sectors = payload.sectors || { results: [] };
-    const charts = payload.charts || {};
+    const charts = payload.charts || {}; // NEW: charts live under payload.charts
 
     const macroBullets = Array.isArray(macro.bullets) ? macro.bullets : [];
     const macroHtml =
       macroBullets.length > 0
         ? `<ul style="margin:8px 0 0 18px;padding:0;color:#0b1220;font-size:13px;line-height:1.5;">
             ${macroBullets
-              .map(
-                (b) =>
-                  `<li style="margin:6px 0;">${escapeHtml(b)}</li>`
-              )
+              .map((b) => `<li style="margin:6px 0;">${escapeHtml(b)}</li>`)
               .join("")}
           </ul>`
         : `<div style="margin-top:8px;font-size:13px;color:#64748b;line-height:1.45;">
@@ -233,8 +249,22 @@ exports.handler = async function () {
       })
       .join("");
 
+    // NEW: 10y indices chart (ASX200 + US majors)
+    const indicesUrl = charts?.indices10y?.url || null;
+    const indicesTitle =
+      charts?.indices10y?.title || "ASX200 vs US indices (10y, rebased)";
+    const indicesAlt = "ASX200 vs US indices chart";
+
+    // Existing charts
     const etfChartUrl = charts?.etfMonthly?.url || null;
+    const etfTitle =
+      charts?.etfMonthly?.title || "Sector ETFs (monthly, rebased)";
+    const etfAlt = "Sector ETFs chart";
+
     const macroChartUrl = charts?.macroAnnual?.url || null;
+    const macroTitle =
+      charts?.macroAnnual?.title || "Where is Australia now? (annual macro)";
+    const macroAlt = "Australia macro chart";
 
     return `
 <!doctype html>
@@ -336,49 +366,23 @@ exports.handler = async function () {
 
           <!-- Section 3 -->
           <tr>
-            <td style="padding:4px 20px 16px 20px;">
+            <td style="padding:6px 20px 16px 20px;">
               <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">
-                Big Picture
+                Macro Visualisations
               </h2>
 
-              ${
-                etfChartUrl
-                  ? `
-                <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-                  <div style="padding:10px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#334155;font-weight:700;">
-                    Sector ETFs (monthly, rebased)
-                  </div>
-                  <img src="${etfChartUrl}" alt="Sector ETFs chart" style="display:block;width:100%;height:auto;"/>
-                </div>
-                `
-                  : `
-                <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;font-size:13px;color:#64748b;">
-                  ETF chart unavailable.
-                </div>
-                `
-              }
+              ${renderChartCard({ title: indicesTitle, url: indicesUrl, alt: indicesAlt })}
 
               <div style="height:10px;"></div>
 
-              ${
-                macroChartUrl
-                  ? `
-                <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-                  <div style="padding:10px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#334155;font-weight:700;">
-                    Where is Australia now? (annual macro)
-                  </div>
-                  <img src="${macroChartUrl}" alt="Australia macro chart" style="display:block;width:100%;height:auto;"/>
-                </div>
-                `
-                  : `
-                <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;font-size:13px;color:#64748b;">
-                  Macro chart unavailable.
-                </div>
-                `
-              }
+              ${renderChartCard({ title: etfTitle, url: etfChartUrl, alt: etfAlt })}
+
+              <div style="height:10px;"></div>
+
+              ${renderChartCard({ title: macroTitle, url: macroChartUrl, alt: macroAlt })}
 
               <div style="margin-top:8px;font-size:11px;color:#94a3b8;">
-                Macro series are annual and may lag official releases. Not financial advice.
+                Macro series can lag official releases. Not financial advice.
               </div>
             </td>
           </tr>
@@ -485,7 +489,11 @@ exports.handler = async function () {
       return {
         statusCode: 200,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: "preview", sentTo: previewTo.length, weekStart }),
+        body: JSON.stringify({
+          mode: "preview",
+          sentTo: previewTo.length,
+          weekStart,
+        }),
       };
     }
 
@@ -515,7 +523,10 @@ exports.handler = async function () {
       }
     }
 
-    return { statusCode: 200, body: `Sent week-ahead to ${sentCount} subscribers` };
+    return {
+      statusCode: 200,
+      body: `Sent week-ahead to ${sentCount} subscribers`,
+    };
   } catch (err) {
     console.error("email-week-ahead error", err && (err.stack || err.message));
     return { statusCode: 500, body: "Internal error" };
