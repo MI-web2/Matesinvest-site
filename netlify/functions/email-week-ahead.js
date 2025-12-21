@@ -388,7 +388,7 @@ exports.handler = async function () {
           <tr>
             <td style="padding:6px 20px 16px 20px;">
               <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">
-                Macro Visualisations
+                Big Picture
               </h2>
 
               ${renderChartCard({ title: indicesTitle, url: indicesUrl, alt: indicesAlt })}
