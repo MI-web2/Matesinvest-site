@@ -197,7 +197,20 @@ exports.handler = async function () {
     const week = payload.week || {};
     const macro = payload.macro || { bullets: [] };
     const sectors = payload.sectors || { results: [] };
-    const charts = payload.charts || {}; // NEW: charts live under payload.charts
+    const charts = payload.charts || {}; // charts live under payload.charts
+
+    // ✅ NEW: Memo intro (simple, "good morning" tone)
+    const memoHtml = `
+      <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;">
+        <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">
+          Memo
+        </div>
+        <div style="font-size:13px;color:#0b1220;line-height:1.5;">
+          Good morning — welcome to a new week.<br/>
+          Let’s check in on where the market is sitting and what’s on the calendar.
+        </div>
+      </div>
+    `;
 
     const macroBullets = Array.isArray(macro.bullets) ? macro.bullets : [];
     const macroHtml =
@@ -249,12 +262,11 @@ exports.handler = async function () {
       })
       .join("");
 
-// NEW: 10y markets chart (ASX200 + US majors)
-const indicesUrl = charts?.markets10y?.url || null;
-const indicesTitle =
-  charts?.markets10y?.title || "Major markets (10y, rebased)";
-const indicesAlt = "ASX200 vs US indices chart";
-
+    // 10y markets chart (ASX200 + US majors)
+    const indicesUrl = charts?.markets10y?.url || null;
+    const indicesTitle =
+      charts?.markets10y?.title || "Major markets (10y, rebased)";
+    const indicesAlt = "ASX200 vs US indices chart";
 
     // Existing charts
     const etfChartUrl = charts?.etfMonthly?.url || null;
@@ -314,9 +326,16 @@ const indicesAlt = "ASX200 vs US indices chart";
             </td>
           </tr>
 
+          <!-- ✅ NEW Memo block -->
+          <tr>
+            <td style="padding:14px 20px 6px 20px;">
+              ${memoHtml}
+            </td>
+          </tr>
+
           <!-- Section 1 -->
           <tr>
-            <td style="padding:14px 20px 10px 20px;">
+            <td style="padding:10px 20px 10px 20px;">
               <h2 style="margin:0 0 4px 0;font-size:14px;color:#002040;">
                ${escapeHtml(macro.title || "Important AU macro this week")}
               </h2>
