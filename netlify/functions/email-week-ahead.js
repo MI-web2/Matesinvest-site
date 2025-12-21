@@ -201,10 +201,6 @@ exports.handler = async function () {
 
     // ✅ NEW: Memo intro (simple, "good morning" tone)
     const memoHtml = `
-      <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;">
-        <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:6px;">
-          Memo
-        </div>
         <div style="font-size:13px;color:#0b1220;line-height:1.5;">
           Good morning — welcome to a new week.<br/>
           Let’s check in on where the market is sitting and what’s on the calendar.
@@ -398,8 +394,12 @@ exports.handler = async function () {
               ${renderChartCard({ title: etfTitle, url: etfChartUrl, alt: etfAlt })}
 
               <div style="height:10px;"></div>
+${charts?.macroAnnual?.disabled ? "" : renderChartCard({
+  title: macroTitle,
+  url: macroChartUrl,
+  alt: macroAlt
+})}
 
-              ${renderChartCard({ title: macroTitle, url: macroChartUrl, alt: macroAlt })}
 
               <div style="margin-top:8px;font-size:11px;color:#94a3b8;">
                 Macro series can lag official releases. Not financial advice.
