@@ -59,7 +59,7 @@ exports.handler = async function () {
   }
 
   async function getSubscribers() {
-    const key = "email:subscribers0";
+    const key = "email:subscribers";
     const url = `${UPSTASH_URL}/smembers/` + encodeURIComponent(key);
 
     const res = await fetchWithTimeout(
@@ -484,7 +484,7 @@ exports.handler = async function () {
               <div style="background:#f0f9ff;border:1px solid #bae6fd;padding:14px;border-radius:12px;">
                 <h3 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Quick one: what kind of investor are you?</h3>
                 <p style="margin:0 0 10px 0;font-size:12px;color:#64748b;line-height:1.4;">
-                  Take our 2-minute “How you think” quiz — it helps you understand your investing style in plain English.
+                  Take our 30 second “How you think” quiz — it helps you understand your investing style in plain English.
                 </p>
                 <a href="${quizUrl}"
                    style="
