@@ -53,7 +53,7 @@ exports.handler = async function () {
   }
 
   async function getSubscribers() {
-    const key = "email:subscribers4";
+    const key = "email:subscribers";
     const url = `${UPSTASH_URL}/smembers/` + encodeURIComponent(key);
 
     const res = await fetchWithTimeout(
