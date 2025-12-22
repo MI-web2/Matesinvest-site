@@ -27,9 +27,14 @@
   schedule = "2 20 * * *"
 
 [functions."email-daily-brief"]
-  # Run email-daily-brief Mon–Fri at 06:05 AEST
-  # (which is Sun–Thu 20:05 UTC)
-  schedule = "5 20 * * 1-4"
+  # Standard daily brief: Wed & Fri at 06:05 AEST
+  # (which is Tue & Thu 20:05 UTC)
+  schedule = "5 20 * * 2,4"
+
+[functions."email-daily-brief-quiz"]
+  # Quiz version: Tue & Thu at 06:05 AEST
+  # (which is Mon & Wed 20:05 UTC)
+  schedule = "5 20 * * 1,3"
 
 [functions."email-weekly-brief"]
   # Weekly brief: Sat 06:05 AEST (Fri 20:05 UTC)
