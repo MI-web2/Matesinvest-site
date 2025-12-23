@@ -304,16 +304,16 @@ exports.handler = async function (event) {
       .join("");
 
     const indicesUrl = charts?.markets10y?.url || null;
-    const indicesTitle = charts?.markets10y?.title || "Major markets (10y, rebased)";
+    const indicesTitle = charts?.markets10y?.title || "Major markets (10y)";
     const indicesAlt = "Major markets chart (rebased)";
 
     const etfChartUrl = charts?.etfMonthly?.url || null;
-    const etfTitle = charts?.etfMonthly?.title || "Sector ETFs (monthly, rebased)";
+    const etfTitle = charts?.etfMonthly?.title || "Sector ETFs (5y)";
     const etfAlt = "Sector ETFs chart (rebased)";
 
     // ✅ NEW: commodities chart from week-ahead payload
     const commoditiesUrl = charts?.commodities?.url || null;
-    const commoditiesTitle = charts?.commodities?.title || "Key commodities (rebased)";
+    const commoditiesTitle = charts?.commodities?.title || "Key commodities (6m)";
     const commoditiesAlt = "Key commodities chart (rebased)";
 
     const macroDisabled = charts?.macroAnnual?.disabled === true;
@@ -393,8 +393,9 @@ exports.handler = async function (event) {
 
         <tr>
           <td style="padding:6px 20px 16px 20px;">
-            <h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">Big Picture</h2>
-
+<h2 style="margin:0 0 6px 0;font-size:14px;color:#002040;">
+  Big Picture <span style="font-size:11px;color:#64748b;font-weight:600;">(rebased to 100)</span>
+</h2>
             ${renderChartCard({ title: indicesTitle, url: indicesUrl, alt: indicesAlt })}
             <div style="height:10px;line-height:10px;font-size:10px;">&nbsp;</div>
 
