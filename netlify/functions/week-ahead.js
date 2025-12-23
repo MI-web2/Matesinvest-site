@@ -529,7 +529,7 @@ exports.handler = async function () {
       data: { labels: prettyLabels, datasets },
       options: {
         responsive: true,
-        title: { display: true, text: "Sector ETFs (monthly, rebased to 100)" },
+        title: { display: false},
         legend: { display: true },
         scales: {
           xAxes: [
@@ -595,7 +595,7 @@ exports.handler = async function () {
       data: { labels: prettyLabels, datasets },
       options: {
         responsive: true,
-        title: { display: true, text: "Major markets (10y, rebased to 100)" },
+        title: { display: false)" },
         legend: { display: true },
         scales: {
           xAxes: [
@@ -754,19 +754,19 @@ exports.handler = async function () {
   let charts = {
     enabled: !disableCharts,
     markets10y: {
-      title: "Major markets (10y, rebased)",
+      title: "Major markets (10y)",
       tickers: alignedMarkets.tickers,
       labels: alignedMarkets.labels,
       url: null,
     },
     etfMonthly: {
-      title: "Sector ETFs (monthly, rebased)",
+      title: "Sector ETFs (5y)",
       tickers: finalEtfTickers,
       labels: finalEtfLabels,
       url: null,
     },
     commodities: {
-      title: "Key commodities (rebased)",
+      title: "Key commodities (6m)",
       keys: commodityHistoryKeys,
       labels: commodityLabels,
       url: null,
