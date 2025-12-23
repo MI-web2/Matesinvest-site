@@ -254,42 +254,51 @@ exports.handler = async function (event) {
           </div>`;
 
     const rows = Array.isArray(sectors.results) ? sectors.results : [];
-    const sectorRowsHtml = rows
-      .map((r) => {
-        const m6 = r?.returnsPct?.m6;
-        const m3 = r?.returnsPct?.m3;
-        const m1 = r?.returnsPct?.m1;
+const sectorRowsHtml = rows
+  .map((r) => {
+    const m6 = r?.returnsPct?.m6;
+    const m3 = r?.returnsPct?.m3;
+    const m1 = r?.returnsPct?.m1;
 
-        return `
-          <tr>
-            <td style="padding:8px 10px;font-size:13px;color:#0b1220;font-weight:600;">
-              ${escapeHtml(r.label || r.key || "")}
-              <span style="color:#94a3b8;font-weight:500;">(${escapeHtml(
-                r.ticker || ""
-              )})</span>
-            </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:#0b1220;">
-              ${typeof r.close === "number" ? "$" + formatMoney(r.close) : "—"}
-            </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
-              m6
-            )};white-space:nowrap;font-weight:600;">
-              ${formatPct(m6)}
-            </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
-              m3
-            )};white-space:nowrap;font-weight:600;">
-              ${formatPct(m3)}
-            </td>
-            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
-              m1
-            )};white-space:nowrap;">
-              ${formatPct(m1)}
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
+    // ✅ Clean ticker for display only (remove trailing .AU)
+    const tickerRaw = String(r.ticker || "");
+    const tickerDisplay = tickerRaw.replace(/\.AU$/i, "");
+
+    return `
+      <tr>
+        <td style="padding:8px 10px;font-size:13px;color:#0b1220;font-weight:600;">
+          ${escapeHtml(r.label || r.key || "")}
+          ${
+            tickerDisplay
+              ? `<span style="color:#94a3b8;font-weight:500;">(${escapeHtml(
+                  tickerDisplay
+                )})</span>`
+              : ""
+          }
+        </td>
+        <td style="padding:8px 10px;font-size:13px;text-align:right;color:#0b1220;">
+          ${typeof r.close === "number" ? "$" + formatMoney(r.close) : "—"}
+        </td>
+        <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+          m6
+        )};white-space:nowrap;font-weight:600;">
+          ${formatPct(m6)}
+        </td>
+        <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+          m3
+        )};white-space:nowrap;font-weight:600;">
+          ${formatPct(m3)}
+        </td>
+        <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+          m1
+        )};white-space:nowrap;">
+          ${formatPct(m1)}
+        </td>
+      </tr>
+    `;
+  })
+  .join("");
+
 
     const indicesUrl = charts?.markets10y?.url || null;
     const indicesTitle =
