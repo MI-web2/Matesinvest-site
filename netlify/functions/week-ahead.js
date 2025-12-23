@@ -461,6 +461,7 @@ exports.handler = async function () {
       height: 320,
       format: "png",
       backgroundColor: "white",
+      devicePixelRatio: 2,
     };
     if (version) payload.version = version;
 
@@ -483,6 +484,92 @@ exports.handler = async function () {
     if (!j || !j.url) throw new Error("quickchart create returned no url");
     return j.url;
   }
+function matesPalette(i) {
+  // MatesInvest-ish blues/purples/teals (no “Excel rainbow”)
+  const colors = [
+    "#00BFFF", // mates blue
+    "#1E40AF", // deep blue
+    "#6366F1", // indigo
+    "#7C3AED", // purple
+    "#14B8A6", // teal
+    "#0EA5E9", // sky
+    "#334155", // slate
+  ];
+  return colors[i % colors.length];
+}
+
+function matesChartOptions({ maxTicksLimit = 8 } = {}) {
+  return {
+    responsive: true,
+    maintainAspectRatio: true,
+    layout: { padding: { top: 8, right: 10, bottom: 6, left: 6 } },
+
+    legend: {
+      display: true,
+      position: "top",
+      labels: {
+        boxWidth: 10,
+        usePointStyle: true,
+        fontColor: "#0f172a",
+        fontSize: 11,
+        padding: 14,
+      },
+    },
+
+    tooltips: {
+      mode: "index",
+      intersect: false,
+      backgroundColor: "rgba(15,23,42,0.92)",
+      titleFontSize: 12,
+      bodyFontSize: 12,
+      xPadding: 10,
+      yPadding: 8,
+      cornerRadius: 10,
+    },
+
+    scales: {
+      xAxes: [
+        {
+          gridLines: { color: "rgba(148,163,184,0.20)", zeroLineColor: "rgba(148,163,184,0.25)" },
+          ticks: {
+            fontColor: "#475569",
+            maxRotation: 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit,
+          },
+        },
+      ],
+      yAxes: [
+        {
+          gridLines: { color: "rgba(148,163,184,0.20)", zeroLineColor: "rgba(148,163,184,0.25)" },
+          ticks: {
+            fontColor: "#475569",
+            callback: (v) => String(v), // keep clean; you can add “100” baseline callouts later
+          },
+        },
+      ],
+    },
+
+    // remove chart title inside the image (you’re handling titles in email cards)
+    title: { display: false },
+  };
+}
+
+function matesLineDataset(label, data, color, extra = {}) {
+  return {
+    label,
+    data,
+    fill: false,
+    borderColor: color,
+    backgroundColor: color,
+    borderWidth: 2.5,
+    pointRadius: 0,
+    pointHitRadius: 10,
+    lineTension: 0.12, // slight smoothing (less jagged)
+    ...extra,
+  };
+}
 
   async function buildEtfMonthlyOverlayChart(tickers, labels) {
     const n = Math.min(tickers.length, labels.length);
@@ -511,41 +598,22 @@ exports.handler = async function () {
 
     const prettyLabels = months.map(monthLabelPretty);
 
-    const datasets = months.length
-      ? seriesByMonth.map((m, i) => {
-          const vals = months.map((k) => m.get(k) ?? null);
-          return {
-            label: `${useLabels[i]} (${useTickers[i]})`,
-            data: rebaseTo100(vals),
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 0,
-          };
-        })
-      : [];
+const datasets = months.length
+  ? seriesByMonth.map((m, i) => {
+      const vals = months.map((k) => m.get(k) ?? null);
+      return matesLineDataset(
+        `${useLabels[i]} (${useTickers[i]})`,
+        rebaseTo100(vals),
+        matesPalette(i)
+      );
+    })
+  : [];
 
-    const cfg = {
-      type: "line",
-      data: { labels: prettyLabels, datasets },
-      options: {
-        responsive: true,
-        title: { display: false},
-        legend: { display: true },
-        scales: {
-          xAxes: [
-            {
-              ticks: {
-                maxRotation: 0,
-                minRotation: 0,
-                autoSkip: true,
-                maxTicksLimit: 10,
-              },
-            },
-          ],
-          yAxes: [{ ticks: {} }],
-        },
-      },
-    };
+const cfg = {
+  type: "line",
+  data: { labels: prettyLabels, datasets },
+  options: matesChartOptions({ maxTicksLimit: 10 }),
+};
 
     return await createQuickChartShortUrl(cfg, "2.9.4");
   }
@@ -577,41 +645,22 @@ exports.handler = async function () {
 
     const prettyLabels = months.map(monthLabelPretty);
 
-    const datasets = months.length
-      ? seriesByMonth.map((m, i) => {
-          const vals = months.map((k) => m.get(k) ?? null);
-          return {
-            label: `${useLabels[i]} (${useTickers[i]})`,
-            data: rebaseTo100(vals),
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 0,
-          };
-        })
-      : [];
+const datasets = months.length
+  ? seriesByMonth.map((m, i) => {
+      const vals = months.map((k) => m.get(k) ?? null);
+      return matesLineDataset(
+        `${useLabels[i]} (${useTickers[i]})`,
+        rebaseTo100(vals),
+        matesPalette(i)
+      );
+    })
+  : [];
 
-    const cfg = {
-      type: "line",
-      data: { labels: prettyLabels, datasets },
-      options: {
-        responsive: true,
-        title: { display: false },
-        legend: { display: true },
-        scales: {
-          xAxes: [
-            {
-              ticks: {
-                maxRotation: 0,
-                minRotation: 0,
-                autoSkip: true,
-                maxTicksLimit: 6,
-              },
-            },
-          ],
-          yAxes: [{ ticks: {} }],
-        },
-      },
-    };
+const cfg = {
+  type: "line",
+  data: { labels: prettyLabels, datasets },
+  options: matesChartOptions({ maxTicksLimit: 6 }),
+};
 
     return await createQuickChartShortUrl(cfg, "2.9.4");
   }
@@ -649,41 +698,22 @@ exports.handler = async function () {
 
     const prettyLabels = months.map(monthLabelPretty);
 
-    const datasets = months.length
-      ? seriesByMonth.map((m, i) => {
-          const vals = months.map((k) => m.get(k) ?? null);
-          return {
-            label: useLabels[i], // clean legend
-            data: rebaseTo100(vals),
-            fill: false,
-            borderWidth: 2,
-            pointRadius: 0,
-          };
-        })
-      : [];
+const datasets = months.length
+  ? seriesByMonth.map((m, i) => {
+      const vals = months.map((k) => m.get(k) ?? null);
+      return matesLineDataset(
+        useLabels[i],
+        rebaseTo100(vals),
+        matesPalette(i)
+      );
+    })
+  : [];
 
-    const cfg = {
-      type: "line",
-      data: { labels: prettyLabels, datasets },
-      options: {
-        responsive: true,
-        title: { display: false },
-        legend: { display: true },
-        scales: {
-          xAxes: [
-            {
-              ticks: {
-                maxRotation: 0,
-                minRotation: 0,
-                autoSkip: true,
-                maxTicksLimit: 10,
-              },
-            },
-          ],
-          yAxes: [{ ticks: {} }],
-        },
-      },
-    };
+const cfg = {
+  type: "line",
+  data: { labels: prettyLabels, datasets },
+  options: matesChartOptions({ maxTicksLimit: 10 }),
+};
 
     return await createQuickChartShortUrl(cfg, "2.9.4");
   }
