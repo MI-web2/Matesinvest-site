@@ -336,9 +336,12 @@ exports.handler = async function (event) {
               <tr>
                 <td align="left" valign="top">
                   <div style="font-size:12px;color:#64748b;margin-bottom:4px;">
-                    <span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f7ff;border:1px solid #c5e5ff;color:#083a59;font-size:11px;font-weight:600;">
-                      MatesInvest · MatesMorning
-                    </span>
+<a href="https://matesinvest.com"
+   style="text-decoration:none;">
+  <span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f7ff;border:1px solid #c5e5ff;color:#083a59;font-size:11px;font-weight:600;">
+    MatesInvest · MatesMorning
+  </span>
+</a>
                   </div>
                   <h1 style="margin:2px 0 2px 0;font-size:19px;color:#002040;">Week Ahead</h1>
                   <div style="font-size:13px;color:#64748b;">${escapeHtml(week.label || "")}</div>
@@ -435,7 +438,17 @@ exports.handler = async function (event) {
             </div>
           </td>
         </tr>
-
+        <tr>
+  <td style="padding:6px 20px 6px 20px;">
+    <div style="font-size:11px;color:#94a3b8;">
+      <a href="https://matesinvest.com"
+         style="color:#00BFFF;text-decoration:none;font-weight:600;">
+        matesinvest.com
+      </a>
+      · Home · Markets · Learn with mates
+    </div>
+  </td>
+</tr>
         <tr>
           <td style="padding:12px 20px 18px 20px;border-top:1px solid #e2e8f0;background-color:#ffffff;">
             <p style="margin:0;font-size:11px;color:#94a3b8;">
