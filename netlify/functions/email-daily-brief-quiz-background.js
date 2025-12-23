@@ -207,7 +207,7 @@ exports.handler = async function (event) {
 
     // Add/remove dates as needed
     const holidayBannerDates = new Set([
-      "2025-12-25", // Christmas Day
+      "2025-12-24", // Christmas Day
       "2025-12-26", // Boxing Day
       "2026-01-01", // New Year's Day
     ]);
