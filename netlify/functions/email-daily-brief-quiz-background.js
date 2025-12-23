@@ -189,12 +189,50 @@ exports.handler = async function (event) {
   // Build HTML email from morning-brief payload + morning note
   function buildEmailHtml(payload, morningNote) {
     const aestNow = getAestDate(new Date());
+
     const niceDate = aestNow.toLocaleDateString("en-AU", {
       weekday: "long",
       day: "numeric",
       month: "long",
       year: "numeric",
     });
+
+    // -----------------------------
+    // ✅ Holiday banner (AEST dates)
+    // -----------------------------
+    const yyyy = aestNow.getFullYear();
+    const mm = String(aestNow.getMonth() + 1).padStart(2, "0");
+    const dd = String(aestNow.getDate()).padStart(2, "0");
+    const ymd = `${yyyy}-${mm}-${dd}`;
+
+    // Add/remove dates as needed
+    const holidayBannerDates = new Set([
+      "2025-12-25", // Christmas Day
+      "2025-12-26", // Boxing Day
+      "2026-01-01", // New Year's Day
+    ]);
+
+    const holidayBannerHtml = holidayBannerDates.has(ymd)
+      ? `
+          <tr>
+            <td style="padding:12px 20px 0 20px;">
+              <div style="
+                background:#fff7ed;
+                border:1px solid #fed7aa;
+                padding:12px 14px;
+                border-radius:12px;
+              ">
+                <div style="font-size:13px;font-weight:700;margin:0 0 4px 0;color:#7c2d12;">
+                  🎄 Happy Holidays from MatesInvest
+                </div>
+                <div style="font-size:12px;line-height:1.45;color:#64748b;">
+                  Hope you and your family have a great break. We’ll keep this brief and be back into it after the holidays.
+                </div>
+              </div>
+            </td>
+          </tr>
+      `
+      : "";
 
     const top = Array.isArray(payload.topPerformers) ? payload.topPerformers : [];
 
@@ -367,6 +405,8 @@ exports.handler = async function (event) {
               </div>
             </td>
           </tr>
+
+          ${holidayBannerHtml}
 
           ${
             morningNote
@@ -580,7 +620,7 @@ exports.handler = async function (event) {
       payload = JSON.parse(mbResponse.body);
     } catch (e) {
       console.error("Failed to parse morning-brief payload", e && e.message);
-      return { statusCode: 500, body: "Invalid morning brief payload" };
+      return { statusCode: 500, body: "Invalid morning-brief payload" };
     }
 
     const subscribers = await getSubscribers();
@@ -614,7 +654,9 @@ exports.handler = async function (event) {
       }
     }
 
-    console.log(`Daily quiz brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`);
+    console.log(
+      `Daily quiz brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`
+    );
     return { statusCode: 200, body: `Sent to ${sentCount} subscribers` };
   } catch (err) {
     console.error(
