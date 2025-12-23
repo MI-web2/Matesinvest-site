@@ -6,8 +6,11 @@ const weekAheadFn = require("./week-ahead");
 
 exports.handler = async function (event) {
   const SECRET = String(process.env.INTERNAL_CRON_SECRET || "").trim();
-  const gotSecret =
-    String(event?.headers?.["x-internal-cron-secret"] || event?.headers?.["X-Internal-Cron-Secret"] || "").trim();
+  const gotSecret = String(
+    event?.headers?.["x-internal-cron-secret"] ||
+      event?.headers?.["X-Internal-Cron-Secret"] ||
+      ""
+  ).trim();
 
   if (!SECRET || gotSecret !== SECRET) {
     return { statusCode: 401, body: "Unauthorized" };
@@ -61,6 +64,7 @@ exports.handler = async function (event) {
   }
 
   async function getSubscribers() {
+    // ✅ FIX: should be "email:subscribers" (not email:subscribers0)
     const key = "email:subscribers0";
     const url = `${UPSTASH_URL}/smembers/` + encodeURIComponent(key);
 
@@ -254,66 +258,67 @@ exports.handler = async function (event) {
           </div>`;
 
     const rows = Array.isArray(sectors.results) ? sectors.results : [];
-const sectorRowsHtml = rows
-  .map((r) => {
-    const m6 = r?.returnsPct?.m6;
-    const m3 = r?.returnsPct?.m3;
-    const m1 = r?.returnsPct?.m1;
+    const sectorRowsHtml = rows
+      .map((r) => {
+        const m6 = r?.returnsPct?.m6;
+        const m3 = r?.returnsPct?.m3;
+        const m1 = r?.returnsPct?.m1;
 
-    // ✅ Clean ticker for display only (remove trailing .AU)
-    const tickerRaw = String(r.ticker || "");
-    const tickerDisplay = tickerRaw.replace(/\.AU$/i, "");
+        // ✅ display-only ticker cleanup (.AU removed)
+        const tickerRaw = String(r.ticker || "");
+        const tickerDisplay = tickerRaw.replace(/\.AU$/i, "");
 
-    return `
-      <tr>
-        <td style="padding:8px 10px;font-size:13px;color:#0b1220;font-weight:600;">
-          ${escapeHtml(r.label || r.key || "")}
-          ${
-            tickerDisplay
-              ? `<span style="color:#94a3b8;font-weight:500;">(${escapeHtml(
-                  tickerDisplay
-                )})</span>`
-              : ""
-          }
-        </td>
-        <td style="padding:8px 10px;font-size:13px;text-align:right;color:#0b1220;">
-          ${typeof r.close === "number" ? "$" + formatMoney(r.close) : "—"}
-        </td>
-        <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
-          m6
-        )};white-space:nowrap;font-weight:600;">
-          ${formatPct(m6)}
-        </td>
-        <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
-          m3
-        )};white-space:nowrap;font-weight:600;">
-          ${formatPct(m3)}
-        </td>
-        <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
-          m1
-        )};white-space:nowrap;">
-          ${formatPct(m1)}
-        </td>
-      </tr>
-    `;
-  })
-  .join("");
-
+        return `
+          <tr>
+            <td style="padding:8px 10px;font-size:13px;color:#0b1220;font-weight:600;">
+              ${escapeHtml(r.label || r.key || "")}
+              ${
+                tickerDisplay
+                  ? `<span style="color:#94a3b8;font-weight:500;">(${escapeHtml(
+                      tickerDisplay
+                    )})</span>`
+                  : ""
+              }
+            </td>
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:#0b1220;">
+              ${typeof r.close === "number" ? "$" + formatMoney(r.close) : "—"}
+            </td>
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+              m6
+            )};white-space:nowrap;font-weight:600;">
+              ${formatPct(m6)}
+            </td>
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+              m3
+            )};white-space:nowrap;font-weight:600;">
+              ${formatPct(m3)}
+            </td>
+            <td style="padding:8px 10px;font-size:13px;text-align:right;color:${pctColor(
+              m1
+            )};white-space:nowrap;">
+              ${formatPct(m1)}
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
 
     const indicesUrl = charts?.markets10y?.url || null;
-    const indicesTitle =
-      charts?.markets10y?.title || "Major markets (10y, rebased)";
-    const indicesAlt = "ASX200 vs US indices chart";
+    const indicesTitle = charts?.markets10y?.title || "Major markets (10y, rebased)";
+    const indicesAlt = "Major markets chart (rebased)";
 
     const etfChartUrl = charts?.etfMonthly?.url || null;
-    const etfTitle =
-      charts?.etfMonthly?.title || "Sector ETFs (monthly, rebased)";
-    const etfAlt = "Sector ETFs chart";
+    const etfTitle = charts?.etfMonthly?.title || "Sector ETFs (monthly, rebased)";
+    const etfAlt = "Sector ETFs chart (rebased)";
+
+    // ✅ NEW: commodities chart from week-ahead payload
+    const commoditiesUrl = charts?.commodities?.url || null;
+    const commoditiesTitle = charts?.commodities?.title || "Key commodities (rebased)";
+    const commoditiesAlt = "Key commodities chart (rebased)";
 
     const macroDisabled = charts?.macroAnnual?.disabled === true;
     const macroChartUrl = !macroDisabled ? charts?.macroAnnual?.url || null : null;
-    const macroTitle =
-      charts?.macroAnnual?.title || "Where is Australia now? (annual macro)";
+    const macroTitle = charts?.macroAnnual?.title || "Where is Australia now? (annual macro)";
     const macroAlt = "Australia macro chart";
 
     return `
@@ -392,7 +397,15 @@ const sectorRowsHtml = rows
 
             ${renderChartCard({ title: indicesTitle, url: indicesUrl, alt: indicesAlt })}
             <div style="height:10px;line-height:10px;font-size:10px;">&nbsp;</div>
+
             ${renderChartCard({ title: etfTitle, url: etfChartUrl, alt: etfAlt })}
+
+            ${
+              commoditiesUrl
+                ? `<div style="height:10px;line-height:10px;font-size:10px;">&nbsp;</div>
+                   ${renderChartCard({ title: commoditiesTitle, url: commoditiesUrl, alt: commoditiesAlt })}`
+                : ""
+            }
 
             ${
               macroChartUrl
@@ -402,7 +415,7 @@ const sectorRowsHtml = rows
             }
 
             <div style="margin-top:8px;font-size:11px;color:#94a3b8;">
-              Macro series can lag official releases. Not financial advice.
+              Charts are rebased for comparison and use end-of-day pricing. Not financial advice.
             </div>
           </td>
         </tr>
@@ -554,7 +567,10 @@ const sectorRowsHtml = rows
       }),
     };
   } catch (err) {
-    console.error("email-week-ahead background error", err && (err.stack || err.message));
+    console.error(
+      "email-week-ahead background error",
+      err && (err.stack || err.message)
+    );
     return { statusCode: 500, body: "Internal error" };
   }
 };
