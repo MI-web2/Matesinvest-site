@@ -595,7 +595,7 @@ exports.handler = async function () {
       data: { labels: prettyLabels, datasets },
       options: {
         responsive: true,
-        title: { display: false)" },
+        title: { display: false) },
         legend: { display: true },
         scales: {
           xAxes: [
@@ -667,7 +667,7 @@ exports.handler = async function () {
       data: { labels: prettyLabels, datasets },
       options: {
         responsive: true,
-        title: { display: true, text: titleText || "Key commodities (rebased)" },
+        title: { display: false },
         legend: { display: true },
         scales: {
           xAxes: [
