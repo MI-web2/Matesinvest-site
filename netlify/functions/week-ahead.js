@@ -545,8 +545,12 @@ exports.handler = async function () {
   const finalEtfTickers = etfTickers.length === 3 ? etfTickers : defaultEtfTickers;
   const finalEtfLabels = etfLabels.length === 3 ? etfLabels : defaultEtfLabels;
 
-  const defaultMarketsTickers = ["STW.AU", "NDQ.AU"];
-  const defaultMarketsLabels = ["ASX 200", "US Nasdaq 100"];
+const defaultMarketsTickers = ["STW.AU", "NDQ.AU", "EWU.US"];
+const defaultMarketsLabels = [
+  "Australia (ASX 200)",
+  "US (Nasdaq 100)",
+  "UK (Equities)",
+];
 
   const marketsTickers = String(process.env.WEEK_AHEAD_MARKETS_TICKERS || "")
     .split(",").map((s) => s.trim()).filter(Boolean);
