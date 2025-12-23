@@ -17,6 +17,9 @@ const EMAIL_FROM = process.env.EMAIL_FROM || "hello@matesinvest.com";
 // Comma-separated list: "luke@...,dale@..."
 const ANALYTICS_EMAIL_TO = process.env.ANALYTICS_EMAIL_TO || "";
 
+// Upstash key for your subscriber list (Set)
+const SUBSCRIBERS_KEY = "email:subscribers";
+
 function assertEnv() {
   const missing = [];
   if (!UPSTASH_URL) missing.push("UPSTASH_REDIS_REST_URL");
@@ -142,14 +145,17 @@ exports.handler = async function () {
 
     // Fetch:
     // - yesterday totals
+    // - yesterday per-path stats
+    // - subscriber count (current)
     // - MTD totals
     // - YTD totals
-    // - yesterday per-path stats
     const yCmd = [
       ["HGETALL", dayKey(yesterday)],
       ["HGETALL", pathsKey(yesterday)],
       ["HGETALL", pathStatsKey(yesterday)],
+      ["SCARD", SUBSCRIBERS_KEY],
     ];
+
     const mCmd = mtdDays.map((d) => ["HGETALL", dayKey(d)]);
     const ytdCmd = ytdDays.map((d) => ["HGETALL", dayKey(d)]);
 
@@ -161,8 +167,10 @@ exports.handler = async function () {
 
     const yObj = hgetallArrayToObject(yRes?.[0]?.result);
 
-    const pathsObj = hgetallArrayToStringObject(yRes?.[1]?.result);     // fallback visit counts
+    const pathsObj = hgetallArrayToStringObject(yRes?.[1]?.result); // fallback visit counts
     const pathStatsObj = hgetallArrayToStringObject(yRes?.[2]?.result); // per-page repeat stats
+
+    const subscribersCount = Number(yRes?.[3]?.result || 0);
 
     const mObjs = (mRes || []).map((r) => hgetallArrayToObject(r.result));
     const ytdObjs = (ytdRes || []).map((r) => hgetallArrayToObject(r.result));
@@ -184,8 +192,7 @@ exports.handler = async function () {
       .slice(0, 10)
       .map((p) => {
         const path = p.path || "/";
-        const visits =
-          Number(pathStatsObj[`${path}|visits`] || 0) || p.visits || 0;
+        const visits = Number(pathStatsObj[`${path}|visits`] || 0) || p.visits || 0;
 
         const unique = Number(pathStatsObj[`${path}|unique_users`] || 0);
         const returning = Number(pathStatsObj[`${path}|returning_users`] || 0);
@@ -227,7 +234,13 @@ exports.handler = async function () {
     const html = `
       <div style="font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height:1.4;">
         <h2 style="margin:0 0 12px;">MatesInvest Daily Analytics</h2>
-        <p style="margin:0 0 16px;color:#444;">Date: <b>${yesterday}</b> (AEST)</p>
+        <p style="margin:0 0 10px;color:#444;">Date: <b>${yesterday}</b> (AEST)</p>
+
+        <div style="margin:0 0 16px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;max-width:640px;">
+          <div style="color:#111827;font-weight:700;font-size:13px;">Subscriber count (current)</div>
+          <div style="font-size:22px;font-weight:800;margin-top:2px;">${subscribersCount}</div>
+          <div style="color:#6b7280;font-size:12px;margin-top:2px;">Source: <code>${SUBSCRIBERS_KEY}</code> (SCARD)</div>
+        </div>
 
         <table style="border-collapse:collapse;width:100%;max-width:640px;">
           <tr>
