@@ -44,11 +44,13 @@ exports.handler = async function () {
     const day = d.getUTCDay(); // 0 Sun..6 Sat
     const monday = new Date(d.getTime());
 
+    // If it's Mon–Fri, use THIS week's Monday
     if (day >= 1 && day <= 5) {
       monday.setUTCDate(monday.getUTCDate() - (day - 1));
       return monday;
     }
 
+    // If Sat/Sun, use NEXT Monday
     const add = (8 - day) % 7 || 7;
     monday.setUTCDate(monday.getUTCDate() + add);
     return monday;
@@ -78,6 +80,23 @@ exports.handler = async function () {
       clearTimeout(id);
       throw e;
     }
+  }
+
+  async function redisGet(key) {
+    const url = `${UPSTASH_URL}/get/` + encodeURIComponent(key);
+    const res = await fetchWithTimeout(
+      url,
+      { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
+      8000
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`redisGet failed ${res.status}: ${txt}`);
+    }
+
+    const j = await res.json().catch(() => null);
+    return j ? j.result : null; // string or null
   }
 
   async function redisSet(key, value, ttlSeconds) {
@@ -143,8 +162,18 @@ exports.handler = async function () {
       const title = m[4].trim();
 
       const monthMap = {
-        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+        Jan: 0,
+        Feb: 1,
+        Mar: 2,
+        Apr: 3,
+        May: 4,
+        Jun: 5,
+        Jul: 6,
+        Aug: 7,
+        Sep: 8,
+        Oct: 9,
+        Nov: 10,
+        Dec: 11,
       };
       const month = monthMap[monStr];
       if (month === undefined) continue;
@@ -163,7 +192,13 @@ exports.handler = async function () {
     const t = String(title || "").toLowerCase();
     if (t.includes("rba") || t.includes("cash rate")) return 100;
     if (t.includes("cpi") || t.includes("inflation")) return 90;
-    if (t.includes("labour") || t.includes("labor") || t.includes("employment") || t.includes("unemployment")) return 80;
+    if (
+      t.includes("labour") ||
+      t.includes("labor") ||
+      t.includes("employment") ||
+      t.includes("unemployment")
+    )
+      return 80;
     return 10;
   }
 
@@ -358,6 +393,10 @@ exports.handler = async function () {
     return String(d || "").slice(0, 7);
   }
 
+  function isoMonthFromYmd(ymd) {
+    return String(ymd || "").slice(0, 7);
+  }
+
   function rebaseTo100(values) {
     const first = values.find(
       (v) => typeof v === "number" && Number.isFinite(v)
@@ -379,12 +418,39 @@ exports.handler = async function () {
     return byMonth;
   }
 
+  function monthEndCloseFromPoints(pointsAsc) {
+    const byMonth = new Map();
+    for (const p of pointsAsc) {
+      const ymd = p && p[0];
+      const val =
+        typeof p?.[1] === "number" ? p[1] : Number(p?.[1]);
+      if (!ymd || !Number.isFinite(val)) continue;
+      const m = isoMonthFromYmd(ymd);
+      if (!m) continue;
+      byMonth.set(m, val); // overwrite => month-end
+    }
+    return byMonth;
+  }
+
   function monthLabelPretty(yyyyMm) {
     const m = String(yyyyMm || "").match(/^(\d{4})-(\d{2})$/);
     if (!m) return yyyyMm;
     const year = m[1];
     const month = parseInt(m[2], 10);
-    const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const names = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     return `${names[month - 1] || m[2]} ${year}`;
   }
 
@@ -466,7 +532,16 @@ exports.handler = async function () {
         title: { display: true, text: "Sector ETFs (monthly, rebased to 100)" },
         legend: { display: true },
         scales: {
-          xAxes: [{ ticks: { maxRotation: 0, minRotation: 0, autoSkip: true, maxTicksLimit: 10 } }],
+          xAxes: [
+            {
+              ticks: {
+                maxRotation: 0,
+                minRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 10,
+              },
+            },
+          ],
           yAxes: [{ ticks: {} }],
         },
       },
@@ -523,7 +598,88 @@ exports.handler = async function () {
         title: { display: true, text: "Major markets (10y, rebased to 100)" },
         legend: { display: true },
         scales: {
-          xAxes: [{ ticks: { maxRotation: 0, minRotation: 0, autoSkip: true, maxTicksLimit: 6 } }],
+          xAxes: [
+            {
+              ticks: {
+                maxRotation: 0,
+                minRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 6,
+              },
+            },
+          ],
+          yAxes: [{ ticks: {} }],
+        },
+      },
+    };
+
+    return await createQuickChartShortUrl(cfg, "2.9.4");
+  }
+
+  async function buildCommoditiesOverlayFromUpstash(keys, labels, titleText) {
+    const n = Math.min(keys.length, labels.length);
+    const useKeys = keys.slice(0, n);
+    const useLabels = labels.slice(0, n);
+
+    const seriesByMonth = [];
+    for (const k of useKeys) {
+      const raw = await redisGet(k);
+      if (!raw) {
+        seriesByMonth.push(new Map());
+        continue;
+      }
+
+      let parsed = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = null;
+      }
+
+      const pts = Array.isArray(parsed?.points) ? parsed.points : [];
+      pts.sort((a, b) => String(a?.[0]).localeCompare(String(b?.[0])));
+      seriesByMonth.push(monthEndCloseFromPoints(pts));
+    }
+
+    const months = Array.from(
+      new Set(seriesByMonth.flatMap((m) => Array.from(m.keys())))
+    )
+      .sort()
+      .slice(-60); // your data is ~6 months now; will scale later
+
+    const prettyLabels = months.map(monthLabelPretty);
+
+    const datasets = months.length
+      ? seriesByMonth.map((m, i) => {
+          const vals = months.map((k) => m.get(k) ?? null);
+          return {
+            label: useLabels[i], // clean legend
+            data: rebaseTo100(vals),
+            fill: false,
+            borderWidth: 2,
+            pointRadius: 0,
+          };
+        })
+      : [];
+
+    const cfg = {
+      type: "line",
+      data: { labels: prettyLabels, datasets },
+      options: {
+        responsive: true,
+        title: { display: true, text: titleText || "Key commodities (rebased)" },
+        legend: { display: true },
+        scales: {
+          xAxes: [
+            {
+              ticks: {
+                maxRotation: 0,
+                minRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 10,
+              },
+            },
+          ],
           yAxes: [{ ticks: {} }],
         },
       },
@@ -537,26 +693,34 @@ exports.handler = async function () {
   const defaultEtfLabels = ["Resources", "Financials", "Tech"];
 
   const etfTickers = String(process.env.WEEK_AHEAD_ETF_TICKERS || "")
-    .split(",").map((s) => s.trim()).filter(Boolean);
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const etfLabels = String(process.env.WEEK_AHEAD_ETF_LABELS || "")
-    .split(",").map((s) => s.trim()).filter(Boolean);
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const finalEtfTickers = etfTickers.length === 3 ? etfTickers : defaultEtfTickers;
   const finalEtfLabels = etfLabels.length === 3 ? etfLabels : defaultEtfLabels;
 
-const defaultMarketsTickers = ["STW.AU", "NDQ.AU", "EWU.US"];
-const defaultMarketsLabels = [
-  "Australia (ASX 200)",
-  "US (Nasdaq 100)",
-  "UK (Equities)",
-];
+  const defaultMarketsTickers = ["STW.AU", "NDQ.AU", "EWU.US"];
+  const defaultMarketsLabels = [
+    "Australia (ASX 200)",
+    "US (Nasdaq 100)",
+    "UK (Equities)",
+  ];
 
   const marketsTickers = String(process.env.WEEK_AHEAD_MARKETS_TICKERS || "")
-    .split(",").map((s) => s.trim()).filter(Boolean);
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const marketsLabels = String(process.env.WEEK_AHEAD_MARKETS_LABELS || "")
-    .split(",").map((s) => s.trim()).filter(Boolean);
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   function alignTickersAndLabels(tickers, labels, fallbackTickers, fallbackLabels) {
     const t = Array.isArray(tickers) ? tickers : [];
@@ -575,15 +739,43 @@ const defaultMarketsLabels = [
     defaultMarketsLabels
   );
 
+  // Commodities (from Upstash history:* keys)
+  const commodityHistoryKeys = [
+    "history:metal:daily:XAU",
+    "history:metal:daily:XAG",
+    "history:metal:daily:IRON",
+    "history:metal:daily:LITH-CAR",
+    "history:metal:daily:NI",
+    "history:metal:daily:URANIUM",
+  ];
+
+  const commodityLabels = ["Gold", "Silver", "Iron Ore", "Lithium", "Nickel", "Uranium"];
+
   let charts = {
     enabled: !disableCharts,
-    markets10y: { title: "Major markets (10y, rebased)", tickers: alignedMarkets.tickers, url: null },
-    etfMonthly: { title: "Sector ETFs (monthly, rebased)", tickers: finalEtfTickers, url: null },
+    markets10y: {
+      title: "Major markets (10y, rebased)",
+      tickers: alignedMarkets.tickers,
+      labels: alignedMarkets.labels,
+      url: null,
+    },
+    etfMonthly: {
+      title: "Sector ETFs (monthly, rebased)",
+      tickers: finalEtfTickers,
+      labels: finalEtfLabels,
+      url: null,
+    },
+    commodities: {
+      title: "Key commodities (rebased)",
+      keys: commodityHistoryKeys,
+      labels: commodityLabels,
+      url: null,
+    },
     macroAnnual: {
       title: "Where is Australia now? (annual macro)",
       url: null,
-      disabled: true,              // ✅ TEMP: disabled
-      note: "Temporarily disabled", // ✅ helps debugging
+      disabled: true, // ✅ TEMP: disabled
+      note: "Temporarily disabled",
     },
   };
 
@@ -594,7 +786,8 @@ const defaultMarketsLabels = [
         alignedMarkets.labels
       );
     } catch (e) {
-      charts.markets10y.error = e && e.message ? e.message : "Markets chart failed";
+      charts.markets10y.error =
+        e && e.message ? e.message : "Markets chart failed";
     }
 
     try {
@@ -604,6 +797,17 @@ const defaultMarketsLabels = [
       );
     } catch (e) {
       charts.etfMonthly.error = e && e.message ? e.message : "ETF chart failed";
+    }
+
+    try {
+      charts.commodities.url = await buildCommoditiesOverlayFromUpstash(
+        commodityHistoryKeys,
+        commodityLabels,
+        "Key commodities (rebased to 100)"
+      );
+    } catch (e) {
+      charts.commodities.error =
+        e && e.message ? e.message : "Commodities chart failed";
     }
 
     // ✅ Macro annual intentionally skipped while disabled
