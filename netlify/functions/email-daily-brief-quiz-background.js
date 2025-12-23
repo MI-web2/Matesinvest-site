@@ -226,7 +226,7 @@ exports.handler = async function (event) {
                   🎄 Happy Holidays from MatesInvest
                 </div>
                 <div style="font-size:12px;line-height:1.45;color:#64748b;">
-                  Hope you and your family have a great break. We’ll keep this brief and be back into it after the holidays.
+                  Hope you and your family have a great break.
                 </div>
               </div>
             </td>
