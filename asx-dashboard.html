@@ -90,4 +90,145 @@
       <div class="db-section">
         <div class="db-section-head">
           <h2 class="db-section-title">Top movers</h2>
-          <p class=
+          <p class="db-section-note">From the same cached snapshot (no recommendations).</p>
+        </div>
+
+        <div class="db-mini-grid">
+          <div class="db-mini">
+            <h3>Top gainers</h3>
+            <ul id="mpGainers">
+              <li><span class="code">—</span><span class="pct up">—</span></li>
+            </ul>
+          </div>
+
+          <div class="db-mini">
+            <h3>Top losers</h3>
+            <ul id="mpLosers">
+              <li><span class="code">—</span><span class="pct down">—</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Placeholders for next modules -->
+      <div class="db-section">
+        <div class="db-section-head">
+          <h2 class="db-section-title">Next modules (coming soon)</h2>
+          <p class="db-section-note">Attention (Marketaux), overlays, commodities (MetalsAPI).</p>
+        </div>
+
+        <div class="card" style="margin:0;">
+          <p style="margin:0;color:var(--muted);font-size:0.95rem;line-height:1.5;">
+            This page is intentionally simple: market breadth + movement first.
+            We’ll layer in “What’s getting attention” and overlay charts next.
+          </p>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    (async function loadMarketPulse(){
+      const el = (id) => document.getElementById(id);
+
+      function fmtPct(x, dp=1){
+        if (typeof x !== "number" || !Number.isFinite(x)) return "—";
+        return `${x.toFixed(dp)}%`;
+      }
+
+      function formatAUD(n){
+        if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+        const abs = Math.abs(n);
+        if (abs >= 1e9) return `$${(n/1e9).toFixed(2)}B`;
+        if (abs >= 1e6) return `$${(n/1e6).toFixed(2)}M`;
+        if (abs >= 1e3) return `$${(n/1e3).toFixed(0)}k`;
+        return `$${Math.round(n)}`;
+      }
+
+      function setBar(spanId, pct){
+        const s = el(spanId);
+        if (!s) return;
+        const clamped = (typeof pct === "number" && Number.isFinite(pct))
+          ? Math.max(0, Math.min(100, pct))
+          : 50;
+        s.style.width = clamped.toFixed(0) + "%";
+      }
+
+      function renderList(listId, rows, cls){
+        const ul = el(listId);
+        if (!ul) return;
+        ul.innerHTML = "";
+        if (!Array.isArray(rows) || rows.length === 0){
+          ul.innerHTML = `<li><span class="code">—</span><span class="pct ${cls}">—</span></li>`;
+          return;
+        }
+        for (const r of rows){
+          const code = (r && r.code) ? String(r.code) : "—";
+          const pct = (typeof r.pct === "number" && Number.isFinite(r.pct)) ? r.pct : null;
+          const pctText = pct == null ? "—" : (pct >= 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`);
+          const pctClass = pct == null ? "" : (pct >= 0 ? "up" : "down");
+          ul.insertAdjacentHTML("beforeend",
+            `<li><span class="code">${escapeHtml(code)}</span><span class="pct ${pctClass}">${pctText}</span></li>`
+          );
+        }
+      }
+
+      function escapeHtml(str){
+        return String(str)
+          .replaceAll("&","&amp;")
+          .replaceAll("<","&lt;")
+          .replaceAll(">","&gt;")
+          .replaceAll('"',"&quot;")
+          .replaceAll("'","&#039;");
+      }
+
+      try{
+        const res = await fetch("/.netlify/functions/market-pulse", { cache: "no-store" });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data?.error || "Failed to load pulse");
+
+        // Meta
+        el("mpAsOf").textContent = data.asOfDate ? `As of ${data.asOfDate}` : "As of —";
+        el("mpUniverse").textContent = `Universe: ${data.universeCount ?? "—"}`;
+        el("mpNote").textContent = data.generatedAt
+          ? `Generated: ${String(data.generatedAt).replace("T"," ").slice(0,19)}`
+          : "Loaded from cached snapshot";
+
+        // Breadth
+        el("mpBreadth").textContent = (typeof data.breadthPct === "number")
+          ? fmtPct(data.breadthPct, 1)
+          : "—";
+        setBar("mpBreadthBar", data.breadthPct);
+
+        // Adv/Dec
+        el("mpAD").textContent = `${data.advancers ?? "—"} / ${data.decliners ?? "—"}`;
+        el("mpFlat").textContent = `Flat: ${data.flat ?? "—"}`;
+        const breadthDen = (data.advancers ?? 0) + (data.decliners ?? 0);
+        const adPct = breadthDen > 0 ? ((data.advancers ?? 0) / breadthDen) * 100 : null;
+        setBar("mpADBar", adPct);
+
+        // Median
+        el("mpMedian").textContent = (typeof data.medianPctChange === "number")
+          ? fmtPct(data.medianPctChange, 2)
+          : "—";
+
+        // Turnover proxy
+        el("mpTurnover").textContent = formatAUD(data.totalTurnoverAud);
+        el("mpCoverage").textContent = (data.turnoverCoverage != null)
+          ? `Coverage: ${data.turnoverCoverage} stocks (price×volume)`
+          : "Coverage: —";
+
+        // Movers
+        renderList("mpGainers", data.topGainers, "up");
+        renderList("mpLosers", data.topLosers, "down");
+
+      }catch(e){
+        console.warn("Market pulse failed:", e.message);
+        el("mpNote").textContent = "Pulse unavailable (refresh in a moment)";
+      }
+    })();
+  </script>
+</body>
+</html>
