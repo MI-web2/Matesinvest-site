@@ -1,212 +1,165 @@
 // netlify/functions/market-pulse.js
 //
 // Market Pulse summary endpoint (website-first).
-// Reads cached universe data from Upstash (same keys used by equity-screener).
+// Computes a daily ASX Market Pulse from cached data.
 //
-// Keys used:
-//  - asx:universe:eod:latest                (array or {items:[]})
-//  - asx:universe:eod:YYYY-MM-DD            (daily snapshots; used for prev close lookback)
-//  - asx:universe:fundamentals:latest       (optional; for generatedAt/universe metadata)
+// DATA SOURCES (Upstash):
+//  - asx:universe:eod:latest
+//  - asx:universe:eod:YYYY-MM-DD        (prev trading day lookup)
+//  - asx:universe:fundamentals:latest   (ASX 200 membership + market cap)
 //
-// Returns a compact JSON summary suitable for a dashboard header.
-//
-// Updated:
-//  - Replaces "median move" concept with ASX 200 (XJO) tile support (returned as `asx200`).
-//  - Keeps prev-day lookback so % change works on weekends/holidays.
+// KEY BEHAVIOUR:
+//  - ASX 200 is CALCULATED internally using inAsx200 === 1
+//  - Market-cap-weighted % move
+//  - Safe on weekends / holidays
+//  - Intended to be run once daily (e.g. 6:10am AEST)
 
 const fetch = (...args) => global.fetch(...args);
 
-const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || null;
-const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-async function fetchWithTimeout(url, opts = {}, timeout = 8000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const res = await fetch(url, { ...opts, signal: controller.signal });
-    clearTimeout(id);
-    return res;
-  } catch (err) {
-    clearTimeout(id);
-    throw err;
-  }
-}
+/* ------------------ Helpers ------------------ */
 
 async function redisGet(key) {
-  if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
   try {
-    const res = await fetchWithTimeout(
+    const res = await fetch(
       `${UPSTASH_URL}/get/${encodeURIComponent(key)}`,
-      { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
-      10000
+      { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } }
     );
     if (!res.ok) return null;
-    const j = await res.json().catch(() => null);
-    return j && typeof j.result !== "undefined" ? j.result : null;
-  } catch (err) {
-    console.warn("market-pulse redisGet error", key, err && err.message);
-    return null;
-  }
-}
-
-function json(statusCode, bodyObj, cacheSeconds = 120) {
-  return {
-    statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Cache-Control": `public, max-age=${cacheSeconds}`,
-    },
-    body: JSON.stringify(bodyObj),
-  };
-}
-
-function safeNum(x) {
-  return typeof x === "number" && Number.isFinite(x) ? x : null;
-}
-
-function parseMaybeJson(raw) {
-  if (!raw) return null;
-  if (typeof raw === "object") return raw;
-  try {
-    return JSON.parse(raw);
+    const j = await res.json();
+    return j?.result ?? null;
   } catch {
     return null;
   }
 }
 
-function toISODate(d) {
-  // returns YYYY-MM-DD in UTC
+function parse(raw) {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function num(x) {
+  return typeof x === "number" && Number.isFinite(x) ? x : null;
+}
+
+function isoDate(d) {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
-async function getPrevDayCloseMapFromCache(latestDateStr) {
-  // Looks back up to 7 days to find the previous cached daily snapshot.
-  // Returns { prevCloseMap, prevDateUsed } or { {}, null }.
+/* -------- Prev trading day close lookup -------- */
 
-  if (!latestDateStr) return { prevCloseMap: {}, prevDateUsed: null };
+async function getPrevCloseMap(asOfDate) {
+  if (!asOfDate) return { map: {}, prevDateUsed: null };
 
-  // Parse latestDateStr as UTC date
-  const base = new Date(`${latestDateStr}T00:00:00Z`);
-  if (Number.isNaN(base.getTime())) return { prevCloseMap: {}, prevDateUsed: null };
+  const base = new Date(`${asOfDate}T00:00:00Z`);
+  if (Number.isNaN(base.getTime())) {
+    return { map: {}, prevDateUsed: null };
+  }
 
   for (let i = 1; i <= 7; i++) {
-    const d = new Date(base.getTime());
+    const d = new Date(base);
     d.setUTCDate(d.getUTCDate() - i);
-    const keyDate = toISODate(d);
-    const key = `asx:universe:eod:${keyDate}`;
+    const keyDate = isoDate(d);
+    const raw = parse(await redisGet(`asx:universe:eod:${keyDate}`));
 
-    const raw = await redisGet(key);
-    const parsed = parseMaybeJson(raw);
-
-    const rows = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed?.items)
-      ? parsed.items
-      : null;
-
+    const rows = Array.isArray(raw) ? raw : raw?.items;
     if (!rows || rows.length < 50) continue;
 
     const map = {};
     for (const r of rows) {
-      if (!r || !r.code) continue;
-      const code = String(r.code).toUpperCase();
-      const close = safeNum(r.close ?? r.price ?? r.last);
-      if (close != null) map[code] = close;
+      if (!r?.code) continue;
+      const close = num(r.close ?? r.price ?? r.last);
+      if (close != null) {
+        map[String(r.code).toUpperCase()] = close;
+      }
     }
 
-    // If we got a decent map, accept this as prev day
     if (Object.keys(map).length > 50) {
-      return { prevCloseMap: map, prevDateUsed: keyDate };
+      return { map, prevDateUsed: keyDate };
     }
   }
 
-  return { prevCloseMap: {}, prevDateUsed: null };
+  return { map: {}, prevDateUsed: null };
 }
 
-exports.handler = async function (event) {
-  // CORS preflight
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "GET,OPTIONS",
-      },
-      body: "",
-    };
-  }
+/* ------------------ Handler ------------------ */
 
+exports.handler = async function () {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-    return json(500, { error: "Missing Upstash env for market pulse" }, 0);
+    return { statusCode: 500, body: "Upstash not configured" };
   }
 
   try {
-    const rawPrices = await redisGet("asx:universe:eod:latest");
-    const pricesParsed = parseMaybeJson(rawPrices);
+    /* ---------- Load price snapshot ---------- */
 
-    const rows = Array.isArray(pricesParsed)
-      ? pricesParsed
-      : Array.isArray(pricesParsed?.items)
-      ? pricesParsed.items
-      : null;
+    const latestRaw = parse(await redisGet("asx:universe:eod:latest"));
+    const priceRows = Array.isArray(latestRaw)
+      ? latestRaw
+      : latestRaw?.items;
 
-    if (!rows || rows.length < 50) {
-      return json(503, { error: "No price snapshot available yet" }, 30);
+    if (!priceRows || priceRows.length < 50) {
+      return { statusCode: 503, body: "No price snapshot available" };
     }
 
-    // Optional: fundamentals metadata
-    const rawFund = await redisGet("asx:universe:fundamentals:latest");
-    const fundParsed = parseMaybeJson(rawFund);
+    const anyDate = priceRows.find(r => r?.date)?.date;
+    const asOfDate = anyDate ? String(anyDate).slice(0, 10) : null;
 
-    // Determine asOfDate from row date (preferred)
-    const anyWithDate = rows.find((r) => r && r.date);
-    const asOfDate = anyWithDate?.date ? String(anyWithDate.date).slice(0, 10) : null;
+    const { map: prevCloseMap, prevDateUsed } =
+      await getPrevCloseMap(asOfDate);
 
-    // Build prevCloseMap for pctChange fallback (like equity-screener)
-    const { prevCloseMap, prevDateUsed } = await getPrevDayCloseMapFromCache(asOfDate);
+    /* ---------- Load fundamentals ---------- */
 
-    let adv = 0;
-    let dec = 0;
-    let flat = 0;
+    const fundRaw = parse(await redisGet("asx:universe:fundamentals:latest"));
+    const fundRows = Array.isArray(fundRaw)
+      ? fundRaw
+      : fundRaw?.items;
 
-    let turnoverAud = 0;
-    let turnoverCount = 0;
+    const fundByCode = {};
+    if (Array.isArray(fundRows)) {
+      for (const f of fundRows) {
+        if (!f?.code) continue;
+        fundByCode[String(f.code).toUpperCase()] = f;
+      }
+    }
+
+    /* ---------- Aggregations ---------- */
+
+    let adv = 0, dec = 0, flat = 0;
+    let turnoverAud = 0, turnoverCount = 0;
+
+    // ASX 200 weighted calc
+    let asx200WeightedSum = 0;
+    let asx200MarketCapSum = 0;
 
     const movers = [];
 
-    // ASX 200 (XJO) tile info
-    let asx200 = null;
-
-    for (const r of rows) {
-      if (!r || !r.code) continue;
+    for (const r of priceRows) {
+      if (!r?.code) continue;
 
       const code = String(r.code).toUpperCase();
-      const close = safeNum(r.close ?? r.price ?? r.last);
-      const vol = safeNum(r.volume);
+      const close = num(r.close ?? r.price ?? r.last);
+      const volume = num(r.volume);
 
-      // Turnover proxy: close * volume
-      if (close != null && vol != null) {
-        const t = close * vol;
-        if (Number.isFinite(t) && t >= 0) {
-          turnoverAud += t;
-          turnoverCount++;
-        }
+      /* Turnover */
+      if (close != null && volume != null) {
+        turnoverAud += close * volume;
+        turnoverCount++;
       }
 
-      // pctChange: prefer what exists, else derive from prevCloseMap
+      /* % change */
       let pct =
-        safeNum(r.pctChange) ??
-        safeNum(r.changePct) ??
-        safeNum(r.change_percent) ??
-        null;
+        num(r.pctChange) ??
+        num(r.changePct) ??
+        num(r.change_percent);
 
       if (pct == null && close != null) {
-        const prev = safeNum(r.prevClose) ?? safeNum(prevCloseMap[code]);
+        const prev = num(prevCloseMap[code]);
         if (prev != null && prev > 0) {
           pct = ((close - prev) / prev) * 100;
         }
@@ -218,65 +171,72 @@ exports.handler = async function (event) {
         else flat++;
       }
 
-      // Capture XJO for ASX 200 tile
-      if (code === "XJO") {
-        asx200 = {
-          code: "XJO",
-          close,
-          pct,
-        };
+      /* ASX 200 calculation */
+      const f = fundByCode[code];
+      if (
+        f &&
+        f.inAsx200 === 1 &&
+        pct != null
+      ) {
+        const mcap = num(f.marketCap ?? f.marketCapAud);
+        if (mcap != null && mcap > 0) {
+          asx200WeightedSum += pct * mcap;
+          asx200MarketCapSum += mcap;
+        }
       }
 
-      movers.push({
-        code,
-        pct,
-        close,
-        volume: vol,
-      });
+      movers.push({ code, pct });
     }
 
-    // Breadth (ignore flat)
     const breadthDen = adv + dec;
-    const breadthPct = breadthDen > 0 ? (adv / breadthDen) * 100 : null;
+    const breadthPct =
+      breadthDen > 0 ? (adv / breadthDen) * 100 : null;
 
-    // Top movers
-    const withPct = movers.filter((m) => typeof m.pct === "number" && Number.isFinite(m.pct));
+    const asx200Pct =
+      asx200MarketCapSum > 0
+        ? asx200WeightedSum / asx200MarketCapSum
+        : null;
+
+    const withPct = movers.filter(m => typeof m.pct === "number");
     withPct.sort((a, b) => b.pct - a.pct);
 
-    const topGainers = withPct.slice(0, 5);
-    const topLosers = withPct.slice(-5).sort((a, b) => a.pct - b.pct);
+    /* ---------- Response ---------- */
 
-    const universeSize =
-      (fundParsed && (fundParsed.universeSize || fundParsed.universeTotal)) || rows.length;
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        // cache all day – this should be refreshed once daily by schedule
+        "Cache-Control": "public, max-age=86400"
+      },
+      body: JSON.stringify({
+        asOfDate,
+        prevDateUsed,
 
-    return json(200, {
-      asOfDate,
-      prevDateUsed,
-      generatedAt:
-        (fundParsed && fundParsed.generatedAt) ||
-        (pricesParsed && pricesParsed.generatedAt) ||
-        null,
+        asx200: {
+          pct: asx200Pct
+        },
 
-      universeCount: rows.length,
-      universeSize,
+        advancers: adv,
+        decliners: dec,
+        flat,
 
-      // NEW
-      asx200, // { code:"XJO", close:<number|null>, pct:<number|null> }
+        breadthPct,
 
-      advancers: adv,
-      decliners: dec,
-      flat,
+        totalTurnoverAud:
+          turnoverCount > 0 ? turnoverAud : null,
+        turnoverCoverage: turnoverCount,
 
-      breadthPct,
+        topGainers: withPct.slice(0, 5),
+        topLosers: withPct.slice(-5).sort((a, b) => a.pct - b.pct)
+      })
+    };
 
-      totalTurnoverAud: turnoverCount > 0 ? turnoverAud : null,
-      turnoverCoverage: turnoverCount,
-
-      topGainers,
-      topLosers,
-    });
   } catch (err) {
     console.error("market-pulse error", err);
-    return json(500, { error: "Failed to build market pulse", detail: String(err) }, 0);
+    return {
+      statusCode: 500,
+      body: "Failed to build market pulse"
+    };
   }
 };
