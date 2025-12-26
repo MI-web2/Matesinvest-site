@@ -58,6 +58,14 @@
         </div>
 
         <div class="pulse-grid" id="marketPulse">
+
+          <!-- NEW: ASX 200 -->
+          <div class="pulse-card">
+            <div class="pulse-label">ASX 200</div>
+            <div class="pulse-value" id="mpXJO">—</div>
+            <div class="pulse-sub" id="mpXJOSub">Index (XJO)</div>
+          </div>
+
           <div class="pulse-card">
             <div class="pulse-label">Breadth</div>
             <div class="pulse-value" id="mpBreadth">—</div>
@@ -73,16 +81,11 @@
           </div>
 
           <div class="pulse-card">
-            <div class="pulse-label">Median move</div>
-            <div class="pulse-value" id="mpMedian">—</div>
-            <div class="pulse-sub">Median % change (universe)</div>
-          </div>
-
-          <div class="pulse-card">
             <div class="pulse-label">Turnover (proxy)</div>
             <div class="pulse-value" id="mpTurnover">—</div>
             <div class="pulse-sub" id="mpCoverage">Coverage: —</div>
           </div>
+
         </div>
       </div>
 
@@ -134,7 +137,8 @@
 
       function fmtPct(x, dp=1){
         if (typeof x !== "number" || !Number.isFinite(x)) return "—";
-        return `${x.toFixed(dp)}%`;
+        const sign = x > 0 ? "+" : "";
+        return `${sign}${x.toFixed(dp)}%`;
       }
 
       function formatAUD(n){
@@ -155,20 +159,23 @@
         s.style.width = clamped.toFixed(0) + "%";
       }
 
-      function renderList(listId, rows, cls){
+      function renderList(listId, rows){
         const ul = el(listId);
         if (!ul) return;
         ul.innerHTML = "";
         if (!Array.isArray(rows) || rows.length === 0){
-          ul.innerHTML = `<li><span class="code">—</span><span class="pct ${cls}">—</span></li>`;
+          ul.innerHTML = `<li><span class="code">—</span><span class="pct">—</span></li>`;
           return;
         }
+
         for (const r of rows){
           const code = (r && r.code) ? String(r.code) : "—";
           const pct = (typeof r.pct === "number" && Number.isFinite(r.pct)) ? r.pct : null;
           const pctText = pct == null ? "—" : (pct >= 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`);
           const pctClass = pct == null ? "" : (pct >= 0 ? "up" : "down");
-          ul.insertAdjacentHTML("beforeend",
+
+          ul.insertAdjacentHTML(
+            "beforeend",
             `<li><span class="code">${escapeHtml(code)}</span><span class="pct ${pctClass}">${pctText}</span></li>`
           );
         }
@@ -192,13 +199,26 @@
         // Meta
         el("mpAsOf").textContent = data.asOfDate ? `As of ${data.asOfDate}` : "As of —";
         el("mpUniverse").textContent = `Universe: ${data.universeCount ?? "—"}`;
-        el("mpNote").textContent = data.generatedAt
-          ? `Generated: ${String(data.generatedAt).replace("T"," ").slice(0,19)}`
-          : "Loaded from cached snapshot";
+
+        // Small note for debug (optional but handy)
+        if (data.prevDateUsed) {
+          el("mpNote").textContent = `Compare: ${data.prevDateUsed} → ${data.asOfDate || "latest"}`;
+        } else {
+          el("mpNote").textContent = data.generatedAt
+            ? `Generated: ${String(data.generatedAt).replace("T"," ").slice(0,19)}`
+            : "Loaded from cached snapshot";
+        }
+
+        // ASX 200 (XJO)
+        if (data.asx200 && typeof data.asx200.pct === "number") {
+          el("mpXJO").textContent = fmtPct(data.asx200.pct, 2);
+        } else {
+          el("mpXJO").textContent = "—";
+        }
 
         // Breadth
         el("mpBreadth").textContent = (typeof data.breadthPct === "number")
-          ? fmtPct(data.breadthPct, 1)
+          ? `${data.breadthPct.toFixed(1)}%`
           : "—";
         setBar("mpBreadthBar", data.breadthPct);
 
@@ -209,11 +229,6 @@
         const adPct = breadthDen > 0 ? ((data.advancers ?? 0) / breadthDen) * 100 : null;
         setBar("mpADBar", adPct);
 
-        // Median
-        el("mpMedian").textContent = (typeof data.medianPctChange === "number")
-          ? fmtPct(data.medianPctChange, 2)
-          : "—";
-
         // Turnover proxy
         el("mpTurnover").textContent = formatAUD(data.totalTurnoverAud);
         el("mpCoverage").textContent = (data.turnoverCoverage != null)
@@ -221,10 +236,10 @@
           : "Coverage: —";
 
         // Movers
-        renderList("mpGainers", data.topGainers, "up");
-        renderList("mpLosers", data.topLosers, "down");
+        renderList("mpGainers", data.topGainers);
+        renderList("mpLosers", data.topLosers);
 
-      }catch(e){
+      } catch(e) {
         console.warn("Market pulse failed:", e.message);
         el("mpNote").textContent = "Pulse unavailable (refresh in a moment)";
       }
