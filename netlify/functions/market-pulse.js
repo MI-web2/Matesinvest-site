@@ -9,6 +9,10 @@
 //  - asx:universe:fundamentals:latest       (optional; for generatedAt/universe metadata)
 //
 // Returns a compact JSON summary suitable for a dashboard header.
+//
+// Updated:
+//  - Replaces "median move" concept with ASX 200 (XJO) tile support (returned as `asx200`).
+//  - Keeps prev-day lookback so % change works on weekends/holidays.
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -69,15 +73,6 @@ function parseMaybeJson(raw) {
   } catch {
     return null;
   }
-}
-
-function median(nums) {
-  const arr = nums
-    .filter((n) => typeof n === "number" && Number.isFinite(n))
-    .sort((a, b) => a - b);
-  if (arr.length === 0) return null;
-  const mid = Math.floor(arr.length / 2);
-  return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
 }
 
 function toISODate(d) {
@@ -168,7 +163,7 @@ exports.handler = async function (event) {
     const rawFund = await redisGet("asx:universe:fundamentals:latest");
     const fundParsed = parseMaybeJson(rawFund);
 
-    // Determine asOfDate from row date (preferred), else from pricesParsed.generatedAt
+    // Determine asOfDate from row date (preferred)
     const anyWithDate = rows.find((r) => r && r.date);
     const asOfDate = anyWithDate?.date ? String(anyWithDate.date).slice(0, 10) : null;
 
@@ -178,11 +173,14 @@ exports.handler = async function (event) {
     let adv = 0;
     let dec = 0;
     let flat = 0;
-    const pctArr = [];
+
     let turnoverAud = 0;
     let turnoverCount = 0;
 
     const movers = [];
+
+    // ASX 200 (XJO) tile info
+    let asx200 = null;
 
     for (const r of rows) {
       if (!r || !r.code) continue;
@@ -215,10 +213,18 @@ exports.handler = async function (event) {
       }
 
       if (pct != null) {
-        pctArr.push(pct);
         if (pct > 0) adv++;
         else if (pct < 0) dec++;
         else flat++;
+      }
+
+      // Capture XJO for ASX 200 tile
+      if (code === "XJO") {
+        asx200 = {
+          code: "XJO",
+          close,
+          pct,
+        };
       }
 
       movers.push({
@@ -229,10 +235,11 @@ exports.handler = async function (event) {
       });
     }
 
+    // Breadth (ignore flat)
     const breadthDen = adv + dec;
     const breadthPct = breadthDen > 0 ? (adv / breadthDen) * 100 : null;
-    const medianPctChange = median(pctArr);
 
+    // Top movers
     const withPct = movers.filter((m) => typeof m.pct === "number" && Number.isFinite(m.pct));
     withPct.sort((a, b) => b.pct - a.pct);
 
@@ -244,7 +251,7 @@ exports.handler = async function (event) {
 
     return json(200, {
       asOfDate,
-      prevDateUsed, // <-- useful to debug holidays/weekends
+      prevDateUsed,
       generatedAt:
         (fundParsed && fundParsed.generatedAt) ||
         (pricesParsed && pricesParsed.generatedAt) ||
@@ -253,12 +260,14 @@ exports.handler = async function (event) {
       universeCount: rows.length,
       universeSize,
 
+      // NEW
+      asx200, // { code:"XJO", close:<number|null>, pct:<number|null> }
+
       advancers: adv,
       decliners: dec,
       flat,
 
       breadthPct,
-      medianPctChange,
 
       totalTurnoverAud: turnoverCount > 0 ? turnoverAud : null,
       turnoverCoverage: turnoverCount,
