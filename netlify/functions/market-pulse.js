@@ -5,8 +5,8 @@
 //
 // Keys used:
 //  - asx:universe:eod:latest                (array or {items:[]})
-//  - asx:universe:eod:YYYY-MM-DD            (optional; not required for pulse)
-//  - asx:universe:fundamentals:latest       (optional, for count/universe metadata)
+//  - asx:universe:eod:YYYY-MM-DD            (daily snapshots; used for prev close lookback)
+//  - asx:universe:fundamentals:latest       (optional; for generatedAt/universe metadata)
 //
 // Returns a compact JSON summary suitable for a dashboard header.
 
@@ -51,7 +51,6 @@ function json(statusCode, bodyObj, cacheSeconds = 120) {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      // Small cache to keep it snappy (tweak as you like)
       "Cache-Control": `public, max-age=${cacheSeconds}`,
     },
     body: JSON.stringify(bodyObj),
@@ -73,10 +72,64 @@ function parseMaybeJson(raw) {
 }
 
 function median(nums) {
-  const arr = nums.filter((n) => typeof n === "number" && Number.isFinite(n)).sort((a, b) => a - b);
+  const arr = nums
+    .filter((n) => typeof n === "number" && Number.isFinite(n))
+    .sort((a, b) => a - b);
   if (arr.length === 0) return null;
   const mid = Math.floor(arr.length / 2);
   return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+}
+
+function toISODate(d) {
+  // returns YYYY-MM-DD in UTC
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+async function getPrevDayCloseMapFromCache(latestDateStr) {
+  // Looks back up to 7 days to find the previous cached daily snapshot.
+  // Returns { prevCloseMap, prevDateUsed } or { {}, null }.
+
+  if (!latestDateStr) return { prevCloseMap: {}, prevDateUsed: null };
+
+  // Parse latestDateStr as UTC date
+  const base = new Date(`${latestDateStr}T00:00:00Z`);
+  if (Number.isNaN(base.getTime())) return { prevCloseMap: {}, prevDateUsed: null };
+
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(base.getTime());
+    d.setUTCDate(d.getUTCDate() - i);
+    const keyDate = toISODate(d);
+    const key = `asx:universe:eod:${keyDate}`;
+
+    const raw = await redisGet(key);
+    const parsed = parseMaybeJson(raw);
+
+    const rows = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.items)
+      ? parsed.items
+      : null;
+
+    if (!rows || rows.length < 50) continue;
+
+    const map = {};
+    for (const r of rows) {
+      if (!r || !r.code) continue;
+      const code = String(r.code).toUpperCase();
+      const close = safeNum(r.close ?? r.price ?? r.last);
+      if (close != null) map[code] = close;
+    }
+
+    // If we got a decent map, accept this as prev day
+    if (Object.keys(map).length > 50) {
+      return { prevCloseMap: map, prevDateUsed: keyDate };
+    }
+  }
+
+  return { prevCloseMap: {}, prevDateUsed: null };
 }
 
 exports.handler = async function (event) {
@@ -111,13 +164,16 @@ exports.handler = async function (event) {
       return json(503, { error: "No price snapshot available yet" }, 30);
     }
 
-    // Optional: fundamentals for universe metadata (count / generatedAt)
+    // Optional: fundamentals metadata
     const rawFund = await redisGet("asx:universe:fundamentals:latest");
     const fundParsed = parseMaybeJson(rawFund);
 
-    // Determine asOfDate from any row that has a date
+    // Determine asOfDate from row date (preferred), else from pricesParsed.generatedAt
     const anyWithDate = rows.find((r) => r && r.date);
     const asOfDate = anyWithDate?.date ? String(anyWithDate.date).slice(0, 10) : null;
+
+    // Build prevCloseMap for pctChange fallback (like equity-screener)
+    const { prevCloseMap, prevDateUsed } = await getPrevDayCloseMapFromCache(asOfDate);
 
     let adv = 0;
     let dec = 0;
@@ -126,17 +182,37 @@ exports.handler = async function (event) {
     let turnoverAud = 0;
     let turnoverCount = 0;
 
-    // Prepare gainers/losers lists
     const movers = [];
 
     for (const r of rows) {
       if (!r || !r.code) continue;
 
-      const pct =
+      const code = String(r.code).toUpperCase();
+      const close = safeNum(r.close ?? r.price ?? r.last);
+      const vol = safeNum(r.volume);
+
+      // Turnover proxy: close * volume
+      if (close != null && vol != null) {
+        const t = close * vol;
+        if (Number.isFinite(t) && t >= 0) {
+          turnoverAud += t;
+          turnoverCount++;
+        }
+      }
+
+      // pctChange: prefer what exists, else derive from prevCloseMap
+      let pct =
         safeNum(r.pctChange) ??
         safeNum(r.changePct) ??
         safeNum(r.change_percent) ??
         null;
+
+      if (pct == null && close != null) {
+        const prev = safeNum(r.prevClose) ?? safeNum(prevCloseMap[code]);
+        if (prev != null && prev > 0) {
+          pct = ((close - prev) / prev) * 100;
+        }
+      }
 
       if (pct != null) {
         pctArr.push(pct);
@@ -145,46 +221,30 @@ exports.handler = async function (event) {
         else flat++;
       }
 
-      const price = safeNum(r.close ?? r.price ?? r.last);
-      const vol = safeNum(r.volume);
-
-      // Turnover proxy: price * volume (only if both present)
-      if (price != null && vol != null) {
-        const t = price * vol;
-        if (Number.isFinite(t) && t >= 0) {
-          turnoverAud += t;
-          turnoverCount++;
-        }
-      }
-
       movers.push({
-        code: String(r.code).toUpperCase(),
-        pct: pct,
-        close: price,
+        code,
+        pct,
+        close,
         volume: vol,
       });
     }
 
-    // Breadth (ignore flat)
     const breadthDen = adv + dec;
     const breadthPct = breadthDen > 0 ? (adv / breadthDen) * 100 : null;
-
-    // Median % change
     const medianPctChange = median(pctArr);
 
-    // Top movers
     const withPct = movers.filter((m) => typeof m.pct === "number" && Number.isFinite(m.pct));
     withPct.sort((a, b) => b.pct - a.pct);
 
     const topGainers = withPct.slice(0, 5);
     const topLosers = withPct.slice(-5).sort((a, b) => a.pct - b.pct);
 
-    // Universe size (prefer fundamentals metadata if present)
     const universeSize =
       (fundParsed && (fundParsed.universeSize || fundParsed.universeTotal)) || rows.length;
 
     return json(200, {
       asOfDate,
+      prevDateUsed, // <-- useful to debug holidays/weekends
       generatedAt:
         (fundParsed && fundParsed.generatedAt) ||
         (pricesParsed && pricesParsed.generatedAt) ||
@@ -197,12 +257,11 @@ exports.handler = async function (event) {
       decliners: dec,
       flat,
 
-      breadthPct, // % of advancers among adv+dec
+      breadthPct,
       medianPctChange,
 
-      // Turnover is only a proxy and may be partial depending on volume coverage
       totalTurnoverAud: turnoverCount > 0 ? turnoverAud : null,
-      turnoverCoverage: turnoverCount, // how many rows had price+volume
+      turnoverCoverage: turnoverCount,
 
       topGainers,
       topLosers,
