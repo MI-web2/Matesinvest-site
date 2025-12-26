@@ -71,6 +71,11 @@
 [functions."email-week-ahead"]
   # Week Ahead email: Monday 06:05 AEST (Sunday 20:05 UTC)
   schedule = "5 20 * * 0"
+[functions."market-pulse"]
+  # Daily ASX Market Pulse
+  # Runs at 06:10 AEST (20:10 UTC previous day)
+  # Calculates ASX 200 (internal), breadth, turnover, movers
+  schedule = "10 20 * * 1-5"
 
 [[redirects]]
   from = "/content/articles"
