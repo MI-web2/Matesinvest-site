@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MatesInvest · ASX Dashboard</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+
+<body class="mi-body">
+  <!-- NAV (matches your existing pattern) -->
+  <header class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <img class="nav-logo" src="/assets/logo.png" alt="MatesInvest" />
+        <div>
+          <div class="nav-title">MatesInvest</div>
+          <div class="nav-tagline-full" style="font-size:0.82rem;color:#64748b;">
+            A simple market dashboard (no advice).
+          </div>
+          <div class="nav-tagline-short" style="color:#64748b;">ASX Board</div>
+        </div>
+        <span class="nav-pill">Beta</span>
+      </div>
+
+      <div class="nav-right">
+        <a class="nav-home-link" href="/">Home</a>
+        <a class="nav-home-link" href="/equity-screener.html">Screener</a>
+        <a class="nav-pill-link" href="/how-you-think">Quiz</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="db-shell">
+    <div class="corner-pattern" aria-hidden="true"></div>
+
+    <section class="db-hero">
+      <div class="db-hero-top">
+        <div>
+          <h1 class="db-title">ASX Market Pulse</h1>
+          <p class="db-sub">
+            A quick read on market breadth and movement across the ASX universe.
+            Built from cached data — updates as your dataset updates.
+          </p>
+        </div>
+
+        <div class="db-meta">
+          <span class="db-pill" id="mpAsOf">As of —</span>
+          <span class="db-pill muted" id="mpUniverse">Universe: —</span>
+        </div>
+      </div>
+
+      <!-- Market Pulse cards -->
+      <div class="db-section">
+        <div class="db-section-head">
+          <h2 class="db-section-title">Pulse</h2>
+          <p class="db-section-note" id="mpNote">Loading…</p>
+        </div>
+
+        <div class="pulse-grid" id="marketPulse">
+          <div class="pulse-card">
+            <div class="pulse-label">Breadth</div>
+            <div class="pulse-value" id="mpBreadth">—</div>
+            <div class="pulse-sub">Advancers ÷ (Adv + Dec)</div>
+            <div class="pulse-spark" aria-hidden="true"><span id="mpBreadthBar"></span></div>
+          </div>
+
+          <div class="pulse-card">
+            <div class="pulse-label">Adv / Dec</div>
+            <div class="pulse-value" id="mpAD">—</div>
+            <div class="pulse-sub" id="mpFlat">Flat: —</div>
+            <div class="pulse-spark" aria-hidden="true"><span id="mpADBar"></span></div>
+          </div>
+
+          <div class="pulse-card">
+            <div class="pulse-label">Median move</div>
+            <div class="pulse-value" id="mpMedian">—</div>
+            <div class="pulse-sub">Median % change (universe)</div>
+          </div>
+
+          <div class="pulse-card">
+            <div class="pulse-label">Turnover (proxy)</div>
+            <div class="pulse-value" id="mpTurnover">—</div>
+            <div class="pulse-sub" id="mpCoverage">Coverage: —</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mini lists -->
+      <div class="db-section">
+        <div class="db-section-head">
+          <h2 class="db-section-title">Top movers</h2>
+          <p class=
