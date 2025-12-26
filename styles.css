@@ -3472,3 +3472,205 @@ body.open .nav nav a:hover {
 #joinCommunityCard a {
   text-decoration: none;
 }
+/* ============================
+   ASX DASHBOARD (db-*)
+   Additive only
+============================ */
+
+.db-shell{
+  max-width:1200px;
+  margin:0 auto;
+  padding:1.25rem 1.25rem 3rem;
+  position:relative;
+}
+
+.db-hero{
+  background: radial-gradient(circle at top left,#eff6ff 0,#ffffff 45%,#f8fafc 100%);
+  border:1px solid #dbeafe;
+  border-radius: 22px;
+  padding: 1.25rem 1.25rem;
+  box-shadow: 0 16px 40px rgba(15,23,42,0.10);
+  margin-top: 1rem;
+}
+
+.db-hero-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 1rem;
+  flex-wrap:wrap;
+}
+
+.db-title{
+  margin:0;
+  font-size:1.55rem;
+  line-height:1.2;
+  color:var(--navy);
+}
+
+.db-sub{
+  margin:0.35rem 0 0;
+  color:var(--muted);
+  font-size:0.95rem;
+  max-width: 44rem;
+}
+
+.db-meta{
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
+  flex-wrap:wrap;
+}
+
+.db-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:0.4rem;
+  padding:0.28rem 0.7rem;
+  border-radius:999px;
+  font-size:0.82rem;
+  background: rgba(0,191,255,0.10);
+  color: #083a59;
+  border:1px solid rgba(0,191,255,0.35);
+}
+
+.db-pill.muted{
+  background: rgba(148,163,184,0.10);
+  border-color: rgba(148,163,184,0.35);
+  color: var(--muted);
+}
+
+.db-section{
+  margin-top: 1.1rem;
+}
+
+.db-section-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap: 1rem;
+  flex-wrap:wrap;
+  margin: 0.8rem 0 0.55rem;
+}
+
+.db-section-title{
+  margin:0;
+  font-size:1.05rem;
+  color:var(--navy);
+}
+
+.db-section-note{
+  margin:0;
+  font-size:0.86rem;
+  color:var(--muted);
+}
+
+/* ---- Market Pulse cards ---- */
+
+.pulse-grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 980px){
+  .pulse-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px){
+  .pulse-grid{ grid-template-columns: 1fr; }
+}
+
+.pulse-card{
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 0.95rem 1rem;
+  box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+  min-height: 98px;
+}
+
+.pulse-label{
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-2);
+  margin-bottom: 0.35rem;
+  font-weight: 700;
+}
+
+.pulse-value{
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.15;
+}
+
+.pulse-sub{
+  margin-top: 0.45rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.pulse-spark{
+  margin-top: 0.55rem;
+  height: 10px;
+  background: rgba(148,163,184,0.14);
+  border-radius: 999px;
+  overflow:hidden;
+  border: 1px solid rgba(148,163,184,0.20);
+}
+
+.pulse-spark > span{
+  display:block;
+  height: 100%;
+  width: 50%;
+  background: rgba(0,191,255,0.45);
+  border-right: 1px solid rgba(0,191,255,0.15);
+}
+
+/* Small list cards (Top gainers/losers) */
+.db-mini-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 900px){
+  .db-mini-grid{ grid-template-columns: 1fr; }
+}
+.db-mini{
+  background:#ffffff;
+  border:1px solid #e2e8f0;
+  border-radius:18px;
+  padding: 0.95rem 1rem;
+  box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+}
+.db-mini h3{
+  margin:0 0 0.6rem;
+  font-size: 0.98rem;
+  color: var(--navy);
+}
+.db-mini ul{
+  list-style:none;
+  padding:0;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  gap:0.35rem;
+  font-size:0.9rem;
+}
+.db-mini li{
+  display:flex;
+  justify-content:space-between;
+  gap:0.6rem;
+}
+.db-mini .code{
+  font-weight:800;
+  letter-spacing:0.03em;
+}
+.db-mini .pct{
+  font-variant-numeric: tabular-nums;
+  font-weight:700;
+}
+.db-mini .pct.up{ color:#15803d; }
+.db-mini .pct.down{ color:#b91c1c; }
+
