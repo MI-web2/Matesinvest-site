@@ -1,23 +1,27 @@
 // netlify/functions/market-pulse.js
 //
-// Market Pulse summary endpoint (website-first).
-// Computes a daily ASX Market Pulse from cached data.
+// WRITER: Daily Market Pulse snapshot builder.
+// Scheduled to run once per day (e.g. 6:10am AEST) and cache the result in Upstash.
 //
-// DATA SOURCES (Upstash):
+// Reads (Upstash):
 //  - asx:universe:eod:latest
-//  - asx:universe:eod:YYYY-MM-DD        (prev trading day lookup)
-//  - asx:universe:fundamentals:latest   (ASX 200 membership + market cap)
+//  - asx:universe:eod:YYYY-MM-DD        (prev trading day lookup, up to 7 days back)
+//  - asx:universe:fundamentals:latest   (ASX200 membership + market cap)
 //
-// KEY BEHAVIOUR:
-//  - ASX 200 is CALCULATED internally using inAsx200 === 1
+// Writes (Upstash):
+//  - asx:market:pulse:daily             (single JSON payload overwritten daily)
+//
+// Notes:
+//  - ASX 200 is calculated internally using fundamentals.inAsx200 === 1
 //  - Market-cap-weighted % move
 //  - Safe on weekends / holidays
-//  - Intended to be run once daily (e.g. 6:10am AEST)
 
 const fetch = (...args) => global.fetch(...args);
 
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+const PULSE_KEY = "asx:market:pulse:daily";
 
 /* ------------------ Helpers ------------------ */
 
@@ -33,6 +37,25 @@ async function redisGet(key) {
   } catch {
     return null;
   }
+}
+
+// Upstash REST `SET` takes the value as a URL path segment.
+// Use JSON string as the value.
+async function redisSetJson(key, obj) {
+  const value = JSON.stringify(obj);
+  const url = `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(value)}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Upstash SET failed (${res.status}): ${txt}`);
+  }
+
+  return true;
 }
 
 function parse(raw) {
@@ -66,8 +89,8 @@ async function getPrevCloseMap(asOfDate) {
     const d = new Date(base);
     d.setUTCDate(d.getUTCDate() - i);
     const keyDate = isoDate(d);
-    const raw = parse(await redisGet(`asx:universe:eod:${keyDate}`));
 
+    const raw = parse(await redisGet(`asx:universe:eod:${keyDate}`));
     const rows = Array.isArray(raw) ? raw : raw?.items;
     if (!rows || rows.length < 50) continue;
 
@@ -99,26 +122,21 @@ exports.handler = async function () {
     /* ---------- Load price snapshot ---------- */
 
     const latestRaw = parse(await redisGet("asx:universe:eod:latest"));
-    const priceRows = Array.isArray(latestRaw)
-      ? latestRaw
-      : latestRaw?.items;
+    const priceRows = Array.isArray(latestRaw) ? latestRaw : latestRaw?.items;
 
     if (!priceRows || priceRows.length < 50) {
       return { statusCode: 503, body: "No price snapshot available" };
     }
 
-    const anyDate = priceRows.find(r => r?.date)?.date;
+    const anyDate = priceRows.find((r) => r?.date)?.date;
     const asOfDate = anyDate ? String(anyDate).slice(0, 10) : null;
 
-    const { map: prevCloseMap, prevDateUsed } =
-      await getPrevCloseMap(asOfDate);
+    const { map: prevCloseMap, prevDateUsed } = await getPrevCloseMap(asOfDate);
 
     /* ---------- Load fundamentals ---------- */
 
     const fundRaw = parse(await redisGet("asx:universe:fundamentals:latest"));
-    const fundRows = Array.isArray(fundRaw)
-      ? fundRaw
-      : fundRaw?.items;
+    const fundRows = Array.isArray(fundRaw) ? fundRaw : fundRaw?.items;
 
     const fundByCode = {};
     if (Array.isArray(fundRows)) {
@@ -133,9 +151,10 @@ exports.handler = async function () {
     let adv = 0, dec = 0, flat = 0;
     let turnoverAud = 0, turnoverCount = 0;
 
-    // ASX 200 weighted calc
+    // ASX 200 cap-weighted move
     let asx200WeightedSum = 0;
     let asx200MarketCapSum = 0;
+    let asx200CountUsed = 0;
 
     const movers = [];
 
@@ -146,17 +165,14 @@ exports.handler = async function () {
       const close = num(r.close ?? r.price ?? r.last);
       const volume = num(r.volume);
 
-      /* Turnover */
+      // Turnover proxy
       if (close != null && volume != null) {
         turnoverAud += close * volume;
         turnoverCount++;
       }
 
-      /* % change */
-      let pct =
-        num(r.pctChange) ??
-        num(r.changePct) ??
-        num(r.change_percent);
+      // % change
+      let pct = num(r.pctChange) ?? num(r.changePct) ?? num(r.change_percent);
 
       if (pct == null && close != null) {
         const prev = num(prevCloseMap[code]);
@@ -171,17 +187,14 @@ exports.handler = async function () {
         else flat++;
       }
 
-      /* ASX 200 calculation */
+      // ASX 200 calculation (membership flag is in fundamentals)
       const f = fundByCode[code];
-      if (
-        f &&
-        f.inAsx200 === 1 &&
-        pct != null
-      ) {
+      if (f && f.inAsx200 === 1 && pct != null) {
         const mcap = num(f.marketCap ?? f.marketCapAud);
         if (mcap != null && mcap > 0) {
           asx200WeightedSum += pct * mcap;
           asx200MarketCapSum += mcap;
+          asx200CountUsed++;
         }
       }
 
@@ -189,54 +202,51 @@ exports.handler = async function () {
     }
 
     const breadthDen = adv + dec;
-    const breadthPct =
-      breadthDen > 0 ? (adv / breadthDen) * 100 : null;
+    const breadthPct = breadthDen > 0 ? (adv / breadthDen) * 100 : null;
 
     const asx200Pct =
-      asx200MarketCapSum > 0
-        ? asx200WeightedSum / asx200MarketCapSum
-        : null;
+      asx200MarketCapSum > 0 ? asx200WeightedSum / asx200MarketCapSum : null;
 
-    const withPct = movers.filter(m => typeof m.pct === "number");
+    const withPct = movers.filter((m) => typeof m.pct === "number");
     withPct.sort((a, b) => b.pct - a.pct);
 
-    /* ---------- Response ---------- */
+    const payload = {
+      asOfDate,
+      prevDateUsed,
+      generatedAt: new Date().toISOString(),
+
+      asx200: {
+        pct: asx200Pct,
+        constituentsUsed: asx200CountUsed
+      },
+
+      advancers: adv,
+      decliners: dec,
+      flat,
+
+      breadthPct,
+
+      totalTurnoverAud: turnoverCount > 0 ? turnoverAud : null,
+      turnoverCoverage: turnoverCount,
+
+      topGainers: withPct.slice(0, 5),
+      topLosers: withPct.slice(-5).sort((a, b) => a.pct - b.pct),
+    };
+
+    // Cache the daily pulse snapshot
+    await redisSetJson(PULSE_KEY, payload);
 
     return {
       statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        // cache all day – this should be refreshed once daily by schedule
-        "Cache-Control": "public, max-age=86400"
-      },
-      body: JSON.stringify({
-        asOfDate,
-        prevDateUsed,
-
-        asx200: {
-          pct: asx200Pct
-        },
-
-        advancers: adv,
-        decliners: dec,
-        flat,
-
-        breadthPct,
-
-        totalTurnoverAud:
-          turnoverCount > 0 ? turnoverAud : null,
-        turnoverCoverage: turnoverCount,
-
-        topGainers: withPct.slice(0, 5),
-        topLosers: withPct.slice(-5).sort((a, b) => a.pct - b.pct)
-      })
+      headers: { "Content-Type": "text/plain" },
+      body: `OK: cached ${PULSE_KEY} (asOf=${payload.asOfDate || "unknown"}, prev=${payload.prevDateUsed || "n/a"})`,
     };
-
   } catch (err) {
     console.error("market-pulse error", err);
     return {
       statusCode: 500,
-      body: "Failed to build market pulse"
+      headers: { "Content-Type": "text/plain" },
+      body: `Failed to build market pulse: ${err?.message || String(err)}`,
     };
   }
 };
