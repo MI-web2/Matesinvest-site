@@ -122,116 +122,150 @@
     }
   }
 
-  function sectorChartModule() {
-    const canvas = el("sectorChart");
-    const msg = el("sectorChartMessage");
-    const meta = el("sectorChartMeta");
-    const buttons = document.querySelectorAll(".mi-toggle button");
+function sectorChartModule() {
+  const canvas = el("sectorChart");
+  const msg = el("sectorChartMessage");
+  const meta = el("sectorChartMeta");
+  const buttons = document.querySelectorAll(".mi-toggle button");
 
-    if (!canvas) return;
+  if (!canvas) return;
 
-    let chart = null;
+  let chart = null;
 
-    function showMessage(text) {
-      msg.textContent = text;
-      msg.style.display = "block";
-      canvas.style.display = "none";
-    }
+  // In-memory cache: period -> { asOf, baseDate, sectors:[{sector,value}] }
+  const cache = new Map();
+  const inflight = new Map(); // period -> Promise
 
-    function hideMessage() {
-      msg.style.display = "none";
-      canvas.style.display = "block";
-    }
-
-    function labelFor(period) {
-      if (period === "1d") return "1D";
-      if (period === "5d") return "5D";
-      if (period === "1m") return "1M";
-      return period;
-    }
-
-    async function load(period) {
-      buttons.forEach((b) => b.classList.toggle("active", b.dataset.period === period));
-      hideMessage();
-      meta.textContent = "Loading…";
-
-      try {
-        const res = await fetch(`/.netlify/functions/get-sector-performance?period=${period}`, {
-          cache: "no-store",
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json?.error || "Not available");
-
-        const rows = Array.isArray(json.sectors) ? json.sectors : [];
-        if (!rows.length) throw new Error("No sector data");
-
-        const labels = rows.map((r) => r.sector);
-        const valuesPct = rows.map((r) => Number(r.value) * 100);
-
-        const bg = valuesPct.map((v) =>
-          v >= 0 ? "rgba(34,197,94,0.70)" : "rgba(239,68,68,0.70)"
-        );
-        const border = valuesPct.map((v) =>
-          v >= 0 ? "rgba(34,197,94,1)" : "rgba(239,68,68,1)"
-        );
-
-        if (chart) chart.destroy();
-
-        chart = new Chart(canvas, {
-          type: "bar",
-          data: {
-            labels,
-            datasets: [
-              {
-                data: valuesPct,
-                backgroundColor: bg,
-                borderColor: border,
-                borderWidth: 1,
-                borderRadius: 8,
-                barThickness: 14,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: "y",
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => {
-                    const v = ctx.raw;
-                    const sign = v > 0 ? "+" : "";
-                    return `${sign}${Number(v).toFixed(2)}%`;
-                  },
-                },
-              },
-            },
-            scales: {
-              x: {
-                grid: { color: "rgba(15,23,42,0.06)" },
-                ticks: { callback: (v) => `${v}%` },
-              },
-              y: { grid: { display: false } },
-            },
-          },
-        });
-
-        meta.textContent = `${labelFor(period)} · As of ${json.asOf}${
-          json.baseDate ? ` (vs ${json.baseDate})` : ""
-        }`;
-      } catch (e) {
-        showMessage(
-          "Not enough history yet for this period. Keep caching daily snapshots and this will unlock automatically."
-        );
-        meta.textContent = "—";
-      }
-    }
-
-    buttons.forEach((btn) => btn.addEventListener("click", () => load(btn.dataset.period)));
-    load("1d");
+  function showMessage(text) {
+    msg.textContent = text;
+    msg.style.display = "block";
+    canvas.style.display = "none";
   }
+  function hideMessage() {
+    msg.style.display = "none";
+    canvas.style.display = "block";
+  }
+
+  function labelFor(period) {
+    if (period === "1d") return "1D";
+    if (period === "5d") return "5D";
+    if (period === "1m") return "1M";
+    return period;
+  }
+
+  function applyToChart(json, period) {
+    const rows = Array.isArray(json.sectors) ? json.sectors : [];
+    if (!rows.length) throw new Error("No sector data");
+
+    const labels = rows.map((r) => r.sector);
+    const valuesPct = rows.map((r) => Number(r.value) * 100);
+
+    const bg = valuesPct.map((v) =>
+      v >= 0 ? "rgba(34,197,94,0.70)" : "rgba(239,68,68,0.70)"
+    );
+    const border = valuesPct.map((v) =>
+      v >= 0 ? "rgba(34,197,94,1)" : "rgba(239,68,68,1)"
+    );
+
+    if (!chart) {
+      chart = new Chart(canvas, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            data: valuesPct,
+            backgroundColor: bg,
+            borderColor: border,
+            borderWidth: 1,
+            borderRadius: 8,
+            barThickness: 14
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: "y",
+          animation: false, // 🔥 no anim = faster
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.raw;
+                  const sign = v > 0 ? "+" : "";
+                  return `${sign}${Number(v).toFixed(2)}%`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: "rgba(15,23,42,0.06)" },
+              ticks: { callback: (v) => `${v}%` }
+            },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+    } else {
+      // Update in-place (no destroy)
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = valuesPct;
+      chart.data.datasets[0].backgroundColor = bg;
+      chart.data.datasets[0].borderColor = border;
+      chart.update("none"); // 🔥 no animation
+    }
+
+    meta.textContent =
+      `${labelFor(period)} · As of ${json.asOf}` +
+      (json.baseDate ? ` (vs ${json.baseDate})` : "");
+  }
+
+  async function fetchPeriod(period) {
+    if (cache.has(period)) return cache.get(period);
+    if (inflight.has(period)) return inflight.get(period);
+
+    const p = (async () => {
+      const res = await fetch(`/.netlify/functions/get-sector-performance?period=${period}`, {
+        cache: "force-cache" // allow browser caching if headers permit
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Not available");
+      cache.set(period, json);
+      return json;
+    })();
+
+    inflight.set(period, p);
+    try {
+      return await p;
+    } finally {
+      inflight.delete(period);
+    }
+  }
+
+  async function load(period) {
+    buttons.forEach((b) => b.classList.toggle("active", b.dataset.period === period));
+    hideMessage();
+    meta.textContent = "Loading…";
+
+    try {
+      const json = await fetchPeriod(period);
+      applyToChart(json, period);
+    } catch (e) {
+      showMessage("Not enough history yet for this period.");
+      meta.textContent = "—";
+    }
+  }
+
+  // Prefetch 5d + 1m after first render (makes later clicks instant)
+  async function prefetchOthers() {
+    await Promise.allSettled([fetchPeriod("5d"), fetchPeriod("1m")]);
+  }
+
+  buttons.forEach((btn) => btn.addEventListener("click", () => load(btn.dataset.period)));
+
+  load("1d").then(prefetchOthers);
+}
 
   document.addEventListener("DOMContentLoaded", () => {
     loadMarketPulse();
