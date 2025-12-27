@@ -1,205 +1,204 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MatesInvest · ASX Dashboard</title>
-  <link rel="stylesheet" href="/styles.css" />
+// netlify/functions/get-sector-performance.js
+// Reads cached sector snapshots and returns sector performance for 1d/5d/1m.
+// Requires market-pulse writer to have written:
+//   asx:sectors:day:YYYY-MM-DD
+//   asx:sectors:latest
+// Optional (for fast lookbacks):
+//   asx:sectors:dates (SET of YYYY-MM-DD)
 
-  <style>
-    /* Small additions in-page so we don't risk breaking shared styles.css */
-    .mi-toggle {
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      align-items:center;
-      justify-content:flex-end;
+const fetch = (...args) => global.fetch(...args);
+
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+const SECTOR_DATES_SET = "asx:sectors:dates";
+
+function assertEnv() {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) throw new Error("Upstash not configured");
+}
+
+async function fetchWithTimeout(url, opts = {}, timeout = 12000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
+async function redisGet(key) {
+  const res = await fetchWithTimeout(
+    `${UPSTASH_URL}/get/${encodeURIComponent(key)}`,
+    { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
+    12000
+  );
+  if (!res.ok) return null;
+  const j = await res.json().catch(() => null);
+  return j?.result ?? null;
+}
+
+async function redisSmembers(key) {
+  const res = await fetchWithTimeout(
+    `${UPSTASH_URL}/smembers/${encodeURIComponent(key)}`,
+    { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
+    12000
+  );
+  if (!res.ok) return null;
+  const j = await res.json().catch(() => null);
+  return j?.result ?? null;
+}
+
+function parse(raw) {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function cmpYmd(a, b) {
+  return String(a).localeCompare(String(b));
+}
+
+async function getSectorDatesSortedFallback(latestDate, maxLookbackDays) {
+  // Fallback path if the SET isn't populated yet.
+  // (Still here, but you should rarely hit it once market-pulse/backfill is writing the SET.)
+  function parseYmd(s) {
+    const [Y, M, D] = String(s).slice(0, 10).split("-").map(Number);
+    return new Date(Date.UTC(Y, M - 1, D));
+  }
+  function ymd(d) {
+    return d.toISOString().slice(0, 10);
+  }
+
+  async function exists(key) {
+    const res = await fetchWithTimeout(
+      `${UPSTASH_URL}/exists/${encodeURIComponent(key)}`,
+      { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
+      12000
+    );
+    if (!res.ok) return 0;
+    const j = await res.json().catch(() => null);
+    return j?.result ?? 0;
+  }
+
+  const base = parseYmd(latestDate);
+  const dates = [latestDate];
+
+  for (let i = 1; i <= maxLookbackDays; i++) {
+    const d = new Date(base);
+    d.setUTCDate(d.getUTCDate() - i);
+    const cand = ymd(d);
+    const ok = await exists(`asx:sectors:day:${cand}`);
+    if (ok === 1) dates.push(cand);
+  }
+
+  dates.sort(cmpYmd);
+  return dates;
+}
+
+exports.handler = async function (event) {
+  try {
+    assertEnv();
+
+    const url = new URL(event.rawUrl);
+    const period = (url.searchParams.get("period") || "1d").toLowerCase();
+
+    const latestDate = await redisGet("asx:sectors:latest");
+    if (!latestDate) {
+      return { statusCode: 404, body: JSON.stringify({ error: "No sector data yet" }) };
     }
-    .mi-toggle button{
-      appearance:none;
-      border:1px solid rgba(148,163,184,0.55);
-      background:#fff;
-      color:#0f172a;
-      font-size:0.85rem;
-      padding:6px 10px;
-      border-radius:999px;
-      cursor:pointer;
-      transition:transform .05s ease, background .15s ease, border-color .15s ease;
+
+    const today = parse(await redisGet(`asx:sectors:day:${latestDate}`));
+    if (!today?.sectors) {
+      return { statusCode: 404, body: JSON.stringify({ error: "Latest sector snapshot missing" }) };
     }
-    .mi-toggle button:hover{ transform: translateY(-1px); }
-    .mi-toggle button.active{
-      background:#e7f7ff;
-      border-color:#c5e5ff;
-      color:#083a59;
-      font-weight:600;
+
+    const okHeaders = {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+    };
+
+    if (period === "1d") {
+      const out = today.sectors
+        .map((s) => ({ sector: s.sector, value: s.ret1d }))
+        .filter((x) => typeof x.value === "number" && Number.isFinite(x.value));
+
+      out.sort((a, b) => b.value - a.value);
+
+      return {
+        statusCode: 200,
+        headers: okHeaders,
+        body: JSON.stringify({
+          period: "1d",
+          asOf: latestDate,
+          baseDate: today.prevDate || null,
+          sectors: out,
+        }),
+      };
     }
-    .mi-chart-wrap{
-      position:relative;
-      height:320px;
-      padding:10px 4px 2px;
+
+    const n = period === "5d" ? 5 : period === "1m" ? 20 : null;
+    if (!n) {
+      return { statusCode: 400, body: JSON.stringify({ error: "period must be 1d|5d|1m" }) };
     }
-    .mi-chart-msg{
-      display:none;
-      padding:14px 14px;
-      border-radius:12px;
-      background:rgba(241,245,249,0.8);
-      border:1px solid rgba(203,213,225,0.65);
-      color:var(--muted, #64748b);
-      font-size:0.95rem;
-      line-height:1.4;
+
+    // ✅ FAST: use sector dates SET
+    let dates = await redisSmembers(SECTOR_DATES_SET);
+    dates = Array.isArray(dates) ? dates.map(String).filter(Boolean) : null;
+
+    if (!dates || dates.length < 2) {
+      // Fallback if SET not populated yet
+      dates = await getSectorDatesSortedFallback(latestDate, period === "1m" ? 140 : 80);
+    } else {
+      dates.sort(cmpYmd);
     }
-    .mi-chart-subtle{
-      color:var(--muted, #64748b);
-      font-size:0.9rem;
-      margin-top:8px;
+
+    const idx = dates.findIndex((d) => d === String(latestDate).trim());
+    const baseIdx = idx - n;
+
+    if (idx < 0 || baseIdx < 0) {
+      return { statusCode: 409, body: JSON.stringify({ error: `Not enough history for ${period}` }) };
     }
-  </style>
-</head>
 
-<body class="mi-body">
-  <!-- NAV (matches your existing pattern) -->
-  <header class="nav">
-    <div class="nav-inner">
-      <div class="nav-left">
-        <img class="nav-logo" src="/assets/img/logo-placeholder.png" alt="MatesInvest" />
-        <div>
-          <div class="nav-title">MatesInvest</div>
-          <div class="nav-tagline-full" style="font-size:0.82rem;color:#64748b;">
-            A simple market dashboard (no advice).
-          </div>
-          <div class="nav-tagline-short" style="color:#64748b;">ASX Board</div>
-        </div>
-        <span class="nav-pill">Beta</span>
-      </div>
+    const baseDate = dates[baseIdx];
 
-      <div class="nav-right">
-        <a class="nav-home-link" href="/">Home</a>
-        <a class="nav-home-link" href="/equity-screener.html">Screener</a>
-        <a class="nav-pill-link" href="/how-you-think">Quiz</a>
-      </div>
-    </div>
-  </header>
+    const base = parse(await redisGet(`asx:sectors:day:${baseDate}`));
+    if (!base?.sectors) {
+      return { statusCode: 500, body: JSON.stringify({ error: "Base sector snapshot missing" }) };
+    }
 
-  <main class="db-shell">
-    <div class="corner-pattern" aria-hidden="true"></div>
+    const baseLevel = new Map();
+    for (const s of base.sectors) baseLevel.set(s.sector, Number(s.level));
 
-    <section class="db-hero">
-      <div class="db-hero-top">
-        <div>
-          <h1 class="db-title">ASX Market Pulse</h1>
-          <p class="db-sub">
-            A quick read on market breadth and movement across the ASX universe.
-            Built from cached data — updates as your dataset updates.
-          </p>
-        </div>
+    const out = [];
+    for (const s of today.sectors) {
+      const lt = Number(s.level);
+      const lb = baseLevel.get(s.sector);
+      if (!Number.isFinite(lt) || !Number.isFinite(lb) || lb <= 0) continue;
+      out.push({ sector: s.sector, value: lt / lb - 1 });
+    }
 
-        <div class="db-meta">
-          <span class="db-pill" id="mpAsOf">As of —</span>
-          <span class="db-pill muted" id="mpUniverse">Universe: —</span>
-        </div>
-      </div>
+    out.sort((a, b) => b.value - a.value);
 
-      <!-- Market Pulse cards -->
-      <div class="db-section">
-        <div class="db-section-head">
-          <h2 class="db-section-title">Pulse</h2>
-          <p class="db-section-note" id="mpNote">Loading…</p>
-        </div>
-
-        <div class="pulse-grid" id="marketPulse">
-          <div class="pulse-card">
-            <div class="pulse-label">ASX 200</div>
-            <div class="pulse-value" id="mpXJO">—</div>
-            <div class="pulse-sub" id="mpXJOSub">Cap-weighted ASX 200</div>
-          </div>
-
-          <div class="pulse-card">
-            <div class="pulse-label">Breadth</div>
-            <div class="pulse-value" id="mpBreadth">—</div>
-            <div class="pulse-sub">Advancers ÷ (Adv + Dec)</div>
-            <div class="pulse-spark" aria-hidden="true"><span id="mpBreadthBar"></span></div>
-          </div>
-
-          <div class="pulse-card">
-            <div class="pulse-label">Adv / Dec</div>
-            <div class="pulse-value" id="mpAD">—</div>
-            <div class="pulse-sub" id="mpFlat">Flat: —</div>
-            <div class="pulse-spark" aria-hidden="true"><span id="mpADBar"></span></div>
-          </div>
-
-          <div class="pulse-card">
-            <div class="pulse-label">Turnover (proxy)</div>
-            <div class="pulse-value" id="mpTurnover">—</div>
-            <div class="pulse-sub" id="mpCoverage">Coverage: —</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Sector chart -->
-      <div class="db-section">
-        <div class="db-section-head">
-          <h2 class="db-section-title">Sector performance</h2>
-          <div class="mi-toggle" aria-label="Sector performance period">
-            <button type="button" class="active" data-period="1d">1D</button>
-            <button type="button" data-period="5d">5D</button>
-            <button type="button" data-period="1m">1M</button>
-          </div>
-        </div>
-
-        <div class="card" style="margin:0;">
-          <div class="mi-chart-wrap">
-            <canvas id="sectorChart"></canvas>
-            <div id="sectorChartMessage" class="mi-chart-msg"></div>
-          </div>
-          <div class="mi-chart-subtle" id="sectorChartMeta">Loading…</div>
-        </div>
-      </div>
-
-      <!-- Top movers -->
-      <div class="db-section">
-        <div class="db-section-head">
-          <h2 class="db-section-title">Top movers</h2>
-          <p class="db-section-note">From the same cached snapshot (no recommendations).</p>
-        </div>
-
-        <div class="db-mini-grid">
-          <div class="db-mini">
-            <h3>Top gainers</h3>
-            <ul id="mpGainers">
-              <li><span class="code">—</span><span class="pct up">—</span></li>
-            </ul>
-          </div>
-
-          <div class="db-mini">
-            <h3>Top losers</h3>
-            <ul id="mpLosers">
-              <li><span class="code">—</span><span class="pct down">—</span></li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Next modules -->
-      <div class="db-section">
-        <div class="db-section-head">
-          <h2 class="db-section-title">Next modules (coming soon)</h2>
-          <p class="db-section-note">Attention (Marketaux), overlays, commodities (MetalsAPI).</p>
-        </div>
-
-        <div class="card" style="margin:0;">
-          <p style="margin:0;color:var(--muted);font-size:0.95rem;line-height:1.5;">
-            This page is intentionally simple: market breadth + movement first.
-            We’ll layer in “What’s getting attention” and overlay charts next.
-          </p>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-  <!-- Page logic -->
-  <script src="/scripts/asx-dashboard.js" defer></script>
-</body>
-</html>
+    return {
+      statusCode: 200,
+      headers: okHeaders,
+      body: JSON.stringify({
+        period,
+        asOf: latestDate,
+        baseDate,
+        sectors: out,
+      }),
+    };
+  } catch (err) {
+    console.error(err);
+    return { statusCode: 500, body: JSON.stringify({ error: err.message || String(err) }) };
+  }
+};
