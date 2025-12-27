@@ -3,11 +3,15 @@
 // Requires market-pulse writer to have written:
 //   asx:sectors:day:YYYY-MM-DD
 //   asx:sectors:latest
+// Optional (for fast lookbacks):
+//   asx:sectors:dates (SET of YYYY-MM-DD)
 
 const fetch = (...args) => global.fetch(...args);
 
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+const SECTOR_DATES_SET = "asx:sectors:dates";
 
 function assertEnv() {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) throw new Error("Upstash not configured");
@@ -37,6 +41,17 @@ async function redisGet(key) {
   return j?.result ?? null;
 }
 
+async function redisSmembers(key) {
+  const res = await fetchWithTimeout(
+    `${UPSTASH_URL}/smembers/${encodeURIComponent(key)}`,
+    { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
+    12000
+  );
+  if (!res.ok) return null;
+  const j = await res.json().catch(() => null);
+  return j?.result ?? null;
+}
+
 function parse(raw) {
   if (!raw) return null;
   if (typeof raw === "object") return raw;
@@ -47,41 +62,45 @@ function parse(raw) {
   }
 }
 
-function parseYmd(s) {
-  const [Y, M, D] = String(s).slice(0, 10).split("-").map(Number);
-  return new Date(Date.UTC(Y, M - 1, D));
-}
-function ymd(d) {
-  return d.toISOString().slice(0, 10);
+function cmpYmd(a, b) {
+  return String(a).localeCompare(String(b));
 }
 
-async function exists(key) {
-  const res = await fetchWithTimeout(
-    `${UPSTASH_URL}/exists/${encodeURIComponent(key)}`,
-    { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
-    12000
-  );
-  if (!res.ok) return 0;
-  const j = await res.json().catch(() => null);
-  return j?.result ?? 0;
-}
+async function getSectorDatesSortedFallback(latestDate, maxLookbackDays) {
+  // Fallback path if the SET isn't populated yet.
+  // (Still here, but you should rarely hit it once market-pulse/backfill is writing the SET.)
+  function parseYmd(s) {
+    const [Y, M, D] = String(s).slice(0, 10).split("-").map(Number);
+    return new Date(Date.UTC(Y, M - 1, D));
+  }
+  function ymd(d) {
+    return d.toISOString().slice(0, 10);
+  }
 
-async function findNthPrevSectorDate(latestDate, nTradingDaysBack, maxLookbackDays) {
+  async function exists(key) {
+    const res = await fetchWithTimeout(
+      `${UPSTASH_URL}/exists/${encodeURIComponent(key)}`,
+      { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
+      12000
+    );
+    if (!res.ok) return 0;
+    const j = await res.json().catch(() => null);
+    return j?.result ?? 0;
+  }
+
   const base = parseYmd(latestDate);
-  let found = 0;
+  const dates = [latestDate];
 
   for (let i = 1; i <= maxLookbackDays; i++) {
     const d = new Date(base);
     d.setUTCDate(d.getUTCDate() - i);
     const cand = ymd(d);
-
     const ok = await exists(`asx:sectors:day:${cand}`);
-    if (ok === 1) {
-      found++;
-      if (found === nTradingDaysBack) return cand;
-    }
+    if (ok === 1) dates.push(cand);
   }
-  return null;
+
+  dates.sort(cmpYmd);
+  return dates;
 }
 
 exports.handler = async function (event) {
@@ -101,6 +120,11 @@ exports.handler = async function (event) {
       return { statusCode: 404, body: JSON.stringify({ error: "Latest sector snapshot missing" }) };
     }
 
+    const okHeaders = {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+    };
+
     if (period === "1d") {
       const out = today.sectors
         .map((s) => ({ sector: s.sector, value: s.ret1d }))
@@ -108,19 +132,16 @@ exports.handler = async function (event) {
 
       out.sort((a, b) => b.value - a.value);
 
-return {
-  statusCode: 200,
-  headers: {
-    "Content-Type": "application/json",
-    "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
-  },
-  body: JSON.stringify({
-    period: "1d",
-    asOf: latestDate,
-    baseDate: today.prevDate || null,
-    sectors: out
-  }),
-};
+      return {
+        statusCode: 200,
+        headers: okHeaders,
+        body: JSON.stringify({
+          period: "1d",
+          asOf: latestDate,
+          baseDate: today.prevDate || null,
+          sectors: out,
+        }),
+      };
     }
 
     const n = period === "5d" ? 5 : period === "1m" ? 20 : null;
@@ -128,10 +149,25 @@ return {
       return { statusCode: 400, body: JSON.stringify({ error: "period must be 1d|5d|1m" }) };
     }
 
-    const baseDate = await findNthPrevSectorDate(latestDate, n, period === "1m" ? 140 : 80);
-    if (!baseDate) {
+    // ✅ FAST: use sector dates SET
+    let dates = await redisSmembers(SECTOR_DATES_SET);
+    dates = Array.isArray(dates) ? dates.map(String).filter(Boolean) : null;
+
+    if (!dates || dates.length < 2) {
+      // Fallback if SET not populated yet
+      dates = await getSectorDatesSortedFallback(latestDate, period === "1m" ? 140 : 80);
+    } else {
+      dates.sort(cmpYmd);
+    }
+
+    const idx = dates.findIndex((d) => d === String(latestDate).trim());
+    const baseIdx = idx - n;
+
+    if (idx < 0 || baseIdx < 0) {
       return { statusCode: 409, body: JSON.stringify({ error: `Not enough history for ${period}` }) };
     }
+
+    const baseDate = dates[baseIdx];
 
     const base = parse(await redisGet(`asx:sectors:day:${baseDate}`));
     if (!base?.sectors) {
@@ -151,19 +187,16 @@ return {
 
     out.sort((a, b) => b.value - a.value);
 
-return {
-  statusCode: 200,
-  headers: {
-    "Content-Type": "application/json",
-    "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
-  },
-  body: JSON.stringify({
-    period,
-    asOf: latestDate,
-    baseDate,
-    sectors: out
-  }),
-};
+    return {
+      statusCode: 200,
+      headers: okHeaders,
+      body: JSON.stringify({
+        period,
+        asOf: latestDate,
+        baseDate,
+        sectors: out,
+      }),
+    };
   } catch (err) {
     console.error(err);
     return { statusCode: 500, body: JSON.stringify({ error: err.message || String(err) }) };
