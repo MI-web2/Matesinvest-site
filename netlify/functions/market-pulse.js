@@ -12,7 +12,7 @@
 //  - asx:market:pulse:daily             (single JSON payload overwritten daily)
 //
 // Notes:
-//  - ASX 200 is calculated internally using fundamentals.inAsx200 === 1
+//  - ASX 200 is calculated internally using fundamentals.inAsx200 (robust truthy check)
 //  - Market-cap-weighted % move
 //  - Safe on weekends / holidays
 
@@ -75,9 +75,40 @@ function isoDate(d) {
   return `${y}-${m}-${day}`;
 }
 
-function todayUTC() {
-  // used only as a last-resort fallback label
-  return isoDate(new Date());
+// Normalize codes so fundamentals and prices match even if formats differ
+function normalizeCode(code) {
+  if (!code) return null;
+  let c = String(code).trim().toUpperCase();
+
+  // Common patterns
+  // "ASX:TLS" -> "TLS"
+  if (c.startsWith("ASX:")) c = c.slice(4);
+
+  // "TLS.AX" -> "TLS"
+  if (c.endsWith(".AX")) c = c.slice(0, -3);
+
+  // Safety: remove any remaining whitespace
+  c = c.replace(/\s+/g, "");
+
+  return c || null;
+}
+
+function isInAsx200(f) {
+  // Accept 1, "1", true, "true"
+  const v = f?.inAsx200;
+  return v === 1 || v === "1" || v === true || v === "true";
+}
+
+function getMarketCap(f) {
+  // Try multiple likely field names
+  return (
+    num(f?.marketCap) ??
+    num(f?.marketCapAud) ??
+    num(f?.market_cap) ??
+    num(f?.market_cap_aud) ??
+    num(f?.marketCapitalization) ??
+    num(f?.market_capitalization)
+  );
 }
 
 /* -------- Prev trading day close lookup -------- */
@@ -101,11 +132,10 @@ async function getPrevCloseMap(asOfDate) {
 
     const map = {};
     for (const r of rows) {
-      if (!r?.code) continue;
+      const code = normalizeCode(r?.code);
+      if (!code) continue;
       const close = num(r.close ?? r.price ?? r.last);
-      if (close != null) {
-        map[String(r.code).toUpperCase()] = close;
-      }
+      if (close != null) map[code] = close;
     }
 
     if (Object.keys(map).length > 50) {
@@ -135,12 +165,9 @@ exports.handler = async function () {
 
     const universeCount = priceRows.length;
 
-    // Prefer row.date, then latestRaw.generatedAt if present, then UTC date fallback
+    // asOfDate label
     const anyDate = priceRows.find((r) => r?.date)?.date;
-    const asOfDate =
-      anyDate ? String(anyDate).slice(0, 10)
-      : latestRaw?.generatedAt ? String(latestRaw.generatedAt).slice(0, 10)
-      : todayUTC();
+    const asOfDate = anyDate ? String(anyDate).slice(0, 10) : null;
 
     const { map: prevCloseMap, prevDateUsed } = await getPrevCloseMap(asOfDate);
 
@@ -152,8 +179,9 @@ exports.handler = async function () {
     const fundByCode = {};
     if (Array.isArray(fundRows)) {
       for (const f of fundRows) {
-        if (!f?.code) continue;
-        fundByCode[String(f.code).toUpperCase()] = f;
+        const code = normalizeCode(f?.code);
+        if (!code) continue;
+        fundByCode[code] = f;
       }
     }
 
@@ -170,9 +198,9 @@ exports.handler = async function () {
     const movers = [];
 
     for (const r of priceRows) {
-      if (!r?.code) continue;
+      const code = normalizeCode(r?.code);
+      if (!code) continue;
 
-      const code = String(r.code).toUpperCase();
       const close = num(r.close ?? r.price ?? r.last);
       const volume = num(r.volume);
 
@@ -185,7 +213,7 @@ exports.handler = async function () {
         }
       }
 
-      // % change
+      // % change: prefer existing; else derive from prevCloseMap
       let pct = num(r.pctChange) ?? num(r.changePct) ?? num(r.change_percent);
 
       if (pct == null && close != null) {
@@ -201,10 +229,10 @@ exports.handler = async function () {
         else flat++;
       }
 
-      // ASX 200 calculation (membership flag is in fundamentals)
+      // ASX 200 calculation
       const f = fundByCode[code];
-      if (f && f.inAsx200 === 1 && pct != null) {
-        const mcap = num(f.marketCap ?? f.marketCapAud);
+      if (f && isInAsx200(f) && pct != null) {
+        const mcap = getMarketCap(f);
         if (mcap != null && mcap > 0) {
           asx200WeightedSum += pct * mcap;
           asx200MarketCapSum += mcap;
@@ -226,8 +254,6 @@ exports.handler = async function () {
 
     const payload = {
       generatedAt: new Date().toISOString(),
-
-      // For the dashboard header
       asOfDate,
       prevDateUsed,
       universeCount,
@@ -250,13 +276,12 @@ exports.handler = async function () {
       topLosers: withPct.slice(-5).sort((a, b) => a.pct - b.pct),
     };
 
-    // Cache the daily pulse snapshot
     await redisSetJson(PULSE_KEY, payload);
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "text/plain" },
-      body: `OK: cached ${PULSE_KEY} (asOf=${payload.asOfDate}, prev=${payload.prevDateUsed || "n/a"}, universe=${payload.universeCount})`,
+      body: `OK: cached ${PULSE_KEY} (asOf=${payload.asOfDate || "unknown"}, prev=${payload.prevDateUsed || "n/a"}, asx200Used=${payload.asx200.constituentsUsed})`,
     };
   } catch (err) {
     console.error("market-pulse error", err);
