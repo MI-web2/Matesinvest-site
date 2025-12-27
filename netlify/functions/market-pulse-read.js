@@ -31,7 +31,11 @@ exports.handler = async function () {
   if (!raw) {
     return {
       statusCode: 503,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-store"
+      },
       body: JSON.stringify({ error: "Market pulse not ready yet" })
     };
   }
@@ -41,7 +45,7 @@ exports.handler = async function () {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Cache-Control": "public, max-age=86400"
+      "Cache-Control": "no-store"
     },
     body: typeof raw === "string" ? raw : JSON.stringify(raw)
   };
