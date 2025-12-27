@@ -29,15 +29,19 @@ exports.handler = async function () {
 
   const raw = await redisGet("asx:market:pulse:daily");
   if (!raw) {
-    return { statusCode: 503, body: "Market pulse not ready yet" };
+    return {
+      statusCode: 503,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Market pulse not ready yet" })
+    };
   }
 
   return {
     statusCode: 200,
     headers: {
       "Content-Type": "application/json",
-      // Cache aggressively — this changes once per day
-      "Cache-Control": "public, max-age=3600"
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "public, max-age=86400"
     },
     body: typeof raw === "string" ? raw : JSON.stringify(raw)
   };
