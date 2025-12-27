@@ -191,7 +191,7 @@
       }
 
       try{
-       const res = await fetch("/.netlify/functions/market-pulse-read");
+const res = await fetch("/.netlify/functions/market-pulse-read", { cache: "no-store" });
         const data = await res.json();
 
         if (!res.ok) throw new Error(data?.error || "Failed to load pulse");
