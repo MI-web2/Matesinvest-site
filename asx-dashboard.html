@@ -5,6 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MatesInvest · ASX Dashboard</title>
   <link rel="stylesheet" href="/styles.css" />
+
+  <style>
+    /* Small additions in-page so we don't risk breaking shared styles.css */
+    .mi-toggle {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    .mi-toggle button{
+      appearance:none;
+      border:1px solid rgba(148,163,184,0.55);
+      background:#fff;
+      color:#0f172a;
+      font-size:0.85rem;
+      padding:6px 10px;
+      border-radius:999px;
+      cursor:pointer;
+      transition:transform .05s ease, background .15s ease, border-color .15s ease;
+    }
+    .mi-toggle button:hover{ transform: translateY(-1px); }
+    .mi-toggle button.active{
+      background:#e7f7ff;
+      border-color:#c5e5ff;
+      color:#083a59;
+      font-weight:600;
+    }
+    .mi-chart-wrap{
+      position:relative;
+      height:320px;
+      padding:10px 4px 2px;
+    }
+    .mi-chart-msg{
+      display:none;
+      padding:14px 14px;
+      border-radius:12px;
+      background:rgba(241,245,249,0.8);
+      border:1px solid rgba(203,213,225,0.65);
+      color:var(--muted, #64748b);
+      font-size:0.95rem;
+      line-height:1.4;
+    }
+    .mi-chart-subtle{
+      color:var(--muted, #64748b);
+      font-size:0.9rem;
+      margin-top:8px;
+    }
+  </style>
 </head>
 
 <body class="mi-body">
@@ -59,7 +108,7 @@
 
         <div class="pulse-grid" id="marketPulse">
 
-          <!-- NEW: ASX 200 -->
+          <!-- ASX 200 -->
           <div class="pulse-card">
             <div class="pulse-label">ASX 200</div>
             <div class="pulse-value" id="mpXJO">—</div>
@@ -86,6 +135,26 @@
             <div class="pulse-sub" id="mpCoverage">Coverage: —</div>
           </div>
 
+        </div>
+      </div>
+
+      <!-- NEW: Sector chart -->
+      <div class="db-section">
+        <div class="db-section-head">
+          <h2 class="db-section-title">Sector performance</h2>
+          <div class="mi-toggle" aria-label="Sector performance period">
+            <button type="button" class="active" data-period="1d">1D</button>
+            <button type="button" data-period="5d">5D</button>
+            <button type="button" data-period="1m">1M</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin:0;">
+          <div class="mi-chart-wrap">
+            <canvas id="sectorChart"></canvas>
+            <div id="sectorChartMessage" class="mi-chart-msg"></div>
+          </div>
+          <div class="mi-chart-subtle" id="sectorChartMeta">Loading…</div>
         </div>
       </div>
 
@@ -130,6 +199,9 @@
 
     </section>
   </main>
+
+  <!-- Chart.js (no build step) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <script>
     (async function loadMarketPulse(){
@@ -191,7 +263,7 @@
       }
 
       try{
-const res = await fetch("/.netlify/functions/market-pulse-read", { cache: "no-store" });
+        const res = await fetch("/.netlify/functions/market-pulse-read", { cache: "no-store" });
         const data = await res.json();
 
         if (!res.ok) throw new Error(data?.error || "Failed to load pulse");
@@ -200,7 +272,7 @@ const res = await fetch("/.netlify/functions/market-pulse-read", { cache: "no-st
         el("mpAsOf").textContent = data.asOfDate ? `As of ${data.asOfDate}` : "As of —";
         el("mpUniverse").textContent = `Universe: ${data.universeCount ?? "—"}`;
 
-        // Small note for debug (optional but handy)
+        // Compare note
         if (data.prevDateUsed) {
           el("mpNote").textContent = `Compare: ${data.prevDateUsed} → ${data.asOfDate || "latest"}`;
         } else {
@@ -243,6 +315,118 @@ const res = await fetch("/.netlify/functions/market-pulse-read", { cache: "no-st
         console.warn("Market pulse failed:", e.message);
         el("mpNote").textContent = "Pulse unavailable (refresh in a moment)";
       }
+    })();
+  </script>
+
+  <script>
+    // Sector chart module (Chart.js)
+    (function sectorChart(){
+      const canvas = document.getElementById("sectorChart");
+      const msg = document.getElementById("sectorChartMessage");
+      const meta = document.getElementById("sectorChartMeta");
+      const buttons = document.querySelectorAll(".mi-toggle button");
+
+      if (!canvas) return;
+
+      let chart = null;
+
+      function showMessage(text){
+        msg.textContent = text;
+        msg.style.display = "block";
+        canvas.style.display = "none";
+      }
+
+      function hideMessage(){
+        msg.style.display = "none";
+        canvas.style.display = "block";
+      }
+
+      function labelFor(period){
+        if (period === "1d") return "1D";
+        if (period === "5d") return "5D";
+        if (period === "1m") return "1M";
+        return period;
+      }
+
+      async function load(period){
+        buttons.forEach(b => b.classList.toggle("active", b.dataset.period === period));
+        hideMessage();
+        meta.textContent = "Loading…";
+
+        try {
+          const res = await fetch(`/.netlify/functions/get-sector-performance?period=${period}`, { cache: "no-store" });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(json?.error || "Not available");
+          }
+
+          const rows = Array.isArray(json.sectors) ? json.sectors : [];
+          if (!rows.length) throw new Error("No sector data");
+
+          const labels = rows.map(r => r.sector);
+          const valuesPct = rows.map(r => Number(r.value) * 100);
+
+          const bg = valuesPct.map(v => (v >= 0 ? "rgba(34,197,94,0.70)" : "rgba(239,68,68,0.70)"));
+          const border = valuesPct.map(v => (v >= 0 ? "rgba(34,197,94,1)" : "rgba(239,68,68,1)"));
+
+          if (chart) chart.destroy();
+
+          chart = new Chart(canvas, {
+            type: "bar",
+            data: {
+              labels,
+              datasets: [{
+                data: valuesPct,
+                backgroundColor: bg,
+                borderColor: border,
+                borderWidth: 1,
+                borderRadius: 8,
+                barThickness: 14
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              indexAxis: "y",
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => {
+                      const v = ctx.raw;
+                      const sign = v > 0 ? "+" : "";
+                      return `${sign}${Number(v).toFixed(2)}%`;
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  grid: { color: "rgba(15,23,42,0.06)" },
+                  ticks: {
+                    callback: (v) => `${v}%`
+                  }
+                },
+                y: {
+                  grid: { display: false }
+                }
+              }
+            }
+          });
+
+          meta.textContent = `${labelFor(period)} · As of ${json.asOf}${json.baseDate ? ` (vs ${json.baseDate})` : ""}`;
+
+        } catch (e) {
+          showMessage("Not enough history yet for this period. Keep caching daily snapshots and this will unlock automatically.");
+          meta.textContent = "—";
+        }
+      }
+
+      buttons.forEach(btn => {
+        btn.addEventListener("click", () => load(btn.dataset.period));
+      });
+
+      load("1d");
     })();
   </script>
 </body>
