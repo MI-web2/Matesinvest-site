@@ -2,19 +2,20 @@
 //
 // One-off backfill: builds asx:sectors:day:YYYY-MM-DD from existing
 // asx:universe:eod:YYYY-MM-DD snapshots + asx:universe:fundamentals:latest.
+// Supports "manifest/parts" fundamentals storage.
 //
 // Writes:
 //  - asx:sectors:day:YYYY-MM-DD
 //  - asx:sectors:latest
 //
-// Usage (run manually in browser):
+// Run manually:
 //  /.netlify/functions/backfill-sector-snapshots
 //
 // Optional query params:
-//  ?from=2025-12-04         (start date inclusive)
-//  ?to=2025-12-24           (end date inclusive)
-//  ?limit=25                (max number of days to process this run, default 50)
-//  ?force=1                 (recompute even if sector snapshot already exists)
+//  ?from=2025-12-04
+//  ?to=2025-12-24
+//  ?limit=25       (default 50, max 200)
+//  ?force=1        (recompute even if sector day exists)
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -100,9 +101,7 @@ async function scanAllKeys(matchPattern) {
   let cursor = "0";
   const keys = [];
   do {
-    // Upstash supports: SCAN cursor MATCH pattern COUNT n
     const res = await redisCmd("SCAN", cursor, "MATCH", matchPattern, "COUNT", "500");
-    // res = [nextCursor, [keys...]]
     cursor = res?.[0] ?? "0";
     const batch = res?.[1] ?? [];
     for (const k of batch) keys.push(k);
@@ -125,7 +124,70 @@ function buildPrevCloseMap(prevRows) {
   return map;
 }
 
-function buildSectorSnapshot({ date, prevDate, todayRows, prevCloseMap, fundByCode, prevLevelBySector }) {
+/**
+ * Load fundamentals items, supporting:
+ * 1) merged object: { items:[...] }
+ * 2) raw array: [...]
+ * 3) manifest: { parts:[key1,key2,...] } where each part is {items:[...]} or [...]
+ */
+async function loadFundamentalsItems() {
+  const raw = await redisCmd("GET", "asx:universe:fundamentals:latest");
+  if (!raw) return null;
+
+  const parsed = parse(raw);
+  if (!parsed) return null;
+
+  if (Array.isArray(parsed.items)) return parsed.items;
+  if (Array.isArray(parsed)) return parsed;
+
+  const partKeys = Array.isArray(parsed.parts)
+    ? parsed.parts
+    : Array.isArray(parsed.partKeys)
+    ? parsed.partKeys
+    : null;
+
+  if (partKeys && partKeys.length) {
+    const items = [];
+    for (const pk of partKeys) {
+      const pr = await redisCmd("GET", pk);
+      if (!pr) continue;
+      const p = parse(pr);
+      if (!p) continue;
+      if (Array.isArray(p.items)) items.push(...p.items);
+      else if (Array.isArray(p)) items.push(...p);
+    }
+    return items.length ? items : null;
+  }
+
+  // Some installs store a separate manifest key:
+  // asx:universe:fundamentals:latest:manifest
+  const raw2 = await redisCmd("GET", "asx:universe:fundamentals:latest:manifest").catch(() => null);
+  const parsed2 = parse(raw2);
+  const pk2 = parsed2 && (parsed2.parts || parsed2.partKeys);
+  if (Array.isArray(pk2) && pk2.length) {
+    const items = [];
+    for (const pk of pk2) {
+      const pr = await redisCmd("GET", pk);
+      if (!pr) continue;
+      const p = parse(pr);
+      if (!p) continue;
+      if (Array.isArray(p.items)) items.push(...p.items);
+      else if (Array.isArray(p)) items.push(...p);
+    }
+    return items.length ? items : null;
+  }
+
+  return null;
+}
+
+function buildSectorSnapshot({
+  date,
+  prevDate,
+  todayRows,
+  prevCloseMap,
+  fundByCode,
+  prevLevelBySector,
+}) {
   const agg = {}; // sector -> {wRetSum,wSum,stocks,mcap}
   let used = 0;
 
@@ -181,15 +243,14 @@ exports.handler = async function (event) {
     assertEnv();
 
     const url = new URL(event.rawUrl);
-    const from = url.searchParams.get("from"); // optional
-    const to = url.searchParams.get("to");     // optional
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
     const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || 50)));
     const force = url.searchParams.get("force") === "1";
 
-    // 1) Load fundamentals once
-    const fundamentals = await loadJson("asx:universe:fundamentals:latest");
-    const fundItems = Array.isArray(fundamentals?.items) ? fundamentals.items : Array.isArray(fundamentals) ? fundamentals : [];
-    if (!fundItems.length) {
+    // 1) Load fundamentals once (manifest-aware)
+    const fundItems = await loadFundamentalsItems();
+    if (!Array.isArray(fundItems) || !fundItems.length) {
       return { statusCode: 500, body: "Missing fundamentals: asx:universe:fundamentals:latest" };
     }
 
@@ -199,16 +260,14 @@ exports.handler = async function (event) {
       fundByCode[String(f.code).toUpperCase()] = f;
     }
 
-    // 2) Discover all EOD keys
+    // 2) Discover all EOD date keys
     const keys = await scanAllKeys("asx:universe:eod:20??-??-??");
     const dates = keys
       .map(extractDateFromEodKey)
       .filter((d) => d && isYmd(d))
       .sort(cmpYmd);
 
-    // Apply from/to filter
     const filtered = dates.filter((d) => (!from || d >= from) && (!to || d <= to));
-
     if (!filtered.length) {
       return { statusCode: 404, body: "No EOD dates found for backfill range" };
     }
@@ -218,19 +277,16 @@ exports.handler = async function (event) {
     let skippedExisting = 0;
     let lastWritten = null;
 
-    // Keep rolling levels in-memory as we go (fast)
-    const rollingLevelBySector = {}; // sector -> last level
+    const rollingLevelBySector = {};
 
-    // Optional: if you already have some sector days, seed from earliest existing in range
-    // (we’ll simply roll from 100 if none)
     for (let i = 0; i < filtered.length; i++) {
-      const date = filtered[i];
       if (processed >= limit) break;
 
+      const date = filtered[i];
       const sectorKey = `asx:sectors:day:${date}`;
+
       if (!force && (await exists(sectorKey))) {
         skippedExisting++;
-        // seed rolling levels from existing snapshot (keeps continuity)
         const existing = await loadJson(sectorKey);
         if (existing?.sectors?.length) {
           for (const s of existing.sectors) {
@@ -242,7 +298,6 @@ exports.handler = async function (event) {
         continue;
       }
 
-      // Need a prior trading day to compute returns
       const prevDate = i > 0 ? filtered[i - 1] : null;
       if (!prevDate) continue;
 
@@ -251,8 +306,16 @@ exports.handler = async function (event) {
         loadJson(`asx:universe:eod:${prevDate}`),
       ]);
 
-      const todayRows = Array.isArray(todayRowsRaw) ? todayRowsRaw : Array.isArray(todayRowsRaw?.items) ? todayRowsRaw.items : [];
-      const prevRows = Array.isArray(prevRowsRaw) ? prevRowsRaw : Array.isArray(prevRowsRaw?.items) ? prevRowsRaw.items : [];
+      const todayRows = Array.isArray(todayRowsRaw)
+        ? todayRowsRaw
+        : Array.isArray(todayRowsRaw?.items)
+        ? todayRowsRaw.items
+        : [];
+      const prevRows = Array.isArray(prevRowsRaw)
+        ? prevRowsRaw
+        : Array.isArray(prevRowsRaw?.items)
+        ? prevRowsRaw.items
+        : [];
 
       if (todayRows.length < 50 || prevRows.length < 50) continue;
 
@@ -267,7 +330,6 @@ exports.handler = async function (event) {
         prevLevelBySector: rollingLevelBySector,
       });
 
-      // Update rolling levels
       for (const s of snap.sectors) {
         const lv = num(s.level);
         if (lv != null && lv > 0) rollingLevelBySector[s.sector] = lv;
@@ -278,9 +340,7 @@ exports.handler = async function (event) {
       processed++;
     }
 
-    if (lastWritten) {
-      await redisCmd("SET", SECTORS_LATEST_KEY, lastWritten);
-    }
+    if (lastWritten) await redisCmd("SET", SECTORS_LATEST_KEY, lastWritten);
 
     return {
       statusCode: 200,
