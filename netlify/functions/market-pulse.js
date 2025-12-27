@@ -6,10 +6,13 @@
 // Reads (Upstash):
 //  - asx:universe:eod:latest
 //  - asx:universe:eod:YYYY-MM-DD        (prev trading day lookup, up to 7 days back)
-//  - asx:universe:fundamentals:latest   (ASX200 membership + market cap)  ✅ supports fallback manifest parts
+//  - asx:universe:fundamentals:latest   (ASX200 membership + market cap + sector) ✅ supports fallback manifest parts
+//  - asx:sectors:day:YYYY-MM-DD         (prev day sector levels, optional)
 //
 // Writes (Upstash):
 //  - asx:market:pulse:daily             (single JSON payload overwritten daily)
+//  - asx:sectors:day:YYYY-MM-DD         (daily sector returns + rolling level)
+//  - asx:sectors:latest                 (latest sector date)
 //
 // Notes:
 //  - ASX 200 is calculated internally using fundamentals.inAsx200 == 1
@@ -22,6 +25,7 @@ const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 const PULSE_KEY = "asx:market:pulse:daily";
+const SECTORS_LATEST_KEY = "asx:sectors:latest";
 
 /* ------------------ Helpers ------------------ */
 
@@ -65,6 +69,20 @@ async function redisSetJson(key, obj) {
     12000
   );
 
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Upstash SET failed (${res.status}): ${txt}`);
+  }
+  return true;
+}
+
+async function redisSetString(key, value) {
+  const url = `${UPSTASH_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(String(value))}`;
+  const res = await fetchWithTimeout(
+    url,
+    { method: "POST", headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
+    12000
+  );
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`Upstash SET failed (${res.status}): ${txt}`);
@@ -177,6 +195,98 @@ async function getUniverseFundamentals() {
   }
 
   return null;
+}
+
+/* -------- Build daily sector snapshot (mcap-weighted) -------- */
+
+function normSectorName(s) {
+  const x = (s == null ? "" : String(s)).trim();
+  return x || "Other";
+}
+
+async function buildAndCacheSectorSnapshot({
+  asOfDate,
+  prevDateUsed,
+  priceRows,
+  prevCloseMap,
+  fundByCode,
+}) {
+  if (!asOfDate || !prevDateUsed) return null;
+
+  // Load previous sector snapshot (optional) to roll levels
+  const prevSnapRaw = parse(await redisGet(`asx:sectors:day:${prevDateUsed}`));
+  const prevSectors = Array.isArray(prevSnapRaw?.sectors) ? prevSnapRaw.sectors : [];
+  const prevLevelBySector = {};
+  for (const s of prevSectors) {
+    if (!s?.sector) continue;
+    const lv = num(s.level);
+    if (lv != null && lv > 0) prevLevelBySector[String(s.sector)] = lv;
+  }
+
+  // Aggregate weighted returns
+  const agg = {}; // sector -> {wRetSum, wSum, stocks, mcap}
+  let used = 0;
+
+  for (const r of priceRows) {
+    if (!r?.code) continue;
+
+    const code = String(r.code).toUpperCase();
+    const close = num(r.close ?? r.price ?? r.last);
+    if (close == null || close <= 0) continue;
+
+    const prev = num(prevCloseMap[code]);
+    if (prev == null || prev <= 0) continue;
+
+    const f = fundByCode[code];
+    if (!f) continue;
+
+    const sector = normSectorName(f.sector);
+    const mcap = num(f.marketCap ?? f.marketCapAud ?? f.marketcap ?? f.mktCap);
+    if (mcap == null || mcap <= 0) continue;
+
+    const ret = close / prev - 1;
+
+    const cur = agg[sector] || { wRetSum: 0, wSum: 0, stocks: 0, mcap: 0 };
+    cur.wRetSum += mcap * ret;
+    cur.wSum += mcap;
+    cur.stocks += 1;
+    cur.mcap += mcap;
+    agg[sector] = cur;
+    used++;
+  }
+
+  // If coverage is too low, still cache but it will be obvious
+  const sectors = Object.keys(agg).map((sector) => {
+    const v = agg[sector];
+    const ret1d = v.wSum > 0 ? v.wRetSum / v.wSum : null;
+    const prevLevel = prevLevelBySector[sector] ?? 100;
+    const level = ret1d == null ? prevLevel : prevLevel * (1 + ret1d);
+
+    return {
+      sector,
+      ret1d,
+      level,
+      coverage: { stocks: v.stocks, mcap: v.mcap },
+    };
+  });
+
+  sectors.sort((a, b) => (b.ret1d ?? -999) - (a.ret1d ?? -999));
+
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    date: asOfDate,
+    prevDate: prevDateUsed,
+    method: "mcap_weighted",
+    usedStocks: used,
+    sectors,
+  };
+
+  await Promise.all([
+    redisSetJson(`asx:sectors:day:${asOfDate}`, payload),
+    redisSetString(SECTORS_LATEST_KEY, asOfDate),
+  ]);
+
+  return payload;
 }
 
 /* ------------------ Handler ------------------ */
@@ -310,6 +420,16 @@ exports.handler = async function () {
       topGainers: withPct.slice(0, 5),
       topLosers: withPct.slice(-5).sort((a, b) => a.pct - b.pct),
     };
+
+    // NEW: build + cache sector snapshot for this day (tiny)
+    // Only possible when we found a previous trading day snapshot.
+    await buildAndCacheSectorSnapshot({
+      asOfDate,
+      prevDateUsed,
+      priceRows,
+      prevCloseMap,
+      fundByCode,
+    });
 
     await redisSetJson(PULSE_KEY, payload);
 
