@@ -10,9 +10,10 @@
 //  - asx:sectors:day:YYYY-MM-DD         (prev day sector levels, optional)
 //
 // Writes (Upstash):
-//  - asx:market:pulse:daily             (single JSON payload overwritten daily)
-//  - asx:sectors:day:YYYY-MM-DD         (daily sector returns + rolling level)
-//  - asx:sectors:latest                 (latest sector date)
+//  - asx:market:pulse:daily
+//  - asx:sectors:day:YYYY-MM-DD
+//  - asx:sectors:latest
+//  - asx:sectors:dates                 (SET of YYYY-MM-DD strings, used for fast lookbacks)
 //
 // Notes:
 //  - ASX 200 is calculated internally using fundamentals.inAsx200 == 1
@@ -26,6 +27,7 @@ const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 const PULSE_KEY = "asx:market:pulse:daily";
 const SECTORS_LATEST_KEY = "asx:sectors:latest";
+const SECTOR_DATES_SET = "asx:sectors:dates";
 
 /* ------------------ Helpers ------------------ */
 
@@ -86,6 +88,21 @@ async function redisSetString(key, value) {
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`Upstash SET failed (${res.status}): ${txt}`);
+  }
+  return true;
+}
+
+// NEW: add date to a SET index (idempotent)
+async function redisSAdd(key, member) {
+  const url = `${UPSTASH_URL}/sadd/${encodeURIComponent(key)}/${encodeURIComponent(String(member))}`;
+  const res = await fetchWithTimeout(
+    url,
+    { method: "POST", headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } },
+    12000
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Upstash SADD failed (${res.status}): ${txt}`);
   }
   return true;
 }
@@ -162,8 +179,7 @@ async function getUniverseFundamentals() {
     return parsed;
   }
 
-  // Fallback manifest case:
-  // { fallback:true, parts:[ "asx:universe:fundamentals:latest:part:0", ... ], generatedAt, universeTotal }
+  // Fallback manifest case
   const partKeys = Array.isArray(parsed.parts)
     ? parsed.parts
     : Array.isArray(parsed.partKeys)
@@ -255,7 +271,6 @@ async function buildAndCacheSectorSnapshot({
     used++;
   }
 
-  // If coverage is too low, still cache but it will be obvious
   const sectors = Object.keys(agg).map((sector) => {
     const v = agg[sector];
     const ret1d = v.wSum > 0 ? v.wRetSum / v.wSum : null;
@@ -284,6 +299,7 @@ async function buildAndCacheSectorSnapshot({
   await Promise.all([
     redisSetJson(`asx:sectors:day:${asOfDate}`, payload),
     redisSetString(SECTORS_LATEST_KEY, asOfDate),
+    redisSAdd(SECTOR_DATES_SET, asOfDate), // ✅ fast lookbacks for 1M
   ]);
 
   return payload;
@@ -314,7 +330,7 @@ exports.handler = async function () {
 
     const { map: prevCloseMap, prevDateUsed } = await getPrevCloseMap(asOfDate);
 
-    // Load fundamentals (✅ now supports manifest parts)
+    // Load fundamentals
     const fundamentals = await getUniverseFundamentals();
     const fundItems = fundamentals && Array.isArray(fundamentals.items) ? fundamentals.items : [];
 
@@ -371,7 +387,6 @@ exports.handler = async function () {
         else flat++;
       }
 
-      // ASX200 calc: inAsx200 can be 1 or "1"
       const f = fundByCode[code];
       const inAsx200 = f && (f.inAsx200 === 1 || f.inAsx200 === "1");
 
@@ -390,8 +405,7 @@ exports.handler = async function () {
     const breadthDen = adv + dec;
     const breadthPct = breadthDen > 0 ? (adv / breadthDen) * 100 : null;
 
-    const asx200Pct =
-      asx200MarketCapSum > 0 ? asx200WeightedSum / asx200MarketCapSum : null;
+    const asx200Pct = asx200MarketCapSum > 0 ? asx200WeightedSum / asx200MarketCapSum : null;
 
     const withPct = movers.filter((m) => typeof m.pct === "number" && Number.isFinite(m.pct));
     withPct.sort((a, b) => b.pct - a.pct);
@@ -421,8 +435,7 @@ exports.handler = async function () {
       topLosers: withPct.slice(-5).sort((a, b) => a.pct - b.pct),
     };
 
-    // NEW: build + cache sector snapshot for this day (tiny)
-    // Only possible when we found a previous trading day snapshot.
+    // Build + cache sector snapshot for this day
     await buildAndCacheSectorSnapshot({
       asOfDate,
       prevDateUsed,
