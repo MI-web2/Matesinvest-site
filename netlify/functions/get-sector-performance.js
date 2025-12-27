@@ -108,11 +108,19 @@ exports.handler = async function (event) {
 
       out.sort((a, b) => b.value - a.value);
 
-      return {
-        statusCode: 200,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ period: "1d", asOf: latestDate, baseDate: today.prevDate || null, sectors: out }),
-      };
+return {
+  statusCode: 200,
+  headers: {
+    "Content-Type": "application/json",
+    "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
+  },
+  body: JSON.stringify({
+    period: "1d",
+    asOf: latestDate,
+    baseDate: today.prevDate || null,
+    sectors: out
+  }),
+};
     }
 
     const n = period === "5d" ? 5 : period === "1m" ? 20 : null;
@@ -143,11 +151,19 @@ exports.handler = async function (event) {
 
     out.sort((a, b) => b.value - a.value);
 
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ period, asOf: latestDate, baseDate, sectors: out }),
-    };
+return {
+  statusCode: 200,
+  headers: {
+    "Content-Type": "application/json",
+    "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
+  },
+  body: JSON.stringify({
+    period,
+    asOf: latestDate,
+    baseDate,
+    sectors: out
+  }),
+};
   } catch (err) {
     console.error(err);
     return { statusCode: 500, body: JSON.stringify({ error: err.message || String(err) }) };
