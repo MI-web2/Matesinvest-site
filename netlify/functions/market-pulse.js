@@ -75,6 +75,11 @@ function isoDate(d) {
   return `${y}-${m}-${day}`;
 }
 
+function todayUTC() {
+  // used only as a last-resort fallback label
+  return isoDate(new Date());
+}
+
 /* -------- Prev trading day close lookup -------- */
 
 async function getPrevCloseMap(asOfDate) {
@@ -128,8 +133,14 @@ exports.handler = async function () {
       return { statusCode: 503, body: "No price snapshot available" };
     }
 
+    const universeCount = priceRows.length;
+
+    // Prefer row.date, then latestRaw.generatedAt if present, then UTC date fallback
     const anyDate = priceRows.find((r) => r?.date)?.date;
-    const asOfDate = anyDate ? String(anyDate).slice(0, 10) : null;
+    const asOfDate =
+      anyDate ? String(anyDate).slice(0, 10)
+      : latestRaw?.generatedAt ? String(latestRaw.generatedAt).slice(0, 10)
+      : todayUTC();
 
     const { map: prevCloseMap, prevDateUsed } = await getPrevCloseMap(asOfDate);
 
@@ -167,8 +178,11 @@ exports.handler = async function () {
 
       // Turnover proxy
       if (close != null && volume != null) {
-        turnoverAud += close * volume;
-        turnoverCount++;
+        const t = close * volume;
+        if (Number.isFinite(t) && t >= 0) {
+          turnoverAud += t;
+          turnoverCount++;
+        }
       }
 
       // % change
@@ -207,17 +221,20 @@ exports.handler = async function () {
     const asx200Pct =
       asx200MarketCapSum > 0 ? asx200WeightedSum / asx200MarketCapSum : null;
 
-    const withPct = movers.filter((m) => typeof m.pct === "number");
+    const withPct = movers.filter((m) => typeof m.pct === "number" && Number.isFinite(m.pct));
     withPct.sort((a, b) => b.pct - a.pct);
 
     const payload = {
+      generatedAt: new Date().toISOString(),
+
+      // For the dashboard header
       asOfDate,
       prevDateUsed,
-      generatedAt: new Date().toISOString(),
+      universeCount,
 
       asx200: {
         pct: asx200Pct,
-        constituentsUsed: asx200CountUsed
+        constituentsUsed: asx200CountUsed,
       },
 
       advancers: adv,
@@ -239,7 +256,7 @@ exports.handler = async function () {
     return {
       statusCode: 200,
       headers: { "Content-Type": "text/plain" },
-      body: `OK: cached ${PULSE_KEY} (asOf=${payload.asOfDate || "unknown"}, prev=${payload.prevDateUsed || "n/a"})`,
+      body: `OK: cached ${PULSE_KEY} (asOf=${payload.asOfDate}, prev=${payload.prevDateUsed || "n/a"}, universe=${payload.universeCount})`,
     };
   } catch (err) {
     console.error("market-pulse error", err);
