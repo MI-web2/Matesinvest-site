@@ -130,7 +130,7 @@
         <div>
           <div class="nav-title">MatesInvest</div>
           <div class="nav-tagline-full" style="font-size:0.82rem;color:#64748b;">
-            A simple market dashboard (no advice).
+            A simple market dashboard.
           </div>
           <div class="nav-tagline-short" style="color:#64748b;">ASX Board</div>
         </div>
@@ -153,7 +153,7 @@
         <div>
           <h1 class="db-title">ASX Market Pulse</h1>
           <p class="db-sub">
-            Breadth, sector moves, and the biggest movers — built from cached data (no advice).
+            Breadth, sector moves, and the biggest movers.
           </p>
         </div>
 
@@ -173,13 +173,13 @@
           <div class="pulse-card">
             <div class="pulse-label">ASX 200</div>
             <div class="pulse-value" id="mpXJO">—</div>
-            <div class="pulse-sub" id="mpXJOSub">Cap-weighted ASX 200</div>
+            <div class="pulse-sub" id="mpXJOSub">ASX 200 Index</div>
           </div>
 
           <div class="pulse-card">
             <div class="pulse-label">Breadth</div>
             <div class="pulse-value" id="mpBreadth">—</div>
-            <div class="pulse-sub">Advancers ÷ (Adv + Dec)</div>
+            <div class="pulse-sub">Stocks up vs down</div>
             <div class="pulse-spark" aria-hidden="true"><span id="mpBreadthBar"></span></div>
           </div>
 
@@ -191,7 +191,7 @@
           </div>
 
           <div class="pulse-card">
-            <div class="pulse-label">Turnover (proxy)</div>
+            <div class="pulse-label">Turnover</div>
             <div class="pulse-value" id="mpTurnover">—</div>
             <div class="pulse-sub" id="mpCoverage">Coverage: —</div>
           </div>
@@ -220,16 +220,19 @@
       <div class="db-section">
         <div class="db-section-head">
           <h2 class="db-section-title">Top movers</h2>
-          <p class="db-section-note">From the same cached snapshot (no recommendations).</p>
+          <p class="db-section-note">Yesterday's Snapshot.</p>
         </div>
 
 <details class="mi-collapse" open>
   <summary class="mi-collapse-summary">Top movers</summary>
-  <div class="db-mini-grid">
-    ...
-  </div>
+        <div class="db-mini-grid">
+          <div class="db-mini">
+            <h3>Top gainers</h3>
+            <ul id="mpGainers">
+              <li><span class="code">—</span><span class="pct up">—</span></li>
+            </ul>
+          </div>
 </details>
-
           <div class="db-mini">
             <h3>Top losers</h3>
             <ul id="mpLosers">
