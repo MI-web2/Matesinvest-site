@@ -33,6 +33,18 @@
     return `$${Math.round(n)}`;
   }
 
+  // Market mood helper (beginner-friendly replacement for "breadth")
+  function marketMood(breadthPct) {
+    if (typeof breadthPct !== "number" || !Number.isFinite(breadthPct)) {
+      return { label: "—", sub: "—", cls: "" };
+    }
+
+    // Conservative bands so “Mixed” is common (more intuitive)
+    if (breadthPct >= 55) return { label: "Positive", sub: `${breadthPct.toFixed(0)}% of stocks up`, cls: "up" };
+    if (breadthPct <= 45) return { label: "Negative", sub: `${breadthPct.toFixed(0)}% of stocks up`, cls: "down" };
+    return { label: "Mixed", sub: `${breadthPct.toFixed(0)}% of stocks up`, cls: "neutral" };
+  }
+
   function setBar(spanId, pct) {
     const s = el(spanId);
     if (!s) return;
@@ -75,28 +87,49 @@
       el("mpAsOf").textContent = data.asOfDate ? `As of ${data.asOfDate}` : "As of —";
       el("mpUniverse").textContent = `Universe: ${data.universeCount ?? "—"}`;
 
+      // ASX 200 tile
       if (data.asx200 && typeof data.asx200.pct === "number") {
         el("mpXJO").textContent = fmtPct(data.asx200.pct, 2);
       } else {
         el("mpXJO").textContent = "—";
       }
 
-      el("mpBreadth").textContent =
-        typeof data.breadthPct === "number" ? `${data.breadthPct.toFixed(1)}%` : "—";
-      setBar("mpBreadthBar", data.breadthPct);
+      // ✅ Market mood tile (replaces breadth)
+      const mood = marketMood(data.breadthPct);
+      const moodEl = el("mpMood");
+      const moodSubEl = el("mpMoodSub");
 
+      if (moodEl) {
+        moodEl.textContent = mood.label;
+
+        // Optional: add simple tone classes if you later style them in CSS
+        moodEl.classList.remove("up", "down", "neutral");
+        if (mood.cls) moodEl.classList.add(mood.cls);
+      }
+      if (moodSubEl) {
+        moodSubEl.textContent = mood.sub;
+      }
+
+      // Adv / Dec tile
       el("mpAD").textContent = `${data.advancers ?? "—"} / ${data.decliners ?? "—"}`;
-      el("mpFlat").textContent = `Flat: ${data.flat ?? "—"}`;
+
+      // Your HTML subtitle is now “Stocks up vs down”
+      // Keep a lightweight “Flat: X” line if you want by updating a separate element,
+      // but since mpFlat is used for the subtitle now, we won't overwrite it.
+      // If you want Flat shown too, add another <div id="mpFlat2"> in HTML.
+
       const breadthDen = (data.advancers ?? 0) + (data.decliners ?? 0);
       const adPct = breadthDen > 0 ? ((data.advancers ?? 0) / breadthDen) * 100 : null;
       setBar("mpADBar", adPct);
 
+      // Turnover tile
       el("mpTurnover").textContent = formatAUD(data.totalTurnoverAud);
       el("mpCoverage").textContent =
         data.turnoverCoverage != null
           ? `Coverage: ${data.turnoverCoverage} stocks (price×volume)`
           : "Coverage: —";
 
+      // Movers
       renderList("mpGainers", data.topGainers);
       renderList("mpLosers", data.topLosers);
     } catch (e) {
@@ -174,7 +207,6 @@
         indexAxis: "y",
         animation: false,
         layout: {
-          // small extra left padding on mobile so labels don't get clipped
           padding: { left: isMobile() ? 10 : 6, right: 8, top: 0, bottom: 0 },
         },
         plugins: {
@@ -196,10 +228,7 @@
           },
           y: {
             grid: { display: false },
-            ticks: {
-              // keep labels slightly tighter on mobile
-              padding: isMobile() ? 6 : 8,
-            },
+            ticks: { padding: isMobile() ? 6 : 8 },
           },
         },
       };
@@ -223,10 +252,8 @@
           options: baseOptions,
         });
 
-        // On resize, refresh layout + y label shortening
         window.addEventListener("resize", () => {
           if (!chart) return;
-          // Re-apply shortened labels (if crossing breakpoint)
           chart.data.labels = chart.data.labels.map((l) => shortenSectorLabel(l));
           chart.options.layout.padding.left = isMobile() ? 10 : 6;
           chart.options.scales.y.ticks.padding = isMobile() ? 6 : 8;
@@ -238,7 +265,6 @@
         chart.data.datasets[0].backgroundColor = bg;
         chart.data.datasets[0].borderColor = border;
 
-        // Keep layout responsive to breakpoint even when toggling periods
         chart.options.layout.padding.left = isMobile() ? 10 : 6;
         chart.options.scales.y.ticks.padding = isMobile() ? 6 : 8;
 
