@@ -53,6 +53,72 @@
       font-size:0.9rem;
       margin-top:8px;
     }
+    /* ---------- Mobile tightening (ASX Dashboard only) ---------- */
+@media (max-width: 640px) {
+  /* overall spacing */
+  .db-hero { padding-top: 14px; }
+  .db-title { font-size: 32px; line-height: 1.05; }
+  .db-sub { margin-top: 8px; font-size: 14px; line-height: 1.35; }
+
+  .db-section { margin-top: 14px; }
+  .db-section-head { margin-bottom: 8px; }
+  .db-section-title { font-size: 18px; }
+
+  /* pills stack tighter */
+  .db-meta { gap: 8px; flex-wrap: wrap; }
+  .db-pill { padding: 8px 12px; font-size: 14px; }
+
+  /* Pulse cards: 2-column grid */
+  .pulse-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+  .pulse-card {
+    padding: 14px 14px !important;
+    border-radius: 16px !important;
+  }
+  .pulse-label { font-size: 12px; letter-spacing: 0.08em; }
+  .pulse-value { font-size: 28px !important; margin-top: 6px !important; }
+  .pulse-sub { font-size: 12px !important; margin-top: 6px !important; }
+
+  /* Sector chart: reduce height + padding */
+  .card { border-radius: 16px; }
+  .mi-chart-wrap {
+    height: 240px !important;
+    padding: 6px 0 0 !important;
+  }
+  .mi-chart-subtle { font-size: 12px !important; margin-top: 6px !important; }
+
+  /* Toggle buttons a bit smaller */
+  .mi-toggle { gap: 6px; }
+  .mi-toggle button { padding: 6px 10px; font-size: 12px; }
+
+  /* Top movers: tighter */
+  .db-mini-grid { gap: 10px !important; }
+  .db-mini { padding: 14px 14px !important; border-radius: 16px !important; }
+  .db-mini h3 { margin-bottom: 10px !important; }
+
+  /* If your movers list items are tall, tighten them */
+  .db-mini ul li { padding: 6px 0 !important; }
+}
+    /* Collapsible on mobile */
+.mi-collapse { border: none; }
+.mi-collapse-summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 18px;
+  color: #0f172a;
+  margin: 6px 0 10px;
+}
+.mi-collapse-summary::-webkit-details-marker { display:none; }
+
+@media (max-width: 640px) {
+  .mi-collapse[open] .mi-collapse-summary { margin-bottom: 10px; }
+  /* optional: start collapsed on mobile by removing open attribute */
+}
+
+
   </style>
 </head>
 
@@ -157,13 +223,12 @@
           <p class="db-section-note">From the same cached snapshot (no recommendations).</p>
         </div>
 
-        <div class="db-mini-grid">
-          <div class="db-mini">
-            <h3>Top gainers</h3>
-            <ul id="mpGainers">
-              <li><span class="code">—</span><span class="pct up">—</span></li>
-            </ul>
-          </div>
+<details class="mi-collapse" open>
+  <summary class="mi-collapse-summary">Top movers</summary>
+  <div class="db-mini-grid">
+    ...
+  </div>
+</details>
 
           <div class="db-mini">
             <h3>Top losers</h3>
