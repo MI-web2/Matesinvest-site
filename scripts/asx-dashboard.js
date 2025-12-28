@@ -1,6 +1,7 @@
 /* /scripts/asx-dashboard.js
    - Loads Market Pulse summary
    - Renders Sector performance chart
+   - Mobile tightening: shorten long sector labels + give chart a little more left space on small screens
 */
 
 (() => {
@@ -130,10 +131,24 @@
       return period;
     }
 
+    function isMobile() {
+      return window.innerWidth <= 640;
+    }
+
+    function shortenSectorLabel(label) {
+      if (!isMobile() || typeof label !== "string") return label;
+
+      return label
+        .replace("Communication Services", "Comm Services")
+        .replace("Consumer Defensive", "Cons Defensive")
+        .replace("Consumer Cyclical", "Cons Cyclical")
+        .replace("Financial Services", "Fin Services")
+        .replace("Basic Materials", "Materials");
+    }
+
     function fmtTick(v) {
       const n = Number(v);
       if (!Number.isFinite(n)) return `${v}%`;
-      // round to 1 decimal, squash -0.0
       const r = Math.round(n * 10) / 10;
       const clean = Math.abs(r) < 0.05 ? 0 : r;
       return `${clean.toFixed(1)}%`;
@@ -143,7 +158,7 @@
       const rows = Array.isArray(json.sectors) ? json.sectors : [];
       if (!rows.length) throw new Error("No sector data");
 
-      const labels = rows.map((r) => r.sector);
+      const labels = rows.map((r) => shortenSectorLabel(r.sector));
       const valuesPct = rows.map((r) => Number(r.value) * 100);
 
       const bg = valuesPct.map((v) =>
@@ -152,6 +167,42 @@
       const border = valuesPct.map((v) =>
         v >= 0 ? "rgba(34,197,94,1)" : "rgba(239,68,68,1)"
       );
+
+      const baseOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: "y",
+        animation: false,
+        layout: {
+          // small extra left padding on mobile so labels don't get clipped
+          padding: { left: isMobile() ? 10 : 6, right: 8, top: 0, bottom: 0 },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = Number(ctx.raw);
+                const sign = v > 0 ? "+" : "";
+                return `${sign}${v.toFixed(2)}%`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { color: "rgba(15,23,42,0.06)" },
+            ticks: { callback: (v) => fmtTick(v) },
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              // keep labels slightly tighter on mobile
+              padding: isMobile() ? 6 : 8,
+            },
+          },
+        },
+      };
 
       if (!chart) {
         chart = new Chart(canvas, {
@@ -169,37 +220,28 @@
               },
             ],
           },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: "y",
-            animation: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => {
-                    const v = Number(ctx.raw);
-                    const sign = v > 0 ? "+" : "";
-                    return `${sign}${v.toFixed(2)}%`;
-                  },
-                },
-              },
-            },
-            scales: {
-              x: {
-                grid: { color: "rgba(15,23,42,0.06)" },
-                ticks: { callback: (v) => fmtTick(v) },
-              },
-              y: { grid: { display: false } },
-            },
-          },
+          options: baseOptions,
+        });
+
+        // On resize, refresh layout + y label shortening
+        window.addEventListener("resize", () => {
+          if (!chart) return;
+          // Re-apply shortened labels (if crossing breakpoint)
+          chart.data.labels = chart.data.labels.map((l) => shortenSectorLabel(l));
+          chart.options.layout.padding.left = isMobile() ? 10 : 6;
+          chart.options.scales.y.ticks.padding = isMobile() ? 6 : 8;
+          chart.update("none");
         });
       } else {
         chart.data.labels = labels;
         chart.data.datasets[0].data = valuesPct;
         chart.data.datasets[0].backgroundColor = bg;
         chart.data.datasets[0].borderColor = border;
+
+        // Keep layout responsive to breakpoint even when toggling periods
+        chart.options.layout.padding.left = isMobile() ? 10 : 6;
+        chart.options.scales.y.ticks.padding = isMobile() ? 6 : 8;
+
         chart.update("none");
       }
 
