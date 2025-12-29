@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>MatesInvest – ASX Screener</title>
+    <title>MatesInvest – ASX Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <style>
@@ -688,6 +688,158 @@ tbody tr:nth-child(even) {
       .mi-ins-details-btn:hover {
         background: #0ea5e9;
       }
+      /* ---------- Market Pulse cards (embedded on screener) ---------- */
+.mp-wrap {
+  background: var(--glass);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.09);
+  padding: 0.9rem 0.95rem;
+  margin-bottom: 0.9rem;
+}
+
+.mp-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.mp-title {
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  font-size: 1.05rem;
+}
+
+.mp-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mp-pill {
+  display: inline-flex;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 32, 64, 0.12);
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+}
+
+.mp-pill.muted {
+  color: var(--muted);
+}
+
+.mp-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.mp-card {
+  background: #fff;
+  border: 1px solid rgba(0, 32, 64, 0.10);
+  border-radius: 16px;
+  padding: 0.75rem 0.8rem;
+}
+
+.mp-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  font-weight: 650;
+}
+
+.mp-value {
+  margin-top: 0.35rem;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.mp-sub {
+  margin-top: 0.25rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.mp-spark {
+  margin-top: 0.5rem;
+  height: 8px;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.mp-spark span {
+  display: block;
+  height: 100%;
+  width: 50%;
+  background: rgba(0, 191, 255, 0.55);
+}
+
+.mp-movers {
+  margin-top: 0.75rem;
+}
+.mp-movers-summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 750;
+  color: #0f172a;
+  margin: 0.25rem 0 0.6rem;
+}
+.mp-movers-summary::-webkit-details-marker { display: none; }
+
+.mp-movers-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.mp-mini {
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(0, 32, 64, 0.10);
+  border-radius: 16px;
+  padding: 0.75rem 0.8rem;
+}
+.mp-mini h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+.mp-mini ul { list-style: none; padding: 0; margin: 0; }
+.mp-mini li { padding: 0.35rem 0; border-bottom: 1px solid rgba(0,0,0,0.04); }
+.mp-mini li:last-child { border-bottom: none; }
+
+/* Movers row (ticker + name 1-line + pct) */
+.mover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mover-left { min-width: 0; }
+.mover-code { font-weight: 800; font-size: 0.9rem; line-height: 1.1; }
+.mover-name {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.pct.up { color: #16a34a; font-weight: 700; }
+.pct.down { color: #dc2626; font-weight: 700; }
+
+/* Mobile */
+@media (max-width: 640px) {
+  .mp-grid { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  .mp-value { font-size: 1.25rem; }
+  #mpAD { white-space: nowrap; } /* keep Adv/Dec on one line */
+  .mp-movers-grid { grid-template-columns: 1fr; }
+}
     </style>
   </head>
 
@@ -710,12 +862,79 @@ tbody tr:nth-child(even) {
       </nav>
 
       <header>
-        <h1>ASX Explorer</h1>
-        <p class="muted">
-          Scan the ASX with filters and sorting like a simple spreadsheet,
-          without leaving your browser.
-        </p>
+        <h1>ASX Dashboard</h1>
+<p class="muted">
+  Scan the ASX with filters and sorting like a simple spreadsheet.
+  <strong>Tip:</strong> best viewed in <strong>landscape</strong> on mobile (turn your phone sideways).
+</p>
       </header>
+<!-- Market Pulse (cards) -->
+<section class="mp-wrap" aria-label="Market pulse summary">
+  <div class="mp-head">
+    <div class="mp-title">Market Pulse</div>
+    <div class="mp-meta">
+      <span class="mp-pill" id="mpAsOf">As of —</span>
+      <span class="mp-pill muted" id="mpUniverse">Universe: —</span>
+    </div>
+  </div>
+
+  <div class="mp-grid">
+    <div class="mp-card">
+      <div class="mp-label">ASX 200</div>
+      <div class="mp-value" id="mpXJO">—</div>
+      <div class="mp-sub">ASX 200 Index</div>
+    </div>
+
+    <div class="mp-card">
+      <div class="mp-label">Market mood</div>
+      <div class="mp-value" id="mpMood">—</div>
+      <div class="mp-sub" id="mpMoodSub">—</div>
+    </div>
+
+    <div class="mp-card">
+      <div class="mp-label">Adv / Dec</div>
+      <div class="mp-value" id="mpAD">—</div>
+      <div class="mp-sub">Stocks up vs down</div>
+      <div class="mp-spark"><span id="mpADBar"></span></div>
+    </div>
+
+    <div class="mp-card">
+      <div class="mp-label">Turnover</div>
+      <div class="mp-value" id="mpTurnover">—</div>
+      <div class="mp-sub" id="mpCoverage">Coverage: —</div>
+    </div>
+  </div>
+
+  <details class="mp-movers" id="mpMovers" open>
+    <summary class="mp-movers-summary">Top movers (yesterday)</summary>
+    <div class="mp-movers-grid">
+      <div class="mp-mini">
+        <h3>Top gainers</h3>
+        <ul id="mpGainers">
+          <li class="mover-row">
+            <div class="mover-left">
+              <div class="mover-code">—</div>
+              <div class="mover-name">—</div>
+            </div>
+            <span class="pct">—</span>
+          </li>
+        </ul>
+      </div>
+      <div class="mp-mini">
+        <h3>Top losers</h3>
+        <ul id="mpLosers">
+          <li class="mover-row">
+            <div class="mover-left">
+              <div class="mover-code">—</div>
+              <div class="mover-name">—</div>
+            </div>
+            <span class="pct">—</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </details>
+</section>
 
       <section class="filters-card" id="filtersCard">
         <button type="button" class="filters-toggle" id="filtersToggle">
@@ -771,6 +990,14 @@ tbody tr:nth-child(even) {
                 placeholder="Code or name (e.g. BHP, CSL)"
               />
             </div>
+            <div class="filter-group">
+  <label class="filter-label" for="top200Only">
+    <span style="display:flex;align-items:center;gap:0.35rem">
+      <input id="top200Only" type="checkbox" checked style="width:auto;margin:0" />
+      <span>Top 200 by market cap</span>
+    </span>
+  </label>
+</div>
 
             <div class="filter-group">
               <label class="filter-label" for="sectorSelect">Sector</label>
