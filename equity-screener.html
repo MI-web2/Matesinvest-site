@@ -978,6 +978,142 @@ tbody tr:nth-child(even) {
   #mpAD { white-space: nowrap; } /* keep Adv/Dec on one line */
   .mp-movers-grid { grid-template-columns: 1fr; }
 }
+      /* ======================================================
+   EQUITY SCREENER – MOBILE CLEANUP & SPACING OVERRIDES
+   (Page-local only – does NOT touch styles.css)
+   ====================================================== */
+
+/* Reduce visual density on mobile */
+@media (max-width: 768px) {
+
+  /* Page padding – breathe again */
+  .page {
+    padding: 1rem 0.85rem 2rem;
+  }
+
+  /* Market Pulse cards */
+  .mp-wrap {
+    padding: 0.8rem;
+  }
+
+  .mp-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+
+  .mp-card {
+    padding: 0.6rem 0.65rem;
+  }
+
+  .mp-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+  }
+
+  .mp-value {
+    font-size: 1.2rem; /* ↓ was too big */
+  }
+
+  .mp-sub {
+    font-size: 0.75rem;
+  }
+
+  /* Force Adv / Dec onto one line */
+  #mpAD {
+    white-space: nowrap;
+    font-size: 1.15rem;
+  }
+
+  /* Filters card spacing */
+  .filters-card {
+    padding: 0.45rem 0.6rem;
+  }
+
+  .filters-chip {
+    font-size: 0.7rem;
+  }
+
+  /* Table wrapper spacing */
+  .table-wrapper {
+    margin-top: 0.75rem;
+  }
+
+  /* Table text slightly smaller */
+  table {
+    font-size: 0.8rem;
+  }
+
+  th.sortable {
+    font-size: 0.75rem;
+  }
+
+  td {
+    font-size: 0.8rem;
+  }
+}
+
+/* ======================================================
+   TOP MOVERS – single heading + one-line names
+   ====================================================== */
+
+/* Prevent duplicate-looking headings */
+.mp-movers-summary {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.5rem 0 0.6rem;
+}
+
+/* Each mover row */
+.mover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Left side (code + name) */
+.mover-left {
+  min-width: 0;
+}
+
+/* Code */
+.mover-code {
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+/* Company name – FORCE single line */
+.mover-name {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Percentage */
+.pct {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* ======================================================
+   NAV MENU – stop it squishing content visually
+   ====================================================== */
+
+@media (max-width: 900px) {
+  header.nav nav {
+    margin: 0.75rem;
+  }
+
+  header.nav nav a {
+    font-size: 0.95rem;
+    padding: 0.7rem 0.75rem;
+  }
+}
+
     </style>
   </head>
 
