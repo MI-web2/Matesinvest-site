@@ -1258,6 +1258,7 @@ tbody tr:nth-child(even) {
       const statusMeta = document.getElementById("statusMeta");
       const ths = document.querySelectorAll("th.sortable");
       const hideEtfsInput = document.getElementById("hideEtfs");
+      const top200OnlyInput = document.getElementById("top200Only");
 
       const filtersCard = document.getElementById("filtersCard");
       const filtersToggle = document.getElementById("filtersToggle");
@@ -1499,7 +1500,14 @@ if (activePresetId === "trader") {
 }
           return true;
         });
+// Default universe: top 200 by market cap (still sortable after this)
+if (top200OnlyInput && top200OnlyInput.checked) {
+  const top200 = [...filteredItems]
+    .sort((a, b) => (Number(b.marketCap) || -Infinity) - (Number(a.marketCap) || -Infinity))
+    .slice(0, 200);
 
+  filteredItems = top200;
+}
         applySort();
         renderTable();
       }
@@ -1635,6 +1643,7 @@ filteredItems.sort((a, b) => {
       mcMaxInput.addEventListener("input", () => { clearPresetUI(); applyFilters(); });
       dyMinInput.addEventListener("input", () => { clearPresetUI(); applyFilters(); });
       hideEtfsInput.addEventListener("change", () => { clearPresetUI(); applyFilters(); });
+      top200OnlyInput?.addEventListener("change", () => { clearPresetUI(); applyFilters(); });
 
       // Sorting clicks
       ths.forEach((th) => {
@@ -2001,6 +2010,123 @@ filteredItems.sort((a, b) => {
         if (!miCurrentCode) return;
         window.location.href = `/stocks/${miCurrentCode}.html`;
       });
+    // ----------------------------
+// Market Pulse cards loader
+// ----------------------------
+function mpEl(id) { return document.getElementById(id); }
+
+function mpEscape(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function mpFmtPct(x, dp = 2) {
+  if (typeof x !== "number" || !Number.isFinite(x)) return "—";
+  const sign = x > 0 ? "+" : "";
+  return `${sign}${x.toFixed(dp)}%`;
+}
+
+function mpFormatAUD(n) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `$${(n / 1e3).toFixed(0)}k`;
+  return `$${Math.round(n)}`;
+}
+
+function mpSetBar(spanId, pct) {
+  const s = mpEl(spanId);
+  if (!s) return;
+  const clamped =
+    typeof pct === "number" && Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 50;
+  s.style.width = clamped.toFixed(0) + "%";
+}
+
+function mpMarketMood(breadthPct) {
+  if (typeof breadthPct !== "number" || !Number.isFinite(breadthPct)) {
+    return { label: "—", sub: "—" };
+  }
+  if (breadthPct >= 55) return { label: "Positive", sub: `${breadthPct.toFixed(0)}% of stocks up` };
+  if (breadthPct <= 45) return { label: "Negative", sub: `${breadthPct.toFixed(0)}% of stocks up` };
+  return { label: "Mixed", sub: `${breadthPct.toFixed(0)}% of stocks up` };
+}
+
+function mpRenderList(listId, rows) {
+  const ul = mpEl(listId);
+  if (!ul) return;
+
+  ul.innerHTML = "";
+  if (!Array.isArray(rows) || rows.length === 0) {
+    ul.innerHTML = `<li class="mover-row"><div class="mover-left"><div class="mover-code">—</div><div class="mover-name">—</div></div><span class="pct">—</span></li>`;
+    return;
+  }
+
+  for (const r of rows) {
+    const code = r?.code ? String(r.code) : "—";
+    const name = r?.name ? String(r.name) : "";
+    const pct = typeof r?.pct === "number" && Number.isFinite(r.pct) ? r.pct : null;
+
+    const pctText = pct == null ? "—" : pct >= 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`;
+    const pctClass = pct == null ? "" : pct >= 0 ? "up" : "down";
+
+    ul.insertAdjacentHTML(
+      "beforeend",
+      `
+      <li class="mover-row">
+        <div class="mover-left">
+          <div class="mover-code">${mpEscape(code)}</div>
+          <div class="mover-name" title="${mpEscape(name)}">${mpEscape(name)}</div>
+        </div>
+        <span class="pct ${pctClass}">${pctText}</span>
+      </li>
+      `
+    );
+  }
+}
+
+async function loadMarketPulseCards() {
+  try {
+    const res = await fetch("/.netlify/functions/market-pulse-read", { cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "Failed to load pulse");
+
+    if (mpEl("mpAsOf")) mpEl("mpAsOf").textContent = data.asOfDate ? `As of ${data.asOfDate}` : "As of —";
+    if (mpEl("mpUniverse")) mpEl("mpUniverse").textContent = `Universe: ${data.universeCount ?? "—"}`;
+
+    if (mpEl("mpXJO")) mpEl("mpXJO").textContent =
+      (data.asx200 && typeof data.asx200.pct === "number") ? mpFmtPct(data.asx200.pct, 2) : "—";
+
+    const mood = mpMarketMood(data.breadthPct);
+    if (mpEl("mpMood")) mpEl("mpMood").textContent = mood.label;
+    if (mpEl("mpMoodSub")) mpEl("mpMoodSub").textContent = mood.sub;
+
+    if (mpEl("mpAD")) mpEl("mpAD").textContent = `${data.advancers ?? "—"} / ${data.decliners ?? "—"}`;
+    const den = (data.advancers ?? 0) + (data.decliners ?? 0);
+    const adPct = den > 0 ? ((data.advancers ?? 0) / den) * 100 : null;
+    mpSetBar("mpADBar", adPct);
+
+    if (mpEl("mpTurnover")) mpEl("mpTurnover").textContent = mpFormatAUD(data.totalTurnoverAud);
+    if (mpEl("mpCoverage")) mpEl("mpCoverage").textContent =
+      data.turnoverCoverage != null ? `Coverage: ${data.turnoverCoverage} stocks (price×volume)` : "Coverage: —";
+
+    mpRenderList("mpGainers", data.topGainers);
+    mpRenderList("mpLosers", data.topLosers);
+
+    // Start collapsed on mobile
+    const movers = document.getElementById("mpMovers");
+    if (movers && window.innerWidth <= 640) movers.removeAttribute("open");
+  } catch (e) {
+    console.warn("Market Pulse cards failed:", e?.message || e);
+  }
+}
+
+// kick it off
+loadMarketPulseCards();  
     </script>
   </body>
 </html>
