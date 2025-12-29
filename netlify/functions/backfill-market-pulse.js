@@ -4,22 +4,18 @@
 // Builds historical "market pulse" snapshots from cached EOD data.
 //
 // Reads (Upstash):
-//  - asx:universe:eod:YYYY-MM-DD
+//  - asx:universe:eod:YYYY-MM-DD  (CAN be an array OR object with rows/items)
 //  - asx:universe:fundamentals:latest
+//  - asx:universe:fundamentals:latest:part:<offset> (items)
 //
 // Writes (Upstash):
 //  - asx:market:pulse:day:YYYY-MM-DD
 //  - asx:market:pulse:dates  (set of YYYY-MM-DD)
 //
-// Usage examples (after deploy):
-//  - /.netlify/functions/backfill-market-pulse?days=60
-//  - /.netlify/functions/backfill-market-pulse?start=2025-10-01&end=2025-12-29
-//  - /.netlify/functions/backfill-market-pulse?days=60&dryrun=1
-//
-// Notes:
-//  - It auto-skips dates with no EOD data.
-//  - It looks back up to 7 days to find the previous trading day snapshot.
-//  - It rate-limits slightly to avoid Upstash hammering.
+// Usage:
+//  /.netlify/functions/backfill-market-pulse?start=2025-09-30&end=2025-12-29
+//  /.netlify/functions/backfill-market-pulse?days=60
+//  /.netlify/functions/backfill-market-pulse?days=60&dryrun=1
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -28,6 +24,7 @@ const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 const EOD_PREFIX = "asx:universe:eod:";
 const FUND_LATEST_KEY = "asx:universe:fundamentals:latest";
+const FUND_PART_PREFIX = "asx:universe:fundamentals:latest:part:";
 
 const PULSE_DAY_PREFIX = "asx:market:pulse:day:";
 const PULSE_DATES_SET = "asx:market:pulse:dates";
@@ -101,6 +98,18 @@ function parse(raw) {
   return raw;
 }
 
+function getArrayFromAny(obj) {
+  // Supports:
+  //  - [ ... ]
+  //  - { rows: [...] }
+  //  - { items: [...] }
+  if (!obj) return [];
+  if (Array.isArray(obj)) return obj;
+  if (Array.isArray(obj.rows)) return obj.rows;
+  if (Array.isArray(obj.items)) return obj.items;
+  return [];
+}
+
 function ymdUTC(dateObj) {
   const yy = dateObj.getUTCFullYear();
   const mm = String(dateObj.getUTCMonth() + 1).padStart(2, "0");
@@ -136,11 +145,13 @@ async function getPrevCloseMap(asOfDate, maxLookbackDays = 7) {
     const d = addDays(asOfDate, -i);
     const raw = await redisGet(`${EOD_PREFIX}${d}`);
     const obj = parse(raw);
-    if (obj && Array.isArray(obj.rows) && obj.rows.length > 0) {
+    const rows = getArrayFromAny(obj);
+    if (rows.length > 0) {
       const map = new Map();
-      for (const r of obj.rows) {
+      for (const r of rows) {
         const code = r?.code ? String(r.code).toUpperCase() : null;
         if (!code) continue;
+        // In your EOD, 'close' is the usable previous close for next day.
         const prevClose = num(r.prevClose ?? r.close ?? r.last ?? r.price);
         if (prevClose != null) map.set(code, prevClose);
       }
@@ -153,11 +164,51 @@ async function getPrevCloseMap(asOfDate, maxLookbackDays = 7) {
 
 function isAsx200Member(f) {
   return (
+    f?.inAsx200 === 1 ||
+    f?.inAsx200 === true ||
+    f?.asx200 === 1 ||
     f?.asx200 === true ||
-    f?.index === "ASX200" ||
     f?.asx200Member === true ||
-    f?.asx200_member === true
+    f?.asx200_member === true ||
+    f?.index === "ASX200"
   );
+}
+
+async function loadFundamentalsMap() {
+  // Try the merged latest first
+  const raw = await redisGet(FUND_LATEST_KEY);
+  const obj = parse(raw);
+  const rows = getArrayFromAny(obj);
+
+  const all = [];
+  if (rows.length > 0) {
+    all.push(...rows);
+  } else {
+    // Stitch parts: part offsets are multiples of 500 typically (0,500,1000,...)
+    // We'll scan until we hit a few consecutive misses.
+    let misses = 0;
+    for (let offset = 0; offset <= 50000; offset += 500) {
+      const pr = await redisGet(`${FUND_PART_PREFIX}${offset}`);
+      const po = parse(pr);
+      const items = getArrayFromAny(po);
+      if (items.length > 0) {
+        all.push(...items);
+        misses = 0;
+      } else {
+        misses++;
+        if (misses >= 4) break; // stop after 4 empty parts
+      }
+      await sleep(25);
+    }
+  }
+
+  const map = new Map();
+  for (const f of all) {
+    const code = f?.code ? String(f.code).toUpperCase() : null;
+    if (!code) continue;
+    map.set(code, f);
+  }
+  return map;
 }
 
 exports.handler = async function (event) {
@@ -169,7 +220,6 @@ exports.handler = async function (event) {
     const qs = event?.queryStringParameters || {};
     const dryrun = String(qs.dryrun || "").trim() === "1";
 
-    // Range selection
     const startParam = qs.start ? String(qs.start) : null;
     const endParam = qs.end ? String(qs.end) : null;
     const daysParam = qs.days ? Math.max(1, Math.min(365, parseInt(qs.days, 10))) : 60;
@@ -179,69 +229,47 @@ exports.handler = async function (event) {
       startDate = startParam;
       endDate = endParam;
     } else {
-      // default last N days ending today (UTC)
       endDate = ymdUTC(new Date());
       startDate = addDays(endDate, -daysParam);
     }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
-      return {
-        statusCode: 400,
-        body: "Invalid date format. Use YYYY-MM-DD for start/end.",
-      };
+      return { statusCode: 400, body: "Invalid date format. Use YYYY-MM-DD for start/end." };
     }
 
-    // Load fundamentals once
-    const fundRaw = await redisGet(FUND_LATEST_KEY);
-    const fundObj = parse(fundRaw) || {};
-    const fundRows = Array.isArray(fundObj.rows) ? fundObj.rows : [];
+    // Load fundamentals map (needed for ASX200 membership + sector if you want it later)
+    const fundMap = await loadFundamentalsMap();
 
-    const fundMap = new Map();
-    for (const f of fundRows) {
-      const code = f?.code ? String(f.code).toUpperCase() : null;
-      if (!code) continue;
-      fundMap.set(code, f);
-    }
-
-    // Build list of dates inclusive
+    // Date list inclusive
     const dates = [];
     let cursor = startDate;
     while (cursor <= endDate) {
       dates.push(cursor);
       cursor = addDays(cursor, 1);
-      if (dates.length > 400) break; // safety
+      if (dates.length > 400) break;
     }
 
     let processed = 0;
     let written = 0;
-    let skipped = 0;
+    let skippedNoEOD = 0;
     let errors = 0;
-    const notes = [];
 
     for (const asOfDate of dates) {
       processed++;
 
-      // Read EOD for date
       const eodRaw = await redisGet(`${EOD_PREFIX}${asOfDate}`);
       const eodObj = parse(eodRaw);
+      const priceRows = getArrayFromAny(eodObj);
 
-      if (!eodObj || !Array.isArray(eodObj.rows) || eodObj.rows.length === 0) {
-        skipped++;
+      if (priceRows.length === 0) {
+        skippedNoEOD++;
         continue;
       }
 
-      const priceRows = eodObj.rows;
-
-      // Prev close map (previous trading day)
       const { map: prevMap, prevDateUsed } = await getPrevCloseMap(asOfDate, 7);
 
-      // Metrics
-      let adv = 0,
-        dec = 0,
-        flat = 0;
-
-      let turnoverAud = 0;
-      let turnoverCount = 0;
+      let adv = 0, dec = 0, flat = 0;
+      let turnoverAud = 0, turnoverCount = 0;
 
       let asx200SumMc = 0;
       let asx200SumMcPrev = 0;
@@ -253,7 +281,7 @@ exports.handler = async function (event) {
         const code = r?.code ? String(r.code).toUpperCase() : null;
         if (!code) continue;
 
-        const last = num(r.last ?? r.close ?? r.price ?? r.lastClose ?? r.last_price);
+        const last = num(r.close ?? r.last ?? r.price ?? r.lastClose ?? r.last_price);
         if (last == null) continue;
 
         const prev = prevMap.get(code);
@@ -265,7 +293,7 @@ exports.handler = async function (event) {
           else flat++;
         }
 
-        const vol = num(r.volume ?? r.vol ?? r.turnoverVolume ?? r.v);
+        const vol = num(r.volume ?? r.vol ?? r.v);
         if (vol != null && vol >= 0) {
           turnoverAud += last * vol;
           turnoverCount++;
@@ -290,6 +318,7 @@ exports.handler = async function (event) {
           movers.push({
             code,
             name: String(r.name ?? f?.name ?? "").trim(),
+            sector: String(f?.sector ?? "").trim(), // optional
             pct,
           });
         }
@@ -311,6 +340,7 @@ exports.handler = async function (event) {
         generatedAt: new Date().toISOString(),
         asOfDate,
         prevDateUsed,
+
         universeCount: priceRows.length,
 
         asx200: {
@@ -331,20 +361,16 @@ exports.handler = async function (event) {
         topLosers,
       };
 
-      const dayKey = `${PULSE_DAY_PREFIX}${asOfDate}`;
-
       try {
         if (!dryrun) {
-          await redisSetJson(dayKey, payload);
+          await redisSetJson(`${PULSE_DAY_PREFIX}${asOfDate}`, payload);
           await redisSAdd(PULSE_DATES_SET, asOfDate);
         }
         written++;
       } catch (e) {
         errors++;
-        notes.push(`${asOfDate}: write failed (${e?.message || String(e)})`);
       }
 
-      // Small throttle
       await sleep(60);
     }
 
@@ -352,27 +378,13 @@ exports.handler = async function (event) {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
-        {
-          ok: true,
-          dryrun,
-          startDate,
-          endDate,
-          processedDays: processed,
-          written,
-          skippedNoEOD: skipped,
-          errors,
-          notes: notes.slice(0, 20),
-        },
+        { ok: true, dryrun, startDate, endDate, processedDays: processed, written, skippedNoEOD, errors },
         null,
         2
       ),
     };
   } catch (err) {
     console.error("backfill-market-pulse error", err);
-    return {
-      statusCode: 500,
-      headers: { "Content-Type": "text/plain" },
-      body: `Backfill failed: ${err?.message || String(err)}`,
-    };
+    return { statusCode: 500, body: `Backfill failed: ${err?.message || String(err)}` };
   }
 };
