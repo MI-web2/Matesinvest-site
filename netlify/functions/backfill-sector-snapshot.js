@@ -7,6 +7,7 @@
 // Writes:
 //  - asx:sectors:day:YYYY-MM-DD
 //  - asx:sectors:latest
+//  - asx:sectors:dates
 //
 // Run manually:
 //  /.netlify/functions/backfill-sector-snapshots
@@ -23,6 +24,7 @@ const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 const SECTORS_LATEST_KEY = "asx:sectors:latest";
+const SECTOR_DATES_SET = "asx:sectors:dates";
 
 function assertEnv() {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) throw new Error("Upstash not configured");
@@ -336,6 +338,7 @@ exports.handler = async function (event) {
       }
 
       await redisCmd("SET", sectorKey, JSON.stringify(snap));
+      await redisCmd("SADD", SECTOR_DATES_SET, date);
       lastWritten = date;
       processed++;
     }
