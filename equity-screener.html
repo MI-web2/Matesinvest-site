@@ -2552,7 +2552,9 @@ loadMarketPulseCards();
     </script>
 
     <!-- Chart.js library -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" 
+            integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb" 
+            crossorigin="anonymous"></script>
 
     <!-- Sector Chart Module -->
     <script>
@@ -2704,7 +2706,7 @@ loadMarketPulseCards();
 
             window.addEventListener("resize", () => {
               if (!chart) return;
-              chart.data.labels = chart.data.labels.map((l) => shortenSectorLabel(l));
+              chart.data.labels = chart.fullLabels.map((l) => shortenSectorLabel(l));
               chart.options.layout.padding.left = isMobile() ? 10 : 6;
               chart.options.scales.y.ticks.padding = isMobile() ? 6 : 8;
               chart.update("none");
@@ -2733,7 +2735,7 @@ loadMarketPulseCards();
 
           const p = (async () => {
             const res = await fetch(`/.netlify/functions/get-sector-performance?period=${period}`, {
-              cache: "force-cache",
+              cache: "default",
             });
             const json = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(json?.error || "Not available");
