@@ -2735,7 +2735,7 @@ loadMarketPulseCards();
 
           const p = (async () => {
             const res = await fetch(`/.netlify/functions/get-sector-performance?period=${period}`, {
-              cache: "default",
+              cache: "force-cache",
             });
             const json = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(json?.error || "Not available");
