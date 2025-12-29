@@ -316,8 +316,14 @@
     load("1d").then(() => Promise.allSettled([fetchPeriod("5d"), fetchPeriod("1m")]));
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    loadMarketPulse();
-    sectorChartModule();
-  });
+document.addEventListener("DOMContentLoaded", () => {
+  loadMarketPulse();
+  sectorChartModule();
+
+  // Collapse "Top movers" on mobile only
+  const moversDetails = document.querySelector(".mi-collapse");
+  if (moversDetails && window.innerWidth <= 640) {
+    moversDetails.removeAttribute("open");
+  }
+});
 })();
