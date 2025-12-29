@@ -92,6 +92,12 @@
   to = "/"
   status = 301
   force = true
+  
+  [[redirects]]
+  from = "/how-to-think"
+  to = "/how-you-think"
+  status = 301
+
 
 [build.environment]
   NODE_VERSION = "20"
