@@ -2705,7 +2705,7 @@ loadMarketPulseCards();
             chart.fullLabels = fullLabels;
 
             window.addEventListener("resize", () => {
-              if (!chart || !chart.fullLabels) return;
+              if (!chart || !chart.fullLabels?.length) return;
               chart.data.labels = chart.fullLabels.map((l) => shortenSectorLabel(l));
               chart.options.layout.padding.left = isMobile() ? 10 : 6;
               chart.options.scales.y.ticks.padding = isMobile() ? 6 : 8;
