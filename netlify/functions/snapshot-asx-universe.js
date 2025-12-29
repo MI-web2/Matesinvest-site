@@ -30,7 +30,7 @@ const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
 
 const DEFAULT_TRY_SUFFIXES = ["AU", "AX", "ASX"];
 const DEFAULT_CONCURRENCY = 2; // safer default than 8 for rate-limited providers
-const DEFAULT_RETRIES = 5;     // more forgiving
+const DEFAULT_RETRIES = 5; // more forgiving
 
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
@@ -79,7 +79,9 @@ async function redisSet(urlBase, token, key, value, ttlSeconds) {
     const payload = typeof value === "string" ? value : JSON.stringify(value);
     const ttl = ttlSeconds ? `?EX=${Number(ttlSeconds)}` : "";
     const res = await fetchWithTimeout(
-      `${urlBase}/set/${encodeURIComponent(key)}/${encodeURIComponent(payload)}${ttl}`,
+      `${urlBase}/set/${encodeURIComponent(key)}/${encodeURIComponent(
+        payload
+      )}${ttl}`,
       { method: "POST", headers: { Authorization: `Bearer ${token}` } },
       15000
     );
@@ -179,6 +181,98 @@ function jitter(ms, maxJitter = 500) {
 }
 
 // -------------------------------
+// Exposure tagging (NEW)
+// -------------------------------
+function normalizeText(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[\u2013\u2014–—]/g, "-")
+    .replace(/[^a-z0-9\s\-\+\.]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function includesAny(hay, needles) {
+  for (const n of needles) {
+    if (hay.includes(n)) return true;
+  }
+  return false;
+}
+
+function computeExposureTags({ name, sector, industry, description }) {
+  const tags = new Set();
+  const t = normalizeText(
+    [name, sector, industry, description].filter(Boolean).join(" ")
+  );
+
+  // ---- Metals / miners
+  if (includesAny(t, ["gold", " xau", "bullion"])) tags.add("Gold");
+  if (includesAny(t, ["silver", " xag"])) tags.add("Silver");
+  if (includesAny(t, ["iron ore", "hematite", "magnetite"])) tags.add("Iron Ore");
+  if (includesAny(t, ["lithium", "spodumene", "brine", "lithia"]))
+    tags.add("Lithium");
+  if (includesAny(t, ["nickel", " laterite", "sulphide"])) tags.add("Nickel");
+  if (includesAny(t, ["copper", "porphyry"])) tags.add("Copper");
+  if (includesAny(t, ["zinc"])) tags.add("Zinc");
+  if (includesAny(t, ["lead"])) tags.add("Lead");
+  if (
+    includesAny(t, ["rare earth", "neodymium", "praseodymium", "ndpr"])
+  )
+    tags.add("Rare Earths");
+
+  // Uranium: strict anchors
+  if (includesAny(t, ["uranium", "u3o8", "yellowcake", "uraninite"]))
+    tags.add("Uranium");
+
+  // ---- Energy
+  if (
+    includesAny(t, [
+      "oil",
+      "petroleum",
+      "crude",
+      "lng",
+      "natural gas",
+      "gas field",
+      "exploration permit",
+    ])
+  ) {
+    tags.add("Oil & Gas");
+  }
+
+  if (includesAny(t, ["renewable", "solar", "wind", "battery", "energy storage"]))
+    tags.add("Renewables");
+
+  // ---- Crypto / blockchain: strict-ish anchors
+  if (
+    includesAny(t, [
+      "bitcoin",
+      "btc",
+      "ethereum",
+      "eth",
+      "solana",
+      "sol ",
+      "crypto",
+      "cryptocurrency",
+      "digital asset",
+      "blockchain",
+      "web3",
+    ])
+  ) {
+    tags.add("Crypto");
+  }
+
+  // ---- Light sector fallback: Mining theme
+  const s = normalizeText(sector);
+  if (s === "basic materials" || s === "materials") {
+    if (includesAny(t, ["mine", "mining", "exploration", "resource", "ore", "drill"])) {
+      tags.add("Mining");
+    }
+  }
+
+  return Array.from(tags);
+}
+
+// -------------------------------
 // Handler
 // -------------------------------
 exports.handler = async function (event) {
@@ -196,13 +290,18 @@ exports.handler = async function (event) {
       body: JSON.stringify({ error: "Missing Upstash env" }),
     };
   }
-  const today = new Date().toISOString().slice(0, 10);
-const lastRunDate = await redisGet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:lastRunDate");
 
-if (lastRunDate !== today) {
-  await redisSet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:offset", "0");
-  await redisSet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:lastRunDate", today);
-}
+  const today = new Date().toISOString().slice(0, 10);
+  const lastRunDate = await redisGet(
+    UPSTASH_URL,
+    UPSTASH_TOKEN,
+    "asx:universe:lastRunDate"
+  );
+
+  if (lastRunDate !== today) {
+    await redisSet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:offset", "0");
+    await redisSet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:lastRunDate", today);
+  }
 
   const qs = (event && event.queryStringParameters) || {};
   const TRY_SUFFIXES = (
@@ -235,7 +334,10 @@ if (lastRunDate !== today) {
       asx200Set = new Set();
     }
   } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ error: err && err.message }) };
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: err && err.message }),
+    };
   }
 
   const universeTotal = universeCodes.length;
@@ -244,7 +346,11 @@ if (lastRunDate !== today) {
   // Prefer persisted offset from Upstash if qs.offset not provided
   let offset = Math.max(0, Number(qs.offset || qs.off || 0));
   if (!qs.offset) {
-    const rawOffset = await redisGet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:offset");
+    const rawOffset = await redisGet(
+      UPSTASH_URL,
+      UPSTASH_TOKEN,
+      "asx:universe:offset"
+    );
     if (rawOffset) {
       const parsed = Number(String(rawOffset));
       if (!Number.isNaN(parsed)) offset = Math.max(0, parsed);
@@ -286,7 +392,8 @@ if (lastRunDate !== today) {
           // 429: respect Retry-After if provided; otherwise exponential backoff
           if (res.status === 429) {
             const ra = parseRetryAfterToMs(res.headers.get("retry-after"));
-            const base = ra != null ? ra : 2000 * Math.pow(2, attempt); // 2s, 4s, 8s, 16s...
+            const base =
+              ra != null ? ra : 2000 * Math.pow(2, attempt); // 2s, 4s, 8s, 16s...
             await sleep(jitter(base, 800));
             attempt++;
             continue;
@@ -398,43 +505,89 @@ if (lastRunDate !== today) {
         const num = (v) =>
           v === null || typeof v === "undefined" || v === "" ? null : Number(v);
 
+        // NEW: capture description / summary for tagging + UI (capped)
+        const description =
+          general.Description ||
+          general.BusinessSummary ||
+          general.CompanyDescription ||
+          null;
+
+        // NEW: compute exposure tags
+        const tags = computeExposureTags({
+          name: general.Name || base,
+          sector: general.Sector || null,
+          industry: general.Industry || null,
+          description,
+        });
+
         const item = {
           code: base,
           name: general.Name || base,
           sector: general.Sector || null,
           industry: general.Industry || null,
+
+          // NEW fields (backward-compatible additions)
+          description: description ? String(description).slice(0, 1200) : null,
+          tags,
+          tagVersion: 1,
+
           inAsx200: asx200Set.has(base) ? 1 : 0,
           price: Number.isFinite(price) ? price : null,
-          marketCap: num(highlights.MarketCapitalization || general.MarketCapitalization),
-          pctChange: num(highlights.ChangePercent || highlights.RelativePriceChange),
+          marketCap: num(
+            highlights.MarketCapitalization || general.MarketCapitalization
+          ),
+          pctChange: num(
+            highlights.ChangePercent || highlights.RelativePriceChange
+          ),
           ebitda: num(highlights.EBITDA),
           peRatio: num(ratios.PERatio || highlights.PERatio),
-          pegRatio: num(ratios.PEGRatio || highlights.PEGRatio || defaultStats.PEGRatio),
+          pegRatio: num(
+            ratios.PEGRatio || highlights.PEGRatio || defaultStats.PEGRatio
+          ),
           eps: num(highlights.EarningsPerShare || highlights.EarningsShare),
           bookValue: num(highlights.BookValue),
           dividendPerShare: num(
-            highlights.DividendShare || safeGet(d, "SplitsDividends.LastAnnualDividend")
+            highlights.DividendShare ||
+              safeGet(d, "SplitsDividends.LastAnnualDividend")
           ),
           dividendYield: num(
-            safeGet(d, "SplitsDividends.ForwardAnnualDividendYield", highlights.DividendYield)
+            safeGet(
+              d,
+              "SplitsDividends.ForwardAnnualDividendYield",
+              highlights.DividendYield
+            )
           ),
           profitMargin: num(highlights.ProfitMargin),
-          operatingMargin: num(highlights.OperatingMargin || highlights.OperatingMarginTTM),
-          returnOnAssets: num(highlights.ReturnOnAssets || highlights.ReturnOnAssetsTTM),
-          returnOnEquity: num(highlights.ReturnOnEquity || highlights.ReturnOnEquityTTM),
+          operatingMargin: num(
+            highlights.OperatingMargin || highlights.OperatingMarginTTM
+          ),
+          returnOnAssets: num(
+            highlights.ReturnOnAssets || highlights.ReturnOnAssetsTTM
+          ),
+          returnOnEquity: num(
+            highlights.ReturnOnEquity || highlights.ReturnOnEquityTTM
+          ),
           revenue: num(highlights.RevenueTTM || highlights.Revenue),
-          revenuePerShare: num(highlights.RevenuePerShareTTM || highlights.RevenuePerShare),
+          revenuePerShare: num(
+            highlights.RevenuePerShareTTM || highlights.RevenuePerShare
+          ),
           grossProfit: num(highlights.GrossProfitTTM || highlights.GrossProfit),
           dilutedEps: num(highlights.DilutedEpsTTM || highlights.DilutedEps),
           quarterlyRevenueGrowthYoy: num(highlights.QuarterlyRevenueGrowthYOY),
           quarterlyEarningsGrowthYoy: num(highlights.QuarterlyEarningsGrowthYOY),
-          trailingPE: num(ratios.TrailingPE || valuation.TrailingPE || highlights.PERatio),
+          trailingPE: num(
+            ratios.TrailingPE || valuation.TrailingPE || highlights.PERatio
+          ),
           forwardPE: num(ratios.ForwardPE || valuation.ForwardPE),
           priceToSales: num(
-            ratios.PriceSalesTTM || ratios.PriceToSalesRatio || valuation.PriceSalesTTM
+            ratios.PriceSalesTTM ||
+              ratios.PriceToSalesRatio ||
+              valuation.PriceSalesTTM
           ),
           priceToBook: num(
-            ratios.PriceBookMRQ || ratios.PriceToBookRatio || valuation.PriceBookMRQ
+            ratios.PriceBookMRQ ||
+              ratios.PriceToBookRatio ||
+              valuation.PriceBookMRQ
           ),
           enterpriseValue: num(ratios.EnterpriseValue || valuation.EnterpriseValue),
           evToRevenue: num(
@@ -450,13 +603,19 @@ if (lastRunDate !== today) {
         };
 
         if (EXCLUDE_ETF && isEtfName(item.name)) {
-          console.log(`[snapshot-asx-universe] skipping ETF ${item.code} - ${item.name}`);
+          console.log(
+            `[snapshot-asx-universe] skipping ETF ${item.code} - ${item.name}`
+          );
           continue;
         }
 
         items.push(item);
       } catch (err) {
-        console.warn("[snapshot-asx-universe] error for", rawCode, err && err.message);
+        console.warn(
+          "[snapshot-asx-universe] error for",
+          rawCode,
+          err && err.message
+        );
         failures.push({
           code: base,
           reason: "exception",
@@ -480,12 +639,19 @@ if (lastRunDate !== today) {
   // - OR failureRate extremely high (treat as poisoned)
   const badBatch =
     !singleCode &&
-    (sawRateLimit || (items.length === 0 && failures.length > 0) || failureRate > 0.8);
+    (sawRateLimit ||
+      (items.length === 0 && failures.length > 0) ||
+      failureRate > 0.8);
 
   const partKey = `asx:universe:fundamentals:part:${batchStart}`;
 
   // always write lastRun for observability
-  await redisSet(UPSTASH_URL, UPSTASH_TOKEN, "asx:universe:lastRun", new Date().toISOString());
+  await redisSet(
+    UPSTASH_URL,
+    UPSTASH_TOKEN,
+    "asx:universe:lastRun",
+    new Date().toISOString()
+  );
 
   // Write a small status key (TTL) every time so you can debug quickly
   const statusKey = `asx:universe:fundamentals:part:${batchStart}:status`;
@@ -523,7 +689,10 @@ if (lastRunDate !== today) {
       elapsedMs: Date.now() - start,
     };
 
-    console.log("[snapshot-asx-universe] badBatch response:", JSON.stringify(responseBody));
+    console.log(
+      "[snapshot-asx-universe] badBatch response:",
+      JSON.stringify(responseBody)
+    );
     // Returning 429 makes Netlify logs obvious; scheduler will call again next interval
     return { statusCode: 429, body: JSON.stringify(responseBody) };
   }
@@ -572,5 +741,8 @@ if (lastRunDate !== today) {
   };
 
   console.log("[snapshot-asx-universe] response:", JSON.stringify(responseBody));
-  return { statusCode: okPart && okOffset ? 200 : 500, body: JSON.stringify(responseBody) };
+  return {
+    statusCode: okPart && okOffset ? 200 : 500,
+    body: JSON.stringify(responseBody),
+  };
 };
