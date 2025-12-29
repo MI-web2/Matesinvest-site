@@ -369,6 +369,37 @@ th.sortable span {
 tbody tr:nth-child(even) {
   background: #f8fafc;
 }
+/* ---------- Status bar (bottom of table) ---------- */
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(0, 32, 64, 0.08);
+  color: var(--muted);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  border-bottom-left-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
+.status-bar #statusCount {
+  font-weight: 650;
+  color: #0b1220;
+}
+
+.status-bar #statusMeta {
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+@media (max-width: 640px) {
+  .status-bar {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+}
 
       /* ---------- STICKY FIRST COLUMN (CODE) ---------- */
 
@@ -1368,9 +1399,15 @@ case "trader": {
           const data = await res.json();
           rawItems = data.items || [];
 
-          statusMeta.textContent = `Last updated: ${
-            data.generatedAt ? new Date(data.generatedAt).toLocaleString() : "n/a"
-          }`;
+const updatedDate = data.generatedAt
+  ? new Date(data.generatedAt).toLocaleDateString("en-AU", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+  : "n/a";
+
+statusMeta.textContent = `Updated ${updatedDate}`;
 
           populateSectorFilter(rawItems);
 
