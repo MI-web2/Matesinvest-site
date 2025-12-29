@@ -399,7 +399,12 @@ exports.handler = async function () {
         }
       }
 
-      movers.push({ code, pct });
+const f = fundByCode[code];
+movers.push({
+  code,
+  name: f?.name || "",
+  pct
+});
     }
 
     const breadthDen = adv + dec;
