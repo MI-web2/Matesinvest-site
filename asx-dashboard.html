@@ -131,6 +131,32 @@
   .mi-collapse[open] .mi-collapse-summary { margin-bottom: 10px; }
   /* optional: start collapsed on mobile by removing open attribute */
 }
+/* Top movers company name (single line, ellipsis) */
+.mover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mover-left {
+  min-width: 0; /* critical for ellipsis */
+}
+
+.mover-code {
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.mover-name {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
 
 
   </style>
