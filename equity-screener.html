@@ -567,26 +567,50 @@ tbody tr:nth-child(even) {
       /* ---------- LANDSCAPE / SHORT-HEIGHT PHONE FIX ---------- */
       @media screen and (max-height: 500px),
         screen and (orientation: landscape) and (max-width: 1024px) {
+        
+        /* Hide Market Pulse cards to save vertical space in landscape */
+        .mp-wrap {
+          display: none;
+        }
+
+        /* Reduce page padding */
+        .page {
+          padding-top: 0.5rem;
+          padding-bottom: 1rem;
+        }
+
         header {
-          margin-bottom: 0.5rem;
+          margin-bottom: 0.35rem;
         }
 
         h1 {
-          font-size: 1.4rem;
-          margin-bottom: 0.15rem;
+          font-size: 1.3rem;
+          margin-bottom: 0.1rem;
         }
 
         .muted {
-          font-size: 0.8rem;
+          font-size: 0.75rem;
         }
 
         .filters-card {
           padding: 0.3rem 0.6rem 0.4rem;
-          margin-bottom: 0.5rem;
+          margin-bottom: 0.4rem;
         }
 
+        /* Maximize table height - subtract sticky nav (~60px) + header (~60px) + filters (~50px) + status bar (~40px) + padding (~20px) */
         .table-scroll {
-          max-height: calc(100vh - 170px);
+          max-height: calc(100vh - 230px);
+          min-height: 250px;
+        }
+
+        /* Make table more compact in landscape */
+        th, td {
+          padding: 0.35rem 0.4rem;
+          font-size: 0.78rem;
+        }
+
+        th.sortable {
+          font-size: 0.72rem;
         }
       }
 
