@@ -2511,9 +2511,9 @@ function mpRenderList(listId, rows) {
   }
 }
 
-async function loadMarketPulseCards() {
+async function loadMarketPulseCards(period = "1d") {
   try {
-    const res = await fetch("/.netlify/functions/market-pulse-read", { cache: "no-store" });
+    const res = await fetch(`/.netlify/functions/market-pulse-read?period=${encodeURIComponent(period)}`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || "Failed to load pulse");
 
@@ -2548,7 +2548,7 @@ async function loadMarketPulseCards() {
 }
 
 // kick it off
-loadMarketPulseCards();  
+loadMarketPulseCards("1d"); 
     </script>
 
     <!-- Chart.js library -->
@@ -2765,7 +2765,13 @@ loadMarketPulseCards();
           }
         }
 
-        buttons.forEach((btn) => btn.addEventListener("click", () => load(btn.dataset.period)));
+buttons.forEach((btn) =>
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.period || "1d";
+    load(p);                 // sector chart
+    loadMarketPulseCards(p); // market pulse cards
+  })
+);
         
         // Load default period and prefetch others
         load("1d").then(() => Promise.allSettled([fetchPeriod("5d"), fetchPeriod("1m")]));
