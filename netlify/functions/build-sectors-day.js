@@ -7,7 +7,6 @@
 // Writes:
 //   asx:sectors:day:YYYY-MM-DD          (json)
 //   asx:sectors:latest                  (string YYYY-MM-DD)
-//   asx:sectors:dates                   (SET of YYYY-MM-DD strings, used for fast lookbacks)
 
 const fetch = (...args) => global.fetch(...args);
 
@@ -180,7 +179,6 @@ exports.handler = async function (event) {
     await Promise.all([
       redis(["SET", `asx:sectors:day:${asOfDate}`, JSON.stringify(out)]),
       redis(["SET", `asx:sectors:latest`, asOfDate]),
-      redis(["SADD", `asx:sectors:dates`, asOfDate]),
     ]);
 
     return {
