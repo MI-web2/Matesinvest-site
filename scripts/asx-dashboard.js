@@ -87,7 +87,7 @@ for (const r of rows) {
     `
   );
 }
-
+  }
   async function loadMarketPulse() {
     try {
       const res = await fetch("/.netlify/functions/market-pulse-read", { cache: "no-store" });
