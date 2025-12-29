@@ -1123,6 +1123,153 @@ tbody tr:nth-child(even) {
    NAV MENU – stop it squishing content visually
    ====================================================== */
 
+/* ======================================================
+   SECTOR CHART – consistent with asx-dashboard.html
+   ====================================================== */
+
+.sector-chart-wrap {
+  background: var(--glass);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.09);
+  padding: 0.9rem 0.95rem;
+  margin-bottom: 0.9rem;
+}
+
+.sector-chart-card {
+  background: var(--card);
+  border-radius: 16px;
+}
+
+.sector-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sector-chart-title {
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.mi-toggle {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.mi-toggle button {
+  appearance: none;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.05s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.mi-toggle button:hover {
+  transform: translateY(-1px);
+}
+
+.mi-toggle button.active {
+  background: #e7f7ff;
+  border-color: #c5e5ff;
+  color: #083a59;
+  font-weight: 600;
+}
+
+.sector-chart-content {
+  position: relative;
+}
+
+.mi-chart-wrap {
+  position: relative;
+  height: 320px;
+  padding: 10px 4px 2px;
+  cursor: pointer;
+}
+
+.mi-chart-msg {
+  display: none;
+  padding: 14px 14px;
+  border-radius: 12px;
+  background: rgba(241, 245, 249, 0.8);
+  border: 1px solid rgba(203, 213, 225, 0.65);
+  color: var(--muted, #64748b);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.mi-chart-subtle {
+  color: var(--muted, #64748b);
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
+/* Mobile adjustments for sector chart */
+@media (max-width: 768px) {
+  .sector-chart-wrap {
+    padding: 0.8rem;
+  }
+
+  .sector-chart-title {
+    font-size: 0.95rem;
+  }
+
+  .mi-toggle {
+    gap: 6px;
+  }
+
+  .mi-toggle button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .mi-chart-wrap {
+    height: 240px;
+    padding: 6px 0 0;
+  }
+
+  .mi-chart-subtle {
+    font-size: 12px;
+    margin-top: 6px;
+  }
+}
+
+/* Landscape mobile: ensure chart is scrollable */
+@media screen and (max-height: 500px),
+  screen and (orientation: landscape) and (max-width: 1024px) {
+  
+  .sector-chart-wrap {
+    margin-bottom: 0.6rem;
+    padding: 0.6rem;
+  }
+
+  .mi-chart-wrap {
+    height: 200px;
+    padding: 4px 0 0;
+  }
+
+  .sector-chart-title {
+    font-size: 0.9rem;
+  }
+
+  .mi-toggle button {
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+}
+
     </style>
   </head>
 
@@ -1180,6 +1327,27 @@ tbody tr:nth-child(even) {
       <div class="mp-label">Turnover</div>
       <div class="mp-value" id="mpTurnover">—</div>
       <div class="mp-sub" id="mpCoverage">Coverage: —</div>
+    </div>
+  </div>
+</section>
+
+<!-- Sector Performance Chart -->
+<section class="sector-chart-wrap" aria-label="Sector performance chart">
+  <div class="sector-chart-card">
+    <div class="sector-chart-head">
+      <h2 class="sector-chart-title">Sector performance</h2>
+      <div class="mi-toggle" aria-label="Sector performance period">
+        <button type="button" class="active" data-period="1d">1D</button>
+        <button type="button" data-period="5d">5D</button>
+        <button type="button" data-period="1m">1M</button>
+      </div>
+    </div>
+    <div class="sector-chart-content">
+      <div class="mi-chart-wrap">
+        <canvas id="sectorChart"></canvas>
+        <div id="sectorChartMessage" class="mi-chart-msg"></div>
+      </div>
+      <div class="mi-chart-subtle" id="sectorChartMeta">Loading…</div>
     </div>
   </div>
 </section>
@@ -2382,6 +2550,236 @@ async function loadMarketPulseCards() {
 // kick it off
 loadMarketPulseCards();  
     </script>
+
+    <!-- Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" 
+            integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb" 
+            crossorigin="anonymous"></script>
+
+    <!-- Sector Chart Module -->
+    <script>
+    (function() {
+      function sectorChartModule() {
+        const canvas = document.getElementById("sectorChart");
+        const msg = document.getElementById("sectorChartMessage");
+        const meta = document.getElementById("sectorChartMeta");
+        const buttons = document.querySelectorAll(".sector-chart-wrap .mi-toggle button");
+        const sectorSelect = document.getElementById("sectorSelect");
+        
+        if (!canvas) return;
+
+        let chart = null;
+        const cache = new Map();
+        const inflight = new Map();
+
+        function showMessage(text) {
+          msg.textContent = text;
+          msg.style.display = "block";
+          canvas.style.display = "none";
+        }
+        
+        function hideMessage() {
+          msg.style.display = "none";
+          canvas.style.display = "block";
+        }
+        
+        function labelFor(period) {
+          if (period === "1d") return "1D";
+          if (period === "5d") return "5D";
+          if (period === "1m") return "1M";
+          return period;
+        }
+
+        function isMobile() {
+          return window.innerWidth <= 640;
+        }
+
+        function shortenSectorLabel(label) {
+          if (!isMobile() || typeof label !== "string") return label;
+
+          return label
+            .replace("Communication Services", "Comm Services")
+            .replace("Consumer Defensive", "Cons Defensive")
+            .replace("Consumer Cyclical", "Cons Cyclical")
+            .replace("Financial Services", "Fin Services")
+            .replace("Basic Materials", "Materials");
+        }
+
+        function fmtTick(v) {
+          const n = Number(v);
+          if (!Number.isFinite(n)) return `${v}%`;
+          const r = Math.round(n * 10) / 10;
+          const clean = Math.abs(r) < 0.05 ? 0 : r;
+          return `${clean.toFixed(1)}%`;
+        }
+
+        function applyToChart(json, period) {
+          const rows = Array.isArray(json.sectors) ? json.sectors : [];
+          if (!rows.length) throw new Error("No sector data");
+
+          const labels = rows.map((r) => shortenSectorLabel(r.sector));
+          const fullLabels = rows.map((r) => r.sector); // Store full labels for filtering
+          const valuesPct = rows.map((r) => Number(r.value) * 100);
+
+          const bg = valuesPct.map((v) =>
+            v >= 0 ? "rgba(34,197,94,0.70)" : "rgba(239,68,68,0.70)"
+          );
+          const border = valuesPct.map((v) =>
+            v >= 0 ? "rgba(34,197,94,1)" : "rgba(239,68,68,1)"
+          );
+
+          const baseOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: "y",
+            animation: false,
+            layout: {
+              padding: { left: isMobile() ? 10 : 6, right: 8, top: 0, bottom: 0 },
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const v = Number(ctx.raw);
+                    const sign = v > 0 ? "+" : "";
+                    return `${sign}${v.toFixed(2)}%`;
+                  },
+                },
+              },
+            },
+            scales: {
+              x: {
+                grid: { color: "rgba(15,23,42,0.06)" },
+                ticks: { callback: (v) => fmtTick(v) },
+              },
+              y: {
+                grid: { display: false },
+                ticks: { padding: isMobile() ? 6 : 8 },
+              },
+            },
+            onClick: (event, elements) => {
+              // Make chart clickable - filter by sector when bar is clicked
+              if (elements.length > 0) {
+                const index = elements[0].index;
+                const sector = fullLabels[index];
+                
+                // Set the sector dropdown to the clicked sector
+                if (sectorSelect) {
+                  sectorSelect.value = sector;
+                  
+                  // Trigger change event to apply filter
+                  const changeEvent = new Event('change', { bubbles: true });
+                  sectorSelect.dispatchEvent(changeEvent);
+                  
+                  // Scroll to the table so user can see the filtered results
+                  const tableWrapper = document.querySelector('.table-wrapper');
+                  if (tableWrapper) {
+                    tableWrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }
+              }
+            },
+          };
+
+          if (!chart) {
+            chart = new Chart(canvas, {
+              type: "bar",
+              data: {
+                labels,
+                datasets: [
+                  {
+                    data: valuesPct,
+                    backgroundColor: bg,
+                    borderColor: border,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    barThickness: 14,
+                  },
+                ],
+              },
+              options: baseOptions,
+            });
+
+            // Store full labels for click handling
+            chart.fullLabels = fullLabels;
+
+            window.addEventListener("resize", () => {
+              if (!chart || !chart.fullLabels?.length) return;
+              chart.data.labels = chart.fullLabels.map((l) => shortenSectorLabel(l));
+              chart.options.layout.padding.left = isMobile() ? 10 : 6;
+              chart.options.scales.y.ticks.padding = isMobile() ? 6 : 8;
+              chart.update("none");
+            });
+          } else {
+            chart.data.labels = labels;
+            chart.fullLabels = fullLabels;
+            chart.data.datasets[0].data = valuesPct;
+            chart.data.datasets[0].backgroundColor = bg;
+            chart.data.datasets[0].borderColor = border;
+
+            chart.options.layout.padding.left = isMobile() ? 10 : 6;
+            chart.options.scales.y.ticks.padding = isMobile() ? 6 : 8;
+
+            chart.update("none");
+          }
+
+          meta.textContent =
+            `${labelFor(period)} · As of ${json.asOf}` +
+            (json.baseDate ? ` (vs ${json.baseDate})` : "");
+        }
+
+        async function fetchPeriod(period) {
+          if (cache.has(period)) return cache.get(period);
+          if (inflight.has(period)) return inflight.get(period);
+
+          const p = (async () => {
+            const res = await fetch(`/.netlify/functions/get-sector-performance?period=${period}`, {
+              cache: "default",
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json?.error || "Not available");
+            cache.set(period, json);
+            return json;
+          })();
+
+          inflight.set(period, p);
+          try {
+            return await p;
+          } finally {
+            inflight.delete(period);
+          }
+        }
+
+        async function load(period) {
+          buttons.forEach((b) => b.classList.toggle("active", b.dataset.period === period));
+          hideMessage();
+          meta.textContent = "Loading…";
+
+          try {
+            const json = await fetchPeriod(period);
+            applyToChart(json, period);
+          } catch (e) {
+            showMessage("Not enough history yet for this period.");
+            meta.textContent = "—";
+          }
+        }
+
+        buttons.forEach((btn) => btn.addEventListener("click", () => load(btn.dataset.period)));
+        
+        // Load default period and prefetch others
+        load("1d").then(() => Promise.allSettled([fetchPeriod("5d"), fetchPeriod("1m")]));
+      }
+
+      // Initialize when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', sectorChartModule);
+      } else {
+        sectorChartModule();
+      }
+    })();
+    </script>
+
     <script>
   // Mobile nav toggle (matches CSS: body.nav-open header.nav nav {...})
   (function () {
