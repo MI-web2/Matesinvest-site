@@ -597,7 +597,9 @@ tbody tr:nth-child(even) {
           margin-bottom: 0.4rem;
         }
 
-        /* Maximize table height - subtract sticky nav (~60px) + header (~60px) + filters (~50px) + status bar (~40px) + padding (~20px) */
+        /* Maximize table height for landscape viewing
+           Subtract: sticky nav (~60px) + page header (~50px) + filters (~40px) + 
+           status bar (~40px) + spacing/padding (~40px) = ~230px total */
         .table-scroll {
           max-height: calc(100vh - 230px);
           min-height: 250px;
