@@ -63,19 +63,30 @@
       return;
     }
 
-    for (const r of rows) {
-      const code = r?.code ? String(r.code) : "—";
-      const pct = typeof r?.pct === "number" && Number.isFinite(r.pct) ? r.pct : null;
-      const pctText =
-        pct == null ? "—" : pct >= 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`;
-      const pctClass = pct == null ? "" : pct >= 0 ? "up" : "down";
+for (const r of rows) {
+  const code = r?.code ? String(r.code) : "—";
+  const name = r?.name ? String(r.name) : "";
+  const pct = typeof r?.pct === "number" && Number.isFinite(r.pct) ? r.pct : null;
 
-      ul.insertAdjacentHTML(
-        "beforeend",
-        `<li><span class="code">${escapeHtml(code)}</span><span class="pct ${pctClass}">${pctText}</span></li>`
-      );
-    }
-  }
+  const pctText =
+    pct == null ? "—" : pct >= 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`;
+  const pctClass = pct == null ? "" : pct >= 0 ? "up" : "down";
+
+  ul.insertAdjacentHTML(
+    "beforeend",
+    `
+    <li class="mover-row">
+      <div class="mover-left">
+        <div class="mover-code">${escapeHtml(code)}</div>
+        <div class="mover-name" title="${escapeHtml(name)}">
+          ${escapeHtml(name)}
+        </div>
+      </div>
+      <span class="pct ${pctClass}">${pctText}</span>
+    </li>
+    `
+  );
+}
 
   async function loadMarketPulse() {
     try {
