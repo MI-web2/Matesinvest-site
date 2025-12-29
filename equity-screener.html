@@ -1269,6 +1269,106 @@ tbody tr:nth-child(even) {
     padding: 5px 8px;
   }
 }
+/* ================================
+   Across Markets (slim strip)
+   ================================ */
+.across-markets{
+  margin: 12px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148,163,184,.35);
+  background: rgba(255,255,255,.9);
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+}
+
+.across-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:8px;
+}
+
+.across-title{
+  font-size: 12px;
+  font-weight: 700;
+  color:#0f172a;
+  letter-spacing:.2px;
+}
+
+.across-meta{
+  font-size: 11px;
+  color:#64748b;
+  white-space:nowrap;
+}
+
+.across-scroll{
+  display:flex;
+  gap:8px;
+  overflow-x:auto;
+  padding-bottom:2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+.across-scroll::-webkit-scrollbar{ display:none; }
+
+.across-chip{
+  flex: 0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,.35);
+  background: #ffffff;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.across-chip:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(15,23,42,.08);
+}
+
+.across-chip .k{
+  display:flex;
+  flex-direction:column;
+  line-height:1.05;
+}
+
+.across-chip .sym{
+  font-size: 11px;
+  font-weight: 800;
+  color:#0f172a;
+}
+
+.across-chip .lbl{
+  font-size: 10px;
+  color:#64748b;
+}
+
+.across-chip .v{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  line-height:1.05;
+}
+
+.across-chip .px{
+  font-size: 12px;
+  font-weight: 800;
+  color:#0f172a;
+  white-space:nowrap;
+}
+
+.across-chip .chg{
+  font-size: 10px;
+  font-weight: 800;
+  white-space:nowrap;
+}
+
+.chg.pos{ color:#16a34a; }
+.chg.neg{ color:#ef4444; }
+.chg.neu{ color:#64748b; }
 
     </style>
   </head>
@@ -1349,6 +1449,16 @@ tbody tr:nth-child(even) {
       </div>
       <div class="mi-chart-subtle" id="sectorChartMeta">Loading…</div>
     </div>
+  </div>
+</section>
+<!-- Across Markets (small + slick) -->
+<section class="across-markets" aria-label="Across Markets">
+  <div class="across-head">
+    <span class="across-title">Across markets</span>
+    <span class="across-meta" id="acrossMeta">Live snapshot</span>
+  </div>
+  <div class="across-scroll" id="acrossItems">
+    <!-- chips render here -->
   </div>
 </section>
 
@@ -1661,7 +1771,7 @@ tbody tr:nth-child(even) {
 
     <script>
       const API_URL = "/.netlify/functions/equity-screener";
-
+const MORNING_BRIEF_URL = "/.netlify/functions/morning-brief";
       const tableBody = document.getElementById("tableBody");
       const searchInput = document.getElementById("searchInput");
       const sectorSelect = document.getElementById("sectorSelect");
@@ -1699,7 +1809,126 @@ const FAST_MOVER_MIN_ABS_PCT = 3; // 3%+
         const isOpen = filtersCard.classList.toggle("open");
         filtersToggleIcon.textContent = isOpen ? "▴" : "▾";
       });
+function fmtMoneyAUD(n) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+  // compact-ish but still readable
+  if (n >= 1_000_000) return "$" + (n / 1_000_000).toFixed(2) + "m";
+  if (n >= 1_000) return "$" + Math.round(n).toLocaleString("en-AU");
+  return "$" + n.toFixed(2);
+}
 
+function fmtPct(p) {
+  if (typeof p !== "number" || !Number.isFinite(p)) return "—";
+  const sign = p > 0 ? "+" : "";
+  return `${sign}${p.toFixed(2)}%`;
+}
+
+function pctClass(p) {
+  if (typeof p !== "number" || !Number.isFinite(p)) return "neu";
+  if (p > 0) return "pos";
+  if (p < 0) return "neg";
+  return "neu";
+}
+
+async function loadAcrossMarkets() {
+  const wrap = document.getElementById("acrossItems");
+  const meta = document.getElementById("acrossMeta");
+  if (!wrap) return;
+
+  // Which chips we want (keep it tight)
+  const metalsOrder = [
+    { key: "XAU", label: "Gold" },
+    { key: "IRON", label: "Iron ore" },
+    { key: "URANIUM", label: "Uranium" },
+    { key: "NI", label: "Nickel" },
+    { key: "LITH-CAR", label: "Lithium" },
+  ];
+
+  const cryptoOrder = [
+    { key: "BTC", label: "Bitcoin" },
+    { key: "ETH", label: "Ethereum" },
+    { key: "SOL", label: "Solana" },
+  ];
+
+  try {
+    wrap.innerHTML = ""; // clear
+    meta.textContent = "Loading…";
+
+    const res = await fetch(MORNING_BRIEF_URL, { cache: "no-store" });
+    const data = await res.json();
+
+    const chips = [];
+
+    // Metals chips
+    for (const m of metalsOrder) {
+      const row = data?.metals?.[m.key];
+      if (!row) continue;
+      chips.push({
+        sym: m.key,
+        lbl: m.label,
+        px: row.priceAUD,
+        chg: row.pctChange,
+      });
+    }
+
+    // Crypto chips
+    for (const c of cryptoOrder) {
+      const row = data?.crypto?.[c.key];
+      if (!row) continue;
+      chips.push({
+        sym: c.key,
+        lbl: c.label,
+        px: row.priceAUD,
+        chg: row.pctChange,
+      });
+    }
+
+    // Render
+    wrap.innerHTML = chips
+      .map((x) => {
+        const chgTxt = x.chg == null ? "—" : fmtPct(x.chg);
+        const cls = pctClass(x.chg);
+        return `
+          <div class="across-chip" title="${x.lbl}">
+            <div class="k">
+              <div class="sym">${x.sym}</div>
+              <div class="lbl">${x.lbl}</div>
+            </div>
+            <div class="v">
+              <div class="px">${fmtMoneyAUD(x.px)}</div>
+              <div class="chg ${cls}">${chgTxt}</div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    // Meta (timestamp)
+    const ts =
+      data?.metals?.XAU?.priceTimestamp ||
+      data?.crypto?.BTC?.priceTimestamp ||
+      data?.generatedAt ||
+      null;
+
+    meta.textContent = ts ? `As of ${new Date(ts).toLocaleString("en-AU")}` : "Snapshot";
+  } catch (e) {
+    console.warn("Across markets failed:", e?.message || e);
+    meta.textContent = "Snapshot unavailable";
+    // keep it quiet — don’t break screener
+    wrap.innerHTML = `
+      <div class="across-chip">
+        <div class="k">
+          <div class="sym">—</div>
+          <div class="lbl">Across markets</div>
+        </div>
+        <div class="v">
+          <div class="px">Unavailable</div>
+          <div class="chg neu">—</div>
+        </div>
+      </div>
+    `;
+  }
+}
       // ----------------------------
       // NEW: Style presets (no JSON file needed)
       // ----------------------------
@@ -2549,6 +2778,8 @@ async function loadMarketPulseCards(period = "1d") {
 
 // kick it off
 loadMarketPulseCards("1d"); 
+      loadAcrossMarkets();
+
     </script>
 
     <!-- Chart.js library -->
