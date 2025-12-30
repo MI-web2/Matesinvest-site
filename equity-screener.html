@@ -1500,6 +1500,14 @@ tbody tr:nth-child(even) {
   color:#9ca3af;
   text-align: right;
 }
+      .mi-slip-chart-wrap{
+  background: linear-gradient(
+    to bottom,
+    rgba(15,23,42,0.65),
+    rgba(15,23,42,0.35)
+  );
+}
+
 
 .mi-slip-section{ margin-top: 12px; }
 .mi-slip-section-title{
@@ -1569,6 +1577,7 @@ tbody tr:nth-child(even) {
   max-width: 560px;
   margin-left: auto;
   margin-right: auto;
+   padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 
 .mi-slip-close{
@@ -1577,38 +1586,45 @@ tbody tr:nth-child(even) {
   right: 12px;
   z-index: 10001;
 }
-.mi-slip-share{
-  position: fixed;
-  right: 14px;
-  bottom: calc(14px + env(safe-area-inset-bottom));
-  z-index: 10001;
-
-  width: 56px;
-  height: 56px;
-  border-radius: 999px;
-
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  border: 1px solid rgba(56,189,248,0.55);
-  background: rgba(56,189,248,0.18);
-  color: #e5e7eb;
-  font-weight: 900;
-  cursor: pointer;
-
-  box-shadow: 0 14px 30px rgba(0,0,0,0.45);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+      .mi-slip-bullets li{
+  color: #e2e8f0;
 }
 
-.mi-slip-share:hover{ background: rgba(56,189,248,0.24); }
+.mi-slip-share{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10001;
 
-/* Optional: show an icon-ish look */
+  height: 64px;
+  padding-bottom: env(safe-area-inset-bottom);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  background: linear-gradient(
+    to top,
+    rgba(2,6,23,0.96),
+    rgba(2,6,23,0.90)
+  );
+  border-top: 1px solid rgba(148,163,184,0.18);
+
+  color: #e5e7eb;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+
+  cursor: pointer;
+}
+
+/* arrow icon */
 .mi-slip-share::before{
   content: "↗";
-  font-size: 20px;
-  line-height: 1;
+  font-size: 18px;
+  opacity: 0.9;
 }
 
 /* Optional: if you want text instead of icon, remove ::before and use the button text */
@@ -2018,7 +2034,7 @@ tbody tr:nth-child(even) {
 <div id="mi-slip-overlay" class="mi-slip-overlay" aria-hidden="true">
   <div class="mi-slip-modal" role="dialog" aria-modal="true" aria-labelledby="mi-slip-title">
     <button class="mi-slip-close" type="button" id="mi-slip-close-btn" aria-label="Close">✕</button>
-    <button class="mi-slip-share" id="mi-slip-share-btn" type="button">Share</button>
+    <button class="mi-slip-share" id="mi-slip-share-btn" type="button">Share invest slip</button>
 
     <div class="mi-slip-top">
       <div class="mi-slip-badge">INVEST SLIP</div>
@@ -3119,51 +3135,55 @@ function miRenderSlipChart(history){
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // ---------- label helpers ----------
-  ctx.font = FONT;
+// ---------- labels (clean + native) ----------
+ctx.font = FONT_SM;
+ctx.fillStyle = "rgba(226,232,240,0.85)";
 
-  function boxesOverlap(a, b) {
-    return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
-  }
+// High / Low as subtle text (no pills)
+ctx.textAlign = "left";
+ctx.fillText(fmtPrice(max), padX + 6, padY + 12);
+ctx.fillText(fmtPrice(min), padX + 6, h - padY + 2);
 
-  function drawLabelPill(text, x, y, opts = {}) {
-    const pad = opts.pad ?? 6;
-    const th = opts.h ?? 16;
-    const r  = opts.r ?? 8;
-    const fill = opts.fill ?? "rgba(2, 6, 23, 0.78)";
-    const stroke = opts.stroke ?? "rgba(148,163,184,0.18)";
-    const textColor = opts.textColor ?? "rgba(226,232,240,0.95)";
+// ---------- last point ----------
+const lx = xAt(pts.length - 1);
+const ly = yAt(last);
 
-    // font can be overridden per label
-    ctx.font = opts.font ?? FONT;
+// dot
+ctx.beginPath();
+ctx.arc(lx, ly, 3.2, 0, Math.PI * 2);
+ctx.fillStyle = "#38bdf8";
+ctx.fill();
 
-    const tw = ctx.measureText(text).width;
-    const rw = tw + pad * 2;
-    const rh = th;
+// ---------- last price pill (hero) ----------
+const tag = fmtPrice(last);
+ctx.font = FONT;
 
-    // clamp into bounds
-    const rx = miClamp(x - pad, padX, w - padX - rw);
-    const ry = miClamp(y - th,  padY, h - padY - rh);
+const pad = 8;
+const th = 18;
+const tw = ctx.measureText(tag).width;
+const rw = tw + pad * 2;
+const rh = th;
 
-    ctx.fillStyle = fill;
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1;
+const rx = miClamp(lx + 10, padX, w - padX - rw);
+const ry = miClamp(ly - rh / 2, padY, h - padY - rh);
 
-    ctx.beginPath();
-    ctx.moveTo(rx + r, ry);
-    ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
-    ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
-    ctx.arcTo(rx, ry + rh, rx, ry, r);
-    ctx.arcTo(rx, ry, rx + rw, ry, r);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+ctx.fillStyle = "rgba(2,6,23,0.88)";
+ctx.strokeStyle = "rgba(56,189,248,0.40)";
+ctx.lineWidth = 1;
 
-    ctx.fillStyle = textColor;
-    ctx.fillText(text, rx + pad, ry + rh - 4);
+ctx.beginPath();
+ctx.moveTo(rx + 8, ry);
+ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, 8);
+ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, 8);
+ctx.arcTo(rx, ry + rh, rx, ry, 8);
+ctx.arcTo(rx, ry, rx + rw, ry, 8);
+ctx.closePath();
+ctx.fill();
+ctx.stroke();
 
-    return { x: rx, y: ry, w: rw, h: rh };
-  }
+ctx.fillStyle = "rgba(226,232,240,0.98)";
+ctx.fillText(tag, rx + pad, ry + rh - 5);
+
 
   // ---- High/Low as just numbers (cleaner) ----
   const highBox = drawLabelPill(
