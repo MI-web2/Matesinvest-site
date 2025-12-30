@@ -346,6 +346,29 @@ exports.handler = async function (event) {
       else leverageBucket = "high";
     }
 
+    // --- Gross Profit ---
+    let grossProfitLastYear = null;
+    if (incomeYearly && typeof incomeYearly === "object") {
+      const entries = Object.entries(incomeYearly);
+      if (entries.length > 0) {
+        entries.sort((a, b) => (a[0] > b[0] ? 1 : a[0] < b[0] ? -1 : 0));
+        const latest = entries[entries.length - 1][1] || {};
+        
+        grossProfitLastYear = pickNumber(
+          latest.grossProfit,
+          latest.GrossProfit,
+          latest.Gross_Profit
+        );
+      }
+    }
+    if (grossProfitLastYear === null) {
+      grossProfitLastYear = pickNumber(
+        highlights.GrossProfitTTM,
+        highlights.GrossProfit,
+        highlights.Gross_Profit
+      );
+    }
+
     return {
       name: general.Name || null,
       sector: general.Sector || null,
@@ -356,6 +379,7 @@ exports.handler = async function (event) {
       sizeBucket,
 
       revenueLastYear,
+      grossProfitLastYear,
       netIncomeLastYear,
 
       dividendYield:
@@ -368,6 +392,16 @@ exports.handler = async function (event) {
       pe:
         typeof highlights.PERatio === "number"
           ? fmt(highlights.PERatio, 2)
+          : null,
+      priceToBook:
+        typeof highlights.PriceBookMRQ === "number"
+          ? fmt(highlights.PriceBookMRQ, 2)
+          : typeof highlights.BookValue === "number" && typeof highlights.PERatio === "number"
+          ? null
+          : null,
+      priceToSales:
+        typeof highlights.PriceSalesTTM === "number"
+          ? fmt(highlights.PriceSalesTTM, 2)
           : null,
       eps:
         typeof highlights.EarningsShare === "number"

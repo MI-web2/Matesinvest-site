@@ -1526,6 +1526,33 @@ tbody tr:nth-child(even) {
 }
 .mi-slip-bullets li{ margin: 6px 0; }
 
+.mi-slip-fundamentals{
+  margin-top: 12px;
+}
+.mi-slip-fundamentals-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.mi-slip-fund-col{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mi-slip-fund-item{
+  font-size: 12px;
+}
+.mi-slip-fund-label{
+  color: #9ca3af;
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+}
+.mi-slip-fund-value{
+  font-weight: 700;
+  color: #e5e7eb;
+}
+
 .mi-slip-footer{
   margin-top: 12px;
   padding-top: 10px;
@@ -1614,6 +1641,14 @@ tbody tr:nth-child(even) {
 }
       .mi-slip-bullets li{
   color: #e2e8f0;
+}
+
+/* Responsive: stack fundamentals on very small screens */
+@media (max-width: 400px) {
+  .mi-slip-fundamentals-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 }
 
 .mi-slip-share{
@@ -2103,6 +2138,40 @@ tbody tr:nth-child(even) {
     <div class="mi-slip-section">
       <div class="mi-slip-section-title">Why it’s interesting</div>
       <ul class="mi-slip-bullets" id="mi-slip-bullets"></ul>
+    </div>
+
+    <div class="mi-slip-section mi-slip-fundamentals">
+      <div class="mi-slip-section-title">Company fundamentals</div>
+      <div class="mi-slip-fundamentals-grid">
+        <div class="mi-slip-fund-col">
+          <div class="mi-slip-fund-item">
+            <span class="mi-slip-fund-label">Market cap</span>
+            <span class="mi-slip-fund-value" id="mi-slip-fund-mktcap">—</span>
+          </div>
+          <div class="mi-slip-fund-item">
+            <span class="mi-slip-fund-label">Revenue</span>
+            <span class="mi-slip-fund-value" id="mi-slip-fund-revenue">—</span>
+          </div>
+          <div class="mi-slip-fund-item">
+            <span class="mi-slip-fund-label">Gross profit</span>
+            <span class="mi-slip-fund-value" id="mi-slip-fund-gp">—</span>
+          </div>
+        </div>
+        <div class="mi-slip-fund-col">
+          <div class="mi-slip-fund-item">
+            <span class="mi-slip-fund-label">Price to Earnings</span>
+            <span class="mi-slip-fund-value" id="mi-slip-fund-pe">—</span>
+          </div>
+          <div class="mi-slip-fund-item">
+            <span class="mi-slip-fund-label">Price to Book</span>
+            <span class="mi-slip-fund-value" id="mi-slip-fund-pb">—</span>
+          </div>
+          <div class="mi-slip-fund-item">
+            <span class="mi-slip-fund-label">Price to Sales</span>
+            <span class="mi-slip-fund-value" id="mi-slip-fund-ps">—</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="mi-slip-footer">
@@ -3178,45 +3247,6 @@ function miRenderSlipChart(history){
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // --- high/low labels with background pills (professional styling) ---
-  ctx.font = FONT_SM;
-  ctx.textBaseline = "middle";
-  
-  // Helper to draw label with pill background
-  const drawPillLabel = (text, x, y) => {
-    const metrics = ctx.measureText(text);
-    const pillPadH = 6;
-    const pillW = metrics.width + pillPadH * 2;
-    const pillH = 16;
-    
-    // Draw pill background
-    ctx.fillStyle = "rgba(15,23,42,0.75)";
-    ctx.strokeStyle = "rgba(148,163,184,0.25)";
-    ctx.lineWidth = 1;
-    
-    const radius = 6;
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + pillW, y, x + pillW, y + pillH, radius);
-    ctx.arcTo(x + pillW, y + pillH, x, y + pillH, radius);
-    ctx.arcTo(x, y + pillH, x, y, radius);
-    ctx.arcTo(x, y, x + pillW, y, radius);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    
-    // Draw text
-    ctx.fillStyle = "rgba(226,232,240,0.95)";
-    ctx.textAlign = "left";
-    ctx.fillText(text, x + pillPadH, y + pillH / 2);
-  };
-  
-  // Draw high label (top left)
-  drawPillLabel(fmtPrice(max), padX + 4, padY + 4);
-  
-  // Draw low label (bottom left)
-  drawPillLabel(fmtPrice(min), padX + 4, h - padY - 20);
-
   // --- last point dot ---
   const lx = xAt(pts.length - 1);
   const ly = yAt(last);
@@ -3225,37 +3255,6 @@ function miRenderSlipChart(history){
   ctx.arc(lx, ly, 3.2, 0, Math.PI * 2);
   ctx.fillStyle = "#38bdf8";
   ctx.fill();
-
-  // --- last price pill (only “pill” label) ---
-  const tag = fmtPrice(last);
-  ctx.font = FONT;
-
-  const pillPadX = 8;
-  const pillH = 18;
-  const tw = ctx.measureText(tag).width;
-  const pillW = tw + pillPadX * 2;
-
-  // prefer to the right of the last point, clamp inside chart
-  const rx = miClamp(lx + 10, padX, w - padX - pillW);
-  const ry = miClamp(ly - pillH / 2, padY, h - padY - pillH);
-
-  ctx.fillStyle = "rgba(2,6,23,0.88)";
-  ctx.strokeStyle = "rgba(56,189,248,0.40)";
-  ctx.lineWidth = 1;
-
-  const r = 8;
-  ctx.beginPath();
-  ctx.moveTo(rx + r, ry);
-  ctx.arcTo(rx + pillW, ry, rx + pillW, ry + pillH, r);
-  ctx.arcTo(rx + pillW, ry + pillH, rx, ry + pillH, r);
-  ctx.arcTo(rx, ry + pillH, rx, ry, r);
-  ctx.arcTo(rx, ry, rx + pillW, ry, r);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = "rgba(226,232,240,0.98)";
-  ctx.fillText(tag, rx + pillPadX, ry + pillH - 5);
 }
 
 // ---------- Invest Slip open/close ----------
@@ -3296,6 +3295,37 @@ if (pct == null) {
 
   const ul = document.getElementById("mi-slip-bullets");
   ul.innerHTML = built.bullets.map(b => `<li>${b}</li>`).join("");
+
+  // Populate fundamentals section
+  document.getElementById("mi-slip-fund-mktcap").textContent = 
+    (typeof f.marketCap === "number" && Number.isFinite(f.marketCap)) 
+      ? miFormatCompactNumber(f.marketCap) 
+      : "—";
+  
+  document.getElementById("mi-slip-fund-revenue").textContent = 
+    (typeof f.revenueLastYear === "number" && Number.isFinite(f.revenueLastYear)) 
+      ? miFormatCompactNumber(f.revenueLastYear) 
+      : "—";
+  
+  document.getElementById("mi-slip-fund-gp").textContent = 
+    (typeof f.grossProfitLastYear === "number" && Number.isFinite(f.grossProfitLastYear)) 
+      ? miFormatCompactNumber(f.grossProfitLastYear) 
+      : "—";
+  
+  document.getElementById("mi-slip-fund-pe").textContent = 
+    (typeof f.pe === "number" && Number.isFinite(f.pe)) 
+      ? f.pe.toFixed(2) + "×" 
+      : "—";
+  
+  document.getElementById("mi-slip-fund-pb").textContent = 
+    (typeof f.priceToBook === "number" && Number.isFinite(f.priceToBook)) 
+      ? f.priceToBook.toFixed(2) + "×" 
+      : "—";
+  
+  document.getElementById("mi-slip-fund-ps").textContent = 
+    (typeof f.priceToSales === "number" && Number.isFinite(f.priceToSales)) 
+      ? f.priceToSales.toFixed(2) + "×" 
+      : "—";
 
   miRenderSlipChart(data.history);
 
