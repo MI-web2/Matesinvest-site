@@ -1951,7 +1951,6 @@ tbody tr:nth-child(even) {
           >
             ✕
           </button>
-          <button class="mi-slip-share" id="mi-slip-share-btn" type="button">Share</button>
         </div>
 
         <div id="mi-ins-tags" class="mi-ins-tags"></div>
@@ -1988,6 +1987,7 @@ tbody tr:nth-child(even) {
 <div id="mi-slip-overlay" class="mi-slip-overlay" aria-hidden="true">
   <div class="mi-slip-modal" role="dialog" aria-modal="true" aria-labelledby="mi-slip-title">
     <button class="mi-slip-close" type="button" id="mi-slip-close-btn" aria-label="Close">✕</button>
+    <button class="mi-slip-share" id="mi-slip-share-btn" type="button">Share</button>
 
     <div class="mi-slip-top">
       <div class="mi-slip-badge">INVEST SLIP</div>
@@ -3069,60 +3069,108 @@ function miRenderSlipChart(history){
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // price labels
-  ctx.font = "12px system-ui";
-  ctx.fillStyle = "rgba(226,232,240,0.9)";
-
+  // ---------- labels (collision-safe) ----------
   const fmtPrice = (v) => {
-    // simple formatting; if you want currency-aware, pass currency in and format there
     if (!Number.isFinite(v)) return "";
     if (v >= 1000) return v.toFixed(0);
     if (v >= 10) return v.toFixed(2);
     return v.toFixed(3);
   };
 
-  // max label (top-right)
-  ctx.fillText(`High ${fmtPrice(max)}`, w - padX - 90, padY);
+  ctx.font = "12px system-ui";
 
-  // min label (bottom-right)
-  ctx.fillText(`Low ${fmtPrice(min)}`, w - padX - 90, h - 6);
+  // Helper: measure a text box
+  function textBox(text, x, y, pad = 6) {
+    const tw = ctx.measureText(text).width;
+    const th = 14;
+    return { x: x - pad, y: y - th, w: tw + pad * 2, h: th + 6 };
+  }
 
-  // last price tag (end of line)
+  function boxesOverlap(a, b) {
+    return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
+  }
+
+  function drawLabelPill(text, x, y) {
+    const pad = 6;
+    const tw = ctx.measureText(text).width;
+    const th = 16;
+    const rx = x - pad;
+    const ry = y - th;
+    const rw = tw + pad * 2;
+    const rh = th;
+    const r = 8;
+
+    // clamp within chart area
+    const cx = miClamp(rx, padX, w - padX - rw);
+    const cy = miClamp(ry, padY, h - padY - rh);
+
+    ctx.fillStyle = "rgba(15,23,42,0.85)";
+    ctx.strokeStyle = "rgba(148,163,184,0.35)";
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(cx + r, cy);
+    ctx.arcTo(cx + rw, cy, cx + rw, cy + rh, r);
+    ctx.arcTo(cx + rw, cy + rh, cx, cy + rh, r);
+    ctx.arcTo(cx, cy + rh, cx, cy, r);
+    ctx.arcTo(cx, cy, cx + rw, cy, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(226,232,240,0.95)";
+    ctx.fillText(text, cx + pad, cy + rh - 4);
+
+    return { x: cx, y: cy, w: rw, h: rh };
+  }
+
+  // Put High/Low on LEFT to reduce clashes with the last-price tag on the right
+  const highText = `High ${fmtPrice(max)}`;
+  const lowText  = `Low ${fmtPrice(min)}`;
+
+  const highBox = drawLabelPill(highText, padX + 4, padY + 18);
+  const lowBox  = drawLabelPill(lowText,  padX + 4, h - padY - 2);
+
+  // dot at last point
   const lx = xAt(pts.length - 1);
   const ly = yAt(last);
 
-  // dot
   ctx.beginPath();
-  ctx.arc(lx, ly, 3.2, 0, Math.PI*2);
+  ctx.arc(lx, ly, 3.2, 0, Math.PI * 2);
   ctx.fillStyle = "#38bdf8";
   ctx.fill();
 
-  // tag
+  // last price tag near last point, try 3 positions to avoid overlap
   const tag = fmtPrice(last);
-  ctx.font = "12px system-ui";
-  const tw = ctx.measureText(tag).width;
-  const tx = miClamp(lx + 8, padX, w - padX - (tw + 10));
-  const ty = miClamp(ly - 12, padY + 10, h - padY - 6);
+  const candidates = [
+    { x: lx + 10, y: ly - 10 }, // right-top
+    { x: lx + 10, y: ly + 18 }, // right-bottom
+    { x: lx - 10, y: ly - 10 }, // left-top
+  ];
 
-  ctx.fillStyle = "rgba(15,23,42,0.85)";
-  ctx.strokeStyle = "rgba(148,163,184,0.35)";
-  ctx.lineWidth = 1;
+  let placed = null;
+  for (const c of candidates) {
+    const box = textBox(tag, c.x, c.y, 6);
+    // clamp test box similarly
+    box.x = miClamp(box.x, padX, w - padX - box.w);
+    box.y = miClamp(box.y, padY, h - padY - box.h);
 
-  // rounded rect
-  const rx = tx - 5, ry = ty - 12, rw = tw + 10, rh = 18, r = 6;
-  ctx.beginPath();
-  ctx.moveTo(rx + r, ry);
-  ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
-  ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
-  ctx.arcTo(rx, ry + rh, rx, ry, r);
-  ctx.arcTo(rx, ry, rx + rw, ry, r);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
+    if (!boxesOverlap(box, highBox) && !boxesOverlap(box, lowBox)) {
+      placed = { x: box.x + 6, y: box.y + box.h - 4 };
+      break;
+    }
+  }
 
-  ctx.fillStyle = "rgba(226,232,240,0.95)";
-  ctx.fillText(tag, tx, ty);
-}
+  // fallback: just clamp to inside
+  if (!placed) {
+    placed = {
+      x: miClamp(lx + 10, padX, w - padX - 40),
+      y: miClamp(ly - 10, padY + 18, h - padY - 8),
+    };
+  }
+
+  drawLabelPill(tag, placed.x, placed.y);
+
 
 function miOpenSlipFromCurrent(){
   const data = miLastInstrumentData;
@@ -3350,6 +3398,7 @@ loadMarketPulseCards("1d");
     <!-- Chart.js library -->
 <!-- Chart.js library -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
 
     <!-- Sector Chart Module -->
@@ -3627,7 +3676,6 @@ buttons.forEach((btn) =>
         sectorChartModule();
       }
     })();
-      <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     </script>
 
     <script>
