@@ -1700,6 +1700,37 @@ tbody tr:nth-child(even) {
 
 /* Optional: if you want text instead of icon, remove ::before and use the button text */
 
+/* Deep link display - shows above share button */
+.mi-slip-deeplink{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin: 8px 0 0;
+  border-radius: 12px;
+  background: rgba(15,23,42,0.55);
+  border: 1px solid rgba(148,163,184,0.22);
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.mi-slip-deeplink-label{
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.mi-slip-deeplink-url{
+  color: #38bdf8;
+  text-decoration: none;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.mi-slip-deeplink-url:hover{
+  text-decoration: underline;
+}
+
     </style>
   </head>
 
@@ -2105,6 +2136,12 @@ tbody tr:nth-child(even) {
 <div id="mi-slip-overlay" class="mi-slip-overlay" aria-hidden="true">
   <div class="mi-slip-modal" role="dialog" aria-modal="true" aria-labelledby="mi-slip-title">
     <button class="mi-slip-close" type="button" id="mi-slip-close-btn" aria-label="Close">✕</button>
+    
+    <div class="mi-slip-deeplink" id="mi-slip-deeplink-container">
+      <span class="mi-slip-deeplink-label">Direct link:</span>
+      <a class="mi-slip-deeplink-url" id="mi-slip-deeplink" href="#" target="_blank" rel="noopener noreferrer">—</a>
+    </div>
+    
     <button class="mi-slip-share" id="mi-slip-share-btn" type="button">Share invest slip</button>
 
     <div class="mi-slip-top">
@@ -2478,6 +2515,28 @@ statusMeta.textContent = `Updated ${updatedDate}`;
             applyStylePreset(presetFromUrl);
           } else {
             applyFilters();
+          }
+
+          // Check for deep link stock parameter
+          const params = new URLSearchParams(window.location.search);
+          const stockParam = params.get("stock");
+          if (stockParam) {
+            // Auto-open the stock slip for the specified stock code
+            const stockCode = stockParam.trim().toUpperCase();
+            // Use requestAnimationFrame to ensure DOM is ready
+            requestAnimationFrame(async () => {
+              try {
+                const data = await miFetchInstrumentDetails("equity", stockCode);
+                miOpenInstrumentModal(data);
+                // Wait for modal to render before opening slip
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                miOpenSlipFromCurrent();
+              } catch (err) {
+                console.error("Failed to auto-open stock slip:", err);
+                // Show user-friendly message
+                alert(`Could not load stock "${stockCode}". It may not be in our database.`);
+              }
+            });
           }
         } catch (e) {
           console.error(e);
@@ -3322,6 +3381,20 @@ if (pct == null) {
 
   miRenderSlipChart(data.history);
 
+  // Set deep link URL
+  const stockCode = data.code || "";
+  const deepLinkUrl = stockCode 
+    ? `${window.location.origin}${window.location.pathname}?stock=${encodeURIComponent(stockCode)}`
+    : window.location.href;
+  
+  const deepLinkEl = document.getElementById("mi-slip-deeplink");
+  if (deepLinkEl) {
+    deepLinkEl.href = deepLinkUrl;
+    // Extract hostname from URL for display
+    const displayHost = window.location.hostname;
+    deepLinkEl.textContent = stockCode ? `${displayHost}/...?stock=${stockCode}` : "—";
+  }
+
   const overlay = document.getElementById("mi-slip-overlay");
   overlay.style.display = "flex";
   overlay.setAttribute("aria-hidden", "false");
@@ -3337,8 +3410,13 @@ async function miShareSlip(){
   const el = document.querySelector(".mi-slip-modal");
   if (!el) return;
 
-  const code = document.getElementById("mi-slip-code")?.textContent || "Invest Slip";
-  const url = "https://matesinvest.com/equity-screener.html";
+  const codeEl = document.getElementById("mi-slip-code");
+  const codeText = codeEl?.textContent || "Invest Slip";
+  // Remove exchange suffix (e.g., .ASX, .NYSE, .AX) if present
+  const stockCode = codeText.replace(/\.[A-Z0-9]+$/i, "").trim() || "";
+  const deepLinkUrl = stockCode 
+    ? `${window.location.origin}${window.location.pathname}?stock=${encodeURIComponent(stockCode)}`
+    : `${window.location.origin}${window.location.pathname}`;
 
   // Try image share first (best for Messenger/WhatsApp)
   try {
@@ -3353,13 +3431,13 @@ async function miShareSlip(){
     const blob = await new Promise(res => canvas.toBlob(res, "image/png", 1.0));
     if (!blob) throw new Error("No blob");
 
-    const safe = String(code).replace(/[^\w\-\.]+/g, "_").slice(0, 40);
+    const safe = String(codeText).replace(/[^\w\-\.]+/g, "_").slice(0, 40);
     const file = new File([blob], `${safe}.png`, { type: "image/png" });
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
-        title: `Invest Slip — ${code}`,
-        text: `Invest Slip — ${code}\nCreate your own: ${url}`,
+        title: `Invest Slip — ${codeText}`,
+        text: `Invest Slip — ${codeText}\n\nView this stock: ${deepLinkUrl}`,
         files: [file]
       });
       return;
@@ -3372,9 +3450,9 @@ async function miShareSlip(){
   try {
     if (navigator.share) {
       await navigator.share({
-        title: `Invest Slip`,
-        text: `Invest Slip — ${code}\nCreate your own: ${url}`,
-        url
+        title: `Invest Slip — ${codeText}`,
+        text: `Invest Slip — ${codeText}\n\nView this stock: ${deepLinkUrl}`,
+        url: deepLinkUrl
       });
       return;
     }
@@ -3382,10 +3460,10 @@ async function miShareSlip(){
 
   // Last fallback: copy link
   try {
-    await navigator.clipboard.writeText(url);
-    alert("Link copied. Paste into chat (or screenshot the slip).");
+    await navigator.clipboard.writeText(deepLinkUrl);
+    alert("Link copied. Paste into chat to share this stock slip.");
   } catch (e) {
-    alert(url);
+    alert(deepLinkUrl);
   }
 }
 
