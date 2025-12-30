@@ -3425,46 +3425,52 @@ async function miShareSlip() {
     : `${window.location.origin}${window.location.pathname}`;
 
   const shareTitle = `Invest Slip — ${codeText}`;
-  const shareText  = `Invest Slip — ${codeText}\nOpen: ${deepLinkUrl}`;
+  // Keep text short (Messenger especially tends to drop/trim)
+  const shareText = `Invest Slip — ${codeText}\n${deepLinkUrl}`;
 
-  // ---------- Attempt 1: Image share (best UX) ----------
+  // --- IMPORTANT: copy FIRST while we still have the click "gesture" ---
+  // This massively increases the chance Android actually writes to clipboard.
+  let clipboardOk = false;
   try {
-    if (typeof html2canvas !== "function") {
-      throw new Error("html2canvas not available");
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(deepLinkUrl);
+      clipboardOk = true;
     }
+  } catch (_) {
+    clipboardOk = false;
+  }
+
+  // ---------- Attempt 1: Share image (best UX) ----------
+  try {
+    if (typeof html2canvas !== "function") throw new Error("html2canvas not available");
 
     const canvas = await html2canvas(el, {
       backgroundColor: "#050812",
       scale: 2,
       useCORS: true,
       scrollX: 0,
-      scrollY: -window.scrollY
+      scrollY: -window.scrollY,
     });
 
-    const blob = await new Promise((res) =>
-      canvas.toBlob(res, "image/png", 1.0)
-    );
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/png", 1.0));
     if (!blob) throw new Error("Image blob failed");
 
-    const safeName = String(codeText)
-      .replace(/[^\w\-\.]+/g, "_")
-      .slice(0, 40);
-
+    const safeName = String(codeText).replace(/[^\w\-\.]+/g, "_").slice(0, 40);
     const file = new File([blob], `${safeName}.png`, { type: "image/png" });
 
+    // Share file. Many apps (Messenger) ignore url/text when files are present.
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       await navigator.share({
         title: shareTitle,
+        // Some apps ignore this with files; harmless to include
         text: shareText,
-        url: deepLinkUrl,   // WhatsApp often respects this
-        files: [file]
+        url: deepLinkUrl,
+        files: [file],
       });
 
-      // Messenger workaround: copy link automatically
-      try {
-        await navigator.clipboard.writeText(deepLinkUrl);
-        miSlipToast("Link copied — paste into Messenger");
-      } catch (_) {}
+      // After the share returns, remind user link is ready to paste
+      if (clipboardOk) miSlipToast("Link copied — paste into Messenger");
+      else miSlipToast("Paste the link manually (copy failed)");
 
       return;
     }
@@ -3472,13 +3478,13 @@ async function miShareSlip() {
     // fall through
   }
 
-  // ---------- Attempt 2: Link-only share (reliable everywhere) ----------
+  // ---------- Attempt 2: Link-only share (most reliable for Messenger preview) ----------
   try {
     if (navigator.share) {
       await navigator.share({
         title: shareTitle,
         text: shareText,
-        url: deepLinkUrl
+        url: deepLinkUrl,
       });
       return;
     }
@@ -3487,13 +3493,14 @@ async function miShareSlip() {
   }
 
   // ---------- Attempt 3: Clipboard fallback ----------
-  try {
-    await navigator.clipboard.writeText(deepLinkUrl);
+  if (clipboardOk) {
     miSlipToast("Link copied to clipboard");
-  } catch (_) {
+  } else {
+    // Last resort
     alert(deepLinkUrl);
   }
 }
+
 function miSlipToast(msg) {
   let el = document.getElementById("mi-slip-toast");
   if (!el) {
@@ -3527,6 +3534,7 @@ function miSlipToast(msg) {
   }, 2200);
 }
 
+// keep this binding
 document.getElementById("mi-slip-share-btn")?.addEventListener("click", miShareSlip);
 
 // Wire buttons (Invest Slip)
