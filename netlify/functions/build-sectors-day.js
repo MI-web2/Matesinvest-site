@@ -2,16 +2,20 @@
 // Builds daily sector returns + a simple sector "level" series from cached Upstash data.
 // Uses:
 //   asx:universe:eod:YYYY-MM-DD         (array of {code,date,close,volume,...})
+//   asx:universe:eod:latest             (string YYYY-MM-DD OR json {date/asOfDate/...})
 //   asx:universe:fundamentals:latest    (array of {code, sector, marketCap,...})
 //
 // Writes:
 //   asx:sectors:day:YYYY-MM-DD          (json)
 //   asx:sectors:latest                  (string YYYY-MM-DD)
+//   asx:sectors:dates                   (SET of YYYY-MM-DD)
 
 const fetch = (...args) => global.fetch(...args);
 
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+const SECTOR_DATES_SET = "asx:sectors:dates";
 
 function assertEnv() {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) throw new Error("Upstash env missing");
@@ -21,7 +25,8 @@ async function redis(cmdArr) {
   const res = await fetch(`${UPSTASH_URL}/${cmdArr.map(encodeURIComponent).join("/")}`, {
     headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
   });
-  const json = await res.json();
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Upstash HTTP ${res.status}`);
   if (json.error) throw new Error(json.error);
   return json.result;
 }
@@ -31,28 +36,8 @@ function ymd(d) {
 }
 
 function parseYmd(s) {
-  // Treat as UTC midnight
-  const [Y, M, D] = s.split("-").map(Number);
+  const [Y, M, D] = String(s).slice(0, 10).split("-").map(Number);
   return new Date(Date.UTC(Y, M - 1, D));
-}
-
-async function findPrevTradingDate(asOfDate, maxLookbackDays = 10) {
-  // Walk backwards day-by-day until we find an existing eod snapshot key
-  const base = parseYmd(asOfDate);
-  for (let i = 1; i <= maxLookbackDays; i++) {
-    const d = new Date(base);
-    d.setUTCDate(d.getUTCDate() - i);
-    const cand = ymd(d);
-    const exists = await redis(["EXISTS", `asx:universe:eod:${cand}`]);
-    if (exists === 1) return cand;
-  }
-  return null;
-}
-
-async function loadJson(key) {
-  const v = await redis(["GET", key]);
-  if (!v) return null;
-  return JSON.parse(v);
 }
 
 function safeNum(x) {
@@ -60,21 +45,90 @@ function safeNum(x) {
   return Number.isFinite(n) ? n : null;
 }
 
+async function loadJson(key) {
+  const v = await redis(["GET", key]);
+  if (!v) return null;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return null;
+  }
+}
+
+function extractYmdFromUnknown(v) {
+  if (!v) return null;
+
+  // If it is already YYYY-MM-DD
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // If it's JSON stored as string
+  try {
+    const j = JSON.parse(s);
+    const cand =
+      j?.date ||
+      j?.asOf ||
+      j?.asOfDate ||
+      j?.latest ||
+      j?.result ||
+      null;
+    if (cand && /^\d{4}-\d{2}-\d{2}$/.test(String(cand).slice(0, 10))) {
+      return String(cand).slice(0, 10);
+    }
+  } catch {
+    // ignore
+  }
+
+  // If it's something like "2025-12-30T..." just slice
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+
+  return null;
+}
+
+async function getLatestEodDate() {
+  const v = await redis(["GET", "asx:universe:eod:latest"]);
+  return extractYmdFromUnknown(v);
+}
+
+async function existsKey(key) {
+  const ex = await redis(["EXISTS", key]);
+  return ex === 1;
+}
+
+async function findPrevTradingDate(asOfDate, maxLookbackDays = 14) {
+  const base = parseYmd(asOfDate);
+  for (let i = 1; i <= maxLookbackDays; i++) {
+    const d = new Date(base);
+    d.setUTCDate(d.getUTCDate() - i);
+    const cand = ymd(d);
+    if (await existsKey(`asx:universe:eod:${cand}`)) return cand;
+  }
+  return null;
+}
+
 exports.handler = async function (event) {
   try {
     assertEnv();
 
-    // You can pass ?date=YYYY-MM-DD, otherwise use sectors:latest or universe latest
     const url = new URL(event.rawUrl);
-    const asOfDate = url.searchParams.get("date");
+    let asOfDate = url.searchParams.get("date");
 
-    // If no date passed, try read "asx:market:pulse:latest" (if you have it) then fall back to sectors:latest + 1
-    // But simplest: require date from your scheduler
+    // ✅ Scheduler-safe: if no ?date= provided, use universe EOD latest
     if (!asOfDate) {
-      return { statusCode: 400, body: "Missing ?date=YYYY-MM-DD" };
+      asOfDate = await getLatestEodDate();
+    }
+    asOfDate = extractYmdFromUnknown(asOfDate);
+
+    if (!asOfDate) {
+      return { statusCode: 409, body: "No date provided and asx:universe:eod:latest not set" };
     }
 
-    const prevDate = await findPrevTradingDate(asOfDate, 14);
+    // Ensure the EOD snapshot exists for that date
+    if (!(await existsKey(`asx:universe:eod:${asOfDate}`))) {
+      return { statusCode: 409, body: `Missing EOD snapshot for ${asOfDate} (asx:universe:eod:${asOfDate})` };
+    }
+
+    const prevDate = await findPrevTradingDate(asOfDate, 20);
     if (!prevDate) {
       return { statusCode: 409, body: `No prior trading day snapshot found before ${asOfDate}` };
     }
@@ -107,11 +161,12 @@ exports.handler = async function (event) {
     }
 
     // Aggregate market-cap weighted return by sector
-    // ret = (close_today / close_prev) - 1
     const agg = new Map(); // sector -> {wRetSum, wSum, stocks, mcapCovered}
     let used = 0;
+
     for (const r of todayArr) {
       if (!r || !r.code) continue;
+
       const close = safeNum(r.close);
       const prevClose = prevCloseByCode.get(r.code);
       if (close == null || close <= 0 || prevClose == null || prevClose <= 0) continue;
@@ -121,8 +176,6 @@ exports.handler = async function (event) {
 
       const sector = f.sector || "Other";
       const mcap = f.marketCap;
-
-      // Require market cap for weighting; if you want, you can fall back to equal-weight here
       if (mcap == null || mcap <= 0) continue;
 
       const ret = close / prevClose - 1;
@@ -136,9 +189,8 @@ exports.handler = async function (event) {
       used++;
     }
 
-    if (used < 50) {
-      // sanity check - adjust as needed
-      console.warn(`Low coverage: used=${used}`);
+    if (used < 200) {
+      console.warn(`Sector coverage lower than expected: used=${used}`);
     }
 
     // Load yesterday sector snapshot to roll a simple "level" series
@@ -155,7 +207,7 @@ exports.handler = async function (event) {
     const sectorsOut = [];
     for (const [sector, v] of agg.entries()) {
       const ret1d = v.wSum > 0 ? v.wRetSum / v.wSum : 0;
-      const prevLevel = prevLevelBySector.get(sector) ?? 100; // start at 100 if no history
+      const prevLevel = prevLevelBySector.get(sector) ?? 100;
       const level = prevLevel * (1 + ret1d);
 
       sectorsOut.push({
@@ -166,27 +218,29 @@ exports.handler = async function (event) {
       });
     }
 
-    // Sort by performance desc (nice for chart)
     sectorsOut.sort((a, b) => (b.ret1d ?? 0) - (a.ret1d ?? 0));
 
     const out = {
+      generatedAt: new Date().toISOString(),
       date: asOfDate,
       prevDate,
       method: "mcap_weighted",
+      usedStocks: used,
       sectors: sectorsOut,
     };
 
     await Promise.all([
       redis(["SET", `asx:sectors:day:${asOfDate}`, JSON.stringify(out)]),
       redis(["SET", `asx:sectors:latest`, asOfDate]),
+      redis(["SADD", SECTOR_DATES_SET, asOfDate]),
     ]);
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ ok: true, date: asOfDate, prevDate, sectors: sectorsOut.length }),
+      body: JSON.stringify({ ok: true, date: asOfDate, prevDate, usedStocks: used, sectors: sectorsOut.length }),
     };
   } catch (err) {
     console.error(err);
-    return { statusCode: 500, body: `Error: ${err.message}` };
+    return { statusCode: 500, body: `Error: ${err.message || String(err)}` };
   }
 };
