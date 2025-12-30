@@ -1730,6 +1730,10 @@ tbody tr:nth-child(even) {
 .mi-slip-deeplink-url:hover{
   text-decoration: underline;
 }
+      /* Hide deep link display (not needed in UI) */
+.mi-slip-deeplink{
+  display: none !important;
+}
 
     </style>
   </head>
@@ -3413,55 +3417,62 @@ async function miShareSlip() {
   const codeEl = document.getElementById("mi-slip-code");
   const codeText = (codeEl?.textContent || "Invest Slip").trim();
 
-  // Remove exchange suffix (e.g., ".ASX")
-  const stockCode = codeText.replace(/\.[A-Z0-9]+$/i, "").trim() || "";
+  // Strip exchange suffix (e.g. ".ASX")
+  const stockCode = codeText.replace(/\.[A-Z0-9]+$/i, "").trim();
 
   const deepLinkUrl = stockCode
     ? `${window.location.origin}${window.location.pathname}?stock=${encodeURIComponent(stockCode)}`
     : `${window.location.origin}${window.location.pathname}`;
 
   const shareTitle = `Invest Slip — ${codeText}`;
-  const shareText = `Invest Slip — ${codeText}\n\nOpen: ${deepLinkUrl}`;
+  const shareText  = `Invest Slip — ${codeText}\nOpen: ${deepLinkUrl}`;
 
-  // 1) Best effort: share image + url + text
+  // ---------- Attempt 1: Image share (best UX) ----------
   try {
-    if (typeof html2canvas !== "function") throw new Error("html2canvas missing");
+    if (typeof html2canvas !== "function") {
+      throw new Error("html2canvas not available");
+    }
 
     const canvas = await html2canvas(el, {
       backgroundColor: "#050812",
       scale: 2,
       useCORS: true,
-      // Helps avoid capturing off-screen fixed elements weirdly:
       scrollX: 0,
       scrollY: -window.scrollY
     });
 
-    const blob = await new Promise((res) => canvas.toBlob(res, "image/png", 1.0));
-    if (!blob) throw new Error("No blob");
+    const blob = await new Promise((res) =>
+      canvas.toBlob(res, "image/png", 1.0)
+    );
+    if (!blob) throw new Error("Image blob failed");
 
-    const safe = String(codeText).replace(/[^\w\-\.]+/g, "_").slice(0, 40);
-    const file = new File([blob], `${safe}.png`, { type: "image/png" });
+    const safeName = String(codeText)
+      .replace(/[^\w\-\.]+/g, "_")
+      .slice(0, 40);
 
-    // If device says it can share files, try sharing with URL included
-    if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+    const file = new File([blob], `${safeName}.png`, { type: "image/png" });
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({
+        title: shareTitle,
+        text: shareText,
+        url: deepLinkUrl,   // WhatsApp often respects this
+        files: [file]
+      });
+
+      // Messenger workaround: copy link automatically
       try {
-        await navigator.share({
-          title: shareTitle,
-          text: shareText,
-          url: deepLinkUrl,     // ✅ key change (some apps will use it)
-          files: [file]
-        });
-        return;
-      } catch (err) {
-        // Some targets fail when url+files are together.
-        // We'll fall through to link-only share.
-      }
+        await navigator.clipboard.writeText(deepLinkUrl);
+        miSlipToast("Link copied — paste into Messenger");
+      } catch (_) {}
+
+      return;
     }
-  } catch (e) {
+  } catch (_) {
     // fall through
   }
 
-  // 2) Reliable fallback: share link-only (creates clickable preview in most apps)
+  // ---------- Attempt 2: Link-only share (reliable everywhere) ----------
   try {
     if (navigator.share) {
       await navigator.share({
@@ -3471,17 +3482,49 @@ async function miShareSlip() {
       });
       return;
     }
-  } catch (e) {
+  } catch (_) {
     // fall through
   }
 
-  // 3) Last fallback: copy link
+  // ---------- Attempt 3: Clipboard fallback ----------
   try {
     await navigator.clipboard.writeText(deepLinkUrl);
-    alert("Link copied. Paste into chat to share this invest slip.");
-  } catch (e) {
+    miSlipToast("Link copied to clipboard");
+  } catch (_) {
     alert(deepLinkUrl);
   }
+}
+function miSlipToast(msg) {
+  let el = document.getElementById("mi-slip-toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "mi-slip-toast";
+    el.style.position = "fixed";
+    el.style.left = "50%";
+    el.style.bottom = "78px"; // sits above share bar
+    el.style.transform = "translateX(-50%)";
+    el.style.background = "rgba(2,6,23,0.94)";
+    el.style.border = "1px solid rgba(148,163,184,0.18)";
+    el.style.color = "#e5e7eb";
+    el.style.padding = "10px 14px";
+    el.style.borderRadius = "14px";
+    el.style.fontSize = "12px";
+    el.style.fontWeight = "800";
+    el.style.zIndex = "10002";
+    el.style.maxWidth = "92vw";
+    el.style.textAlign = "center";
+    el.style.opacity = "0";
+    el.style.transition = "opacity 0.25s ease";
+    document.body.appendChild(el);
+  }
+
+  el.textContent = msg;
+  el.style.opacity = "1";
+
+  clearTimeout(el._t);
+  el._t = setTimeout(() => {
+    el.style.opacity = "0";
+  }, 2200);
 }
 
 document.getElementById("mi-slip-share-btn")?.addEventListener("click", miShareSlip);
