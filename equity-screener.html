@@ -1577,8 +1577,12 @@ tbody tr:nth-child(even) {
   max-width: 560px;
   margin-left: auto;
   margin-right: auto;
-   padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
+
+.mi-slip-modal{
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
 
 .mi-slip-close{
   position: fixed; /* keep it always accessible */
@@ -3077,7 +3081,7 @@ function miRenderSlipChart(history){
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  // ---- consistent font stack (cleaner) ----
+  // Clean font stack
   const FONT = '600 11px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
   const FONT_SM = '600 10px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
 
@@ -3106,7 +3110,7 @@ function miRenderSlipChart(history){
     return v.toFixed(3);
   };
 
-  // ---------- subtle grid (1 midline) ----------
+  // --- subtle midline (helps read the shape) ---
   ctx.strokeStyle = "rgba(148,163,184,0.10)";
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -3114,7 +3118,7 @@ function miRenderSlipChart(history){
   ctx.lineTo(w - padX, Math.round(h/2));
   ctx.stroke();
 
-  // ---------- line ----------
+  // --- line ---
   ctx.lineWidth = 2;
   ctx.strokeStyle = "#38bdf8";
   ctx.beginPath();
@@ -3125,7 +3129,7 @@ function miRenderSlipChart(history){
   });
   ctx.stroke();
 
-  // ---------- subtle fill ----------
+  // --- fill ---
   const grad = ctx.createLinearGradient(0, padY, 0, h);
   grad.addColorStop(0, "rgba(56,189,248,0.18)");
   grad.addColorStop(1, "rgba(56,189,248,0)");
@@ -3135,72 +3139,16 @@ function miRenderSlipChart(history){
   ctx.fillStyle = grad;
   ctx.fill();
 
-// ---------- labels (clean + native) ----------
-ctx.font = FONT_SM;
-ctx.fillStyle = "rgba(226,232,240,0.85)";
+  // --- high/low labels (simple + clean) ---
+  ctx.font = FONT_SM;
+  ctx.fillStyle = "rgba(226,232,240,0.82)";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
 
-// High / Low as subtle text (no pills)
-ctx.textAlign = "left";
-ctx.fillText(fmtPrice(max), padX + 6, padY + 12);
-ctx.fillText(fmtPrice(min), padX + 6, h - padY + 2);
+  ctx.fillText(fmtPrice(max), padX + 6, padY + 12);
+  ctx.fillText(fmtPrice(min), padX + 6, h - padY + 2);
 
-// ---------- last point ----------
-const lx = xAt(pts.length - 1);
-const ly = yAt(last);
-
-// dot
-ctx.beginPath();
-ctx.arc(lx, ly, 3.2, 0, Math.PI * 2);
-ctx.fillStyle = "#38bdf8";
-ctx.fill();
-
-// ---------- last price pill (hero) ----------
-const tag = fmtPrice(last);
-ctx.font = FONT;
-
-const pad = 8;
-const th = 18;
-const tw = ctx.measureText(tag).width;
-const rw = tw + pad * 2;
-const rh = th;
-
-const rx = miClamp(lx + 10, padX, w - padX - rw);
-const ry = miClamp(ly - rh / 2, padY, h - padY - rh);
-
-ctx.fillStyle = "rgba(2,6,23,0.88)";
-ctx.strokeStyle = "rgba(56,189,248,0.40)";
-ctx.lineWidth = 1;
-
-ctx.beginPath();
-ctx.moveTo(rx + 8, ry);
-ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, 8);
-ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, 8);
-ctx.arcTo(rx, ry + rh, rx, ry, 8);
-ctx.arcTo(rx, ry, rx + rw, ry, 8);
-ctx.closePath();
-ctx.fill();
-ctx.stroke();
-
-ctx.fillStyle = "rgba(226,232,240,0.98)";
-ctx.fillText(tag, rx + pad, ry + rh - 5);
-
-
-  // ---- High/Low as just numbers (cleaner) ----
-  const highBox = drawLabelPill(
-    `${fmtPrice(max)}`,
-    padX + 6,
-    padY + 20,
-    { font: FONT_SM, fill: "rgba(2, 6, 23, 0.70)", stroke: "rgba(148,163,184,0.16)" }
-  );
-
-  const lowBox  = drawLabelPill(
-    `${fmtPrice(min)}`,
-    padX + 6,
-    h - padY - 2,
-    { font: FONT_SM, fill: "rgba(2, 6, 23, 0.70)", stroke: "rgba(148,163,184,0.16)" }
-  );
-
-  // ---------- last point dot ----------
+  // --- last point dot ---
   const lx = xAt(pts.length - 1);
   const ly = yAt(last);
 
@@ -3209,51 +3157,36 @@ ctx.fillText(tag, rx + pad, ry + rh - 5);
   ctx.fillStyle = "#38bdf8";
   ctx.fill();
 
-  // ---------- last price tag (collision-safe) ----------
-  const tag = `${fmtPrice(last)}`;
+  // --- last price pill (only “pill” label) ---
+  const tag = fmtPrice(last);
+  ctx.font = FONT;
 
-  function boxFor(text, x, y, font = FONT) {
-    const pad = 6;
-    ctx.font = font;
-    const tw = ctx.measureText(text).width;
-    const rh = 16;
-    const rw = tw + pad * 2;
+  const pillPadX = 8;
+  const pillH = 18;
+  const tw = ctx.measureText(tag).width;
+  const pillW = tw + pillPadX * 2;
 
-    const rx = miClamp(x - pad, padX, w - padX - rw);
-    const ry = miClamp(y - rh,  padY, h - padY - rh);
+  // prefer to the right of the last point, clamp inside chart
+  const rx = miClamp(lx + 10, padX, w - padX - pillW);
+  const ry = miClamp(ly - pillH / 2, padY, h - padY - pillH);
 
-    return { x: rx, y: ry, w: rw, h: rh };
-  }
+  ctx.fillStyle = "rgba(2,6,23,0.88)";
+  ctx.strokeStyle = "rgba(56,189,248,0.40)";
+  ctx.lineWidth = 1;
 
-  const candidates = [
-    { x: lx + 12, y: ly - 10 },
-    { x: lx + 12, y: ly + 22 },
-    { x: lx - 12, y: ly - 10 },
-    { x: lx - 12, y: ly + 22 },
-  ];
+  const r = 8;
+  ctx.beginPath();
+  ctx.moveTo(rx + r, ry);
+  ctx.arcTo(rx + pillW, ry, rx + pillW, ry + pillH, r);
+  ctx.arcTo(rx + pillW, ry + pillH, rx, ry + pillH, r);
+  ctx.arcTo(rx, ry + pillH, rx, ry, r);
+  ctx.arcTo(rx, ry, rx + pillW, ry, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
-  let placed = null;
-  for (const c of candidates) {
-    const b = boxFor(tag, c.x, c.y, FONT);
-    if (!boxesOverlap(b, highBox) && !boxesOverlap(b, lowBox)) {
-      placed = { x: b.x + 6, y: b.y + b.h };
-      break;
-    }
-  }
-  if (!placed) placed = { x: w - padX - 60, y: padY + 28 };
-
-  // last price pill slightly brighter border
-  drawLabelPill(
-    tag,
-    placed.x,
-    placed.y,
-    {
-      font: FONT,
-      fill: "rgba(2, 6, 23, 0.84)",
-      stroke: "rgba(56,189,248,0.35)",
-      textColor: "rgba(226,232,240,0.98)"
-    }
-  );
+  ctx.fillStyle = "rgba(226,232,240,0.98)";
+  ctx.fillText(tag, rx + pillPadX, ry + pillH - 5);
 }
 
 // ---------- Invest Slip open/close ----------
