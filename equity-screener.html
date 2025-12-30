@@ -3022,13 +3022,13 @@ function miBuildSlipBullets(data){
 function miRenderSlipChart(history){
   const canvas = document.getElementById("mi-slip-chart");
   if (!canvas) return;
+
   const ctx = canvas.getContext("2d");
-
   const ptsObj = miPickHistoryWindowPoints(history, 30);
-  const pts = ptsObj.map(p => p.v);
-  const w = canvas.width, h = canvas.height;
+  const pts = ptsObj.map(p => p.v).filter(v => Number.isFinite(v));
 
-  ctx.clearRect(0,0,w,h);
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
 
   if (pts.length < 2) {
     ctx.fillStyle = "#9ca3af";
@@ -3079,13 +3079,6 @@ function miRenderSlipChart(history){
 
   ctx.font = "12px system-ui";
 
-  // Helper: measure a text box
-  function textBox(text, x, y, pad = 6) {
-    const tw = ctx.measureText(text).width;
-    const th = 14;
-    return { x: x - pad, y: y - th, w: tw + pad * 2, h: th + 6 };
-  }
-
   function boxesOverlap(a, b) {
     return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
   }
@@ -3094,42 +3087,37 @@ function miRenderSlipChart(history){
     const pad = 6;
     const tw = ctx.measureText(text).width;
     const th = 16;
-    const rx = x - pad;
-    const ry = y - th;
     const rw = tw + pad * 2;
     const rh = th;
     const r = 8;
 
-    // clamp within chart area
-    const cx = miClamp(rx, padX, w - padX - rw);
-    const cy = miClamp(ry, padY, h - padY - rh);
+    // try to place (x,y) but clamp into chart bounds
+    const rx = miClamp(x - pad, padX, w - padX - rw);
+    const ry = miClamp(y - th,  padY, h - padY - rh);
 
     ctx.fillStyle = "rgba(15,23,42,0.85)";
     ctx.strokeStyle = "rgba(148,163,184,0.35)";
     ctx.lineWidth = 1;
 
     ctx.beginPath();
-    ctx.moveTo(cx + r, cy);
-    ctx.arcTo(cx + rw, cy, cx + rw, cy + rh, r);
-    ctx.arcTo(cx + rw, cy + rh, cx, cy + rh, r);
-    ctx.arcTo(cx, cy + rh, cx, cy, r);
-    ctx.arcTo(cx, cy, cx + rw, cy, r);
+    ctx.moveTo(rx + r, ry);
+    ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
+    ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
+    ctx.arcTo(rx, ry + rh, rx, ry, r);
+    ctx.arcTo(rx, ry, rx + rw, ry, r);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = "rgba(226,232,240,0.95)";
-    ctx.fillText(text, cx + pad, cy + rh - 4);
+    ctx.fillText(text, rx + pad, ry + rh - 4);
 
-    return { x: cx, y: cy, w: rw, h: rh };
+    return { x: rx, y: ry, w: rw, h: rh };
   }
 
-  // Put High/Low on LEFT to reduce clashes with the last-price tag on the right
-  const highText = `High ${fmtPrice(max)}`;
-  const lowText  = `Low ${fmtPrice(min)}`;
-
-  const highBox = drawLabelPill(highText, padX + 4, padY + 18);
-  const lowBox  = drawLabelPill(lowText,  padX + 4, h - padY - 2);
+  // Put High/Low on left, so they don’t collide with the last-price tag on the right
+  const highBox = drawLabelPill(`High ${fmtPrice(max)}`, padX + 6, padY + 20);
+  const lowBox  = drawLabelPill(`Low ${fmtPrice(min)}`,  padX + 6, h - padY - 2);
 
   // dot at last point
   const lx = xAt(pts.length - 1);
@@ -3140,38 +3128,38 @@ function miRenderSlipChart(history){
   ctx.fillStyle = "#38bdf8";
   ctx.fill();
 
-  // last price tag near last point, try 3 positions to avoid overlap
+  // last price tag near last point, try positions to avoid overlap with high/low
   const tag = fmtPrice(last);
   const candidates = [
-    { x: lx + 10, y: ly - 10 }, // right-top
-    { x: lx + 10, y: ly + 18 }, // right-bottom
-    { x: lx - 10, y: ly - 10 }, // left-top
+    { x: lx + 12, y: ly - 10 },
+    { x: lx + 12, y: ly + 20 },
+    { x: lx - 12, y: ly - 10 },
   ];
+
+  function boxFor(text, x, y) {
+    const pad = 6;
+    const tw = ctx.measureText(text).width;
+    const rh = 16;
+    const rw = tw + pad * 2;
+    const rx = miClamp(x - pad, padX, w - padX - rw);
+    const ry = miClamp(y - rh,  padY, h - padY - rh);
+    return { x: rx, y: ry, w: rw, h: rh };
+  }
 
   let placed = null;
   for (const c of candidates) {
-    const box = textBox(tag, c.x, c.y, 6);
-    // clamp test box similarly
-    box.x = miClamp(box.x, padX, w - padX - box.w);
-    box.y = miClamp(box.y, padY, h - padY - box.h);
-
-    if (!boxesOverlap(box, highBox) && !boxesOverlap(box, lowBox)) {
-      placed = { x: box.x + 6, y: box.y + box.h - 4 };
+    const b = boxFor(tag, c.x, c.y);
+    if (!boxesOverlap(b, highBox) && !boxesOverlap(b, lowBox)) {
+      placed = { x: b.x + 6, y: b.y + b.h };
       break;
     }
   }
-
-  // fallback: just clamp to inside
-  if (!placed) {
-    placed = {
-      x: miClamp(lx + 10, padX, w - padX - 40),
-      y: miClamp(ly - 10, padY + 18, h - padY - 8),
-    };
-  }
+  if (!placed) placed = { x: w - padX - 60, y: padY + 28 };
 
   drawLabelPill(tag, placed.x, placed.y);
+}
 
-
+// ---------- Invest Slip open/close ----------
 function miOpenSlipFromCurrent(){
   const data = miLastInstrumentData;
   if (!data) return;
@@ -3180,7 +3168,6 @@ function miOpenSlipFromCurrent(){
   const latest = data.latest || {};
   const built = miBuildSlipBullets(data);
 
-  // Populate fields
   document.getElementById("mi-slip-code").textContent = (data.code || "—") + ".ASX";
   document.getElementById("mi-slip-name").textContent = data.name || "—";
 
@@ -3202,14 +3189,11 @@ function miOpenSlipFromCurrent(){
   document.getElementById("mi-slip-risk").textContent = `Risk: ${built.risk}`;
   document.getElementById("mi-slip-time").textContent = `Timeframe: ${built.timeframe}`;
 
-  // Bullets
   const ul = document.getElementById("mi-slip-bullets");
   ul.innerHTML = built.bullets.map(b => `<li>${b}</li>`).join("");
 
-  // Chart
   miRenderSlipChart(data.history);
 
-  // Open overlay
   const overlay = document.getElementById("mi-slip-overlay");
   overlay.style.display = "flex";
   overlay.setAttribute("aria-hidden", "false");
@@ -3221,15 +3205,72 @@ function miCloseSlip(){
   overlay.style.display = "none";
   overlay.setAttribute("aria-hidden", "true");
 }
+async function miShareSlip(){
+  const el = document.querySelector(".mi-slip-modal");
+  if (!el) return;
 
-// Wire buttons
+  const code = document.getElementById("mi-slip-code")?.textContent || "Invest Slip";
+  const url = "https://matesinvest.com/equity-screener.html";
+
+  // Try image share first (best for Messenger/WhatsApp)
+  try {
+    if (typeof html2canvas !== "function") throw new Error("html2canvas missing");
+
+    const canvas = await html2canvas(el, {
+      backgroundColor: "#050812",
+      scale: 2,
+      useCORS: true
+    });
+
+    const blob = await new Promise(res => canvas.toBlob(res, "image/png", 1.0));
+    if (!blob) throw new Error("No blob");
+
+    const safe = String(code).replace(/[^\w\-\.]+/g, "_").slice(0, 40);
+    const file = new File([blob], `${safe}.png`, { type: "image/png" });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: `Invest Slip — ${code}`,
+        text: `Invest Slip — ${code}\nCreate your own: ${url}`,
+        files: [file]
+      });
+      return;
+    }
+  } catch (e) {
+    // fall through
+  }
+
+  // Fallback: link share
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: `Invest Slip`,
+        text: `Invest Slip — ${code}\nCreate your own: ${url}`,
+        url
+      });
+      return;
+    }
+  } catch (e) {}
+
+  // Last fallback: copy link
+  try {
+    await navigator.clipboard.writeText(url);
+    alert("Link copied. Paste into chat (or screenshot the slip).");
+  } catch (e) {
+    alert(url);
+  }
+}
+
+document.getElementById("mi-slip-share-btn")?.addEventListener("click", miShareSlip);
+
+// Wire buttons (Invest Slip)
 document.getElementById("mi-ins-slip-btn")?.addEventListener("click", () => {
   miOpenSlipFromCurrent();
 });
 
 document.getElementById("mi-slip-close-btn")?.addEventListener("click", miCloseSlip);
 document.getElementById("mi-slip-overlay")?.addEventListener("click", (e) => {
-  if (e.target.id === "mi-slip-overlay") miCloseSlip();
+  if (e.target && e.target.id === "mi-slip-overlay") miCloseSlip();
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") miCloseSlip();
@@ -3573,53 +3614,7 @@ loadMarketPulseCards("1d");
             `${labelFor(period)} · As of ${json.asOf}` +
             (json.baseDate ? ` (vs ${json.baseDate})` : "");
         }
-async function miShareSlip(){
-  const el = document.querySelector(".mi-slip-modal");
-  if (!el) return;
 
-  const code = document.getElementById("mi-slip-code")?.textContent || "Invest Slip";
-  const url = "https://matesinvest.com"; // or your invest-slip route later
-
-  // Try image share first (best for Messenger/WhatsApp)
-  try {
-    const canvas = await html2canvas(el, {
-      backgroundColor: "#050812",
-      scale: 2,
-      useCORS: true
-    });
-
-    const blob = await new Promise(res => canvas.toBlob(res, "image/png", 1.0));
-    if (!blob) throw new Error("No blob");
-
-    const file = new File([blob], `${code.replace(/\s+/g,'_')}.png`, { type: "image/png" });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        title: `Invest Slip — ${code}`,
-        text: `Invest Slip — ${code}\nCreate your own: ${url}`,
-        files: [file]
-      });
-      return;
-    }
-  } catch (e) {
-    // fall through to link share
-  }
-
-  // Fallback: link + text share
-  if (navigator.share) {
-    await navigator.share({
-      title: `Invest Slip`,
-      text: `Invest Slip — ${code}\nCreate your own: ${url}`,
-      url
-    });
-  } else {
-    // last fallback: copy link
-    await navigator.clipboard.writeText(url);
-    alert("Link copied. Paste into chat (or screenshot the slip).");
-  }
-}
-
-document.getElementById("mi-slip-share-btn")?.addEventListener("click", miShareSlip);
 
         async function fetchPeriod(period) {
           if (cache.has(period)) return cache.get(period);
