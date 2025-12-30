@@ -1734,6 +1734,16 @@ tbody tr:nth-child(even) {
 .mi-slip-deeplink{
   display: none !important;
 }
+/* Across chips = clickable filters */
+.across-chip {
+  cursor: pointer;
+  user-select: none;
+}
+
+.across-chip.active {
+  border-color: rgba(0, 191, 255, 0.55);
+  background: rgba(0, 191, 255, 0.12);
+}
 
     </style>
   </head>
@@ -2247,6 +2257,42 @@ const MORNING_BRIEF_URL = "/.netlify/functions/morning-brief";
 
       let sortState = { key: "marketCap", direction: "desc" };
       let activePresetId = null;
+      // Across-markets chip -> screener tag filter
+let activeAcrossTag = null;
+
+// Map chip symbol -> fundamentals tag
+const ACROSS_TAG_MAP = {
+  XAU: "Gold",
+  IRON: "Iron Ore",
+  URANIUM: "Uranium",
+  NI: "Nickel",
+  "LITH-CAR": "Lithium",
+
+  // Any of these = show Crypto-tagged equities
+  BTC: "Crypto",
+  ETH: "Crypto",
+  SOL: "Crypto",
+};
+
+function normalizeTag(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function itemHasTag(item, tag) {
+  const want = normalizeTag(tag);
+  const tags = Array.isArray(item?.tags) ? item.tags : [];
+  return tags.some((t) => normalizeTag(t) === want);
+}
+
+function setAcrossActiveUI() {
+  const wrap = document.getElementById("acrossItems");
+  if (!wrap) return;
+  wrap.querySelectorAll(".across-chip").forEach((el) => {
+    const tag = el.getAttribute("data-tag");
+    el.classList.toggle("active", !!tag && normalizeTag(tag) === normalizeTag(activeAcrossTag));
+  });
+}
+
 
 // Fast-mover “volatile” threshold (daily move). Tweak anytime.
 const FAST_MOVER_MIN_ABS_PCT = 3; // 3%+
@@ -2332,24 +2378,31 @@ async function loadAcrossMarkets() {
     }
 
     // Render
-    wrap.innerHTML = chips
-      .map((x) => {
-        const chgTxt = x.chg == null ? "—" : fmtPct(x.chg);
-        const cls = pctClass(x.chg);
-        return `
-          <div class="across-chip" title="${x.lbl}">
-            <div class="k">
-              <div class="sym">${x.sym}</div>
-              <div class="lbl">${x.lbl}</div>
-            </div>
-            <div class="v">
-              <div class="px">${fmtMoneyAUD(x.px)}</div>
-              <div class="chg ${cls}">${chgTxt}</div>
-            </div>
-          </div>
-        `;
-      })
-      .join("");
+wrap.innerHTML = chips
+  .map((x) => {
+    const chgTxt = x.chg == null ? "—" : fmtPct(x.chg);
+    const cls = pctClass(x.chg);
+
+    const tag = ACROSS_TAG_MAP[x.sym] || ""; // <-- NEW
+
+    return `
+      <div class="across-chip" title="${x.lbl}" data-sym="${x.sym}" data-tag="${tag}">
+        <div class="k">
+          <div class="sym">${x.sym}</div>
+          <div class="lbl">${x.lbl}</div>
+        </div>
+        <div class="v">
+          <div class="px">${fmtMoneyAUD(x.px)}</div>
+          <div class="chg ${cls}">${chgTxt}</div>
+        </div>
+      </div>
+    `;
+  })
+  .join("");
+
+// NEW: apply active styling after render
+setAcrossActiveUI();
+
 
     // Meta (timestamp)
     const ts =
@@ -2575,6 +2628,7 @@ statusMeta.textContent = `Updated ${updatedDate}`;
         const mcMaxBn = parseFloat(mcMaxInput.value);
         const dyMin = parseFloat(dyMinInput.value);
         const hideEtfs = hideEtfsInput && hideEtfsInput.checked;
+        const tagFilter = activeAcrossTag;
 
         filteredItems = rawItems.filter((item) => {
           if (q) {
@@ -2583,7 +2637,10 @@ statusMeta.textContent = `Updated ${updatedDate}`;
           }
 
           if (sector && item.sector !== sector) return false;
-
+// Across Markets tag filter (Gold / Uranium / Crypto etc)
+if (tagFilter) {
+  if (!itemHasTag(item, tagFilter)) return false;
+}
           // only exact 3-letter codes
           const code = (item.code || "").trim();
           if (!code || code.length !== 3) return false;
@@ -3703,6 +3760,24 @@ async function loadMarketPulseCards(period = "1d") {
     console.warn("Market Pulse cards failed:", e?.message || e);
   }
 }
+// ----------------------------------------------------
+// Across Markets click -> toggle tag filter
+document.getElementById("acrossItems")?.addEventListener("click", (e) => {
+  const chip = e.target.closest(".across-chip");
+  if (!chip) return;
+
+  const tag = chip.getAttribute("data-tag") || "";
+  if (!tag) return; // chips without tags do nothing
+
+  // Toggle on/off
+  activeAcrossTag = (normalizeTag(activeAcrossTag) === normalizeTag(tag)) ? null : tag;
+
+  // Optional: clear presets so they don't "fight" the user’s intent
+  clearPresetUI();
+
+  setAcrossActiveUI();
+  applyFilters();
+});
 
 // kick it off
 loadMarketPulseCards("1d"); 
