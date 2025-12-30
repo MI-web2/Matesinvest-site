@@ -3406,39 +3406,68 @@ function miCloseSlip(){
   overlay.style.display = "none";
   overlay.setAttribute("aria-hidden", "true");
 }
-async function miShareSlip(){
+async function miShareSlip() {
   const el = document.querySelector(".mi-slip-modal");
   if (!el) return;
 
   const codeEl = document.getElementById("mi-slip-code");
-  const codeText = codeEl?.textContent || "Invest Slip";
-  // Remove exchange suffix (e.g., .ASX, .NYSE, .AX) if present
+  const codeText = (codeEl?.textContent || "Invest Slip").trim();
+
+  // Remove exchange suffix (e.g., ".ASX")
   const stockCode = codeText.replace(/\.[A-Z0-9]+$/i, "").trim() || "";
-  const deepLinkUrl = stockCode 
+
+  const deepLinkUrl = stockCode
     ? `${window.location.origin}${window.location.pathname}?stock=${encodeURIComponent(stockCode)}`
     : `${window.location.origin}${window.location.pathname}`;
 
-  // Try image share first (best for Messenger/WhatsApp)
+  const shareTitle = `Invest Slip — ${codeText}`;
+  const shareText = `Invest Slip — ${codeText}\n\nOpen: ${deepLinkUrl}`;
+
+  // 1) Best effort: share image + url + text
   try {
     if (typeof html2canvas !== "function") throw new Error("html2canvas missing");
 
     const canvas = await html2canvas(el, {
       backgroundColor: "#050812",
       scale: 2,
-      useCORS: true
+      useCORS: true,
+      // Helps avoid capturing off-screen fixed elements weirdly:
+      scrollX: 0,
+      scrollY: -window.scrollY
     });
 
-    const blob = await new Promise(res => canvas.toBlob(res, "image/png", 1.0));
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/png", 1.0));
     if (!blob) throw new Error("No blob");
 
     const safe = String(codeText).replace(/[^\w\-\.]+/g, "_").slice(0, 40);
     const file = new File([blob], `${safe}.png`, { type: "image/png" });
 
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    // If device says it can share files, try sharing with URL included
+    if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: deepLinkUrl,     // ✅ key change (some apps will use it)
+          files: [file]
+        });
+        return;
+      } catch (err) {
+        // Some targets fail when url+files are together.
+        // We'll fall through to link-only share.
+      }
+    }
+  } catch (e) {
+    // fall through
+  }
+
+  // 2) Reliable fallback: share link-only (creates clickable preview in most apps)
+  try {
+    if (navigator.share) {
       await navigator.share({
-        title: `Invest Slip — ${codeText}`,
-        text: `Invest Slip — ${codeText}\n\nView this stock: ${deepLinkUrl}`,
-        files: [file]
+        title: shareTitle,
+        text: shareText,
+        url: deepLinkUrl
       });
       return;
     }
@@ -3446,22 +3475,10 @@ async function miShareSlip(){
     // fall through
   }
 
-  // Fallback: link share
-  try {
-    if (navigator.share) {
-      await navigator.share({
-        title: `Invest Slip — ${codeText}`,
-        text: `Invest Slip — ${codeText}\n\nView this stock: ${deepLinkUrl}`,
-        url: deepLinkUrl
-      });
-      return;
-    }
-  } catch (e) {}
-
-  // Last fallback: copy link
+  // 3) Last fallback: copy link
   try {
     await navigator.clipboard.writeText(deepLinkUrl);
-    alert("Link copied. Paste into chat to share this stock slip.");
+    alert("Link copied. Paste into chat to share this invest slip.");
   } catch (e) {
     alert(deepLinkUrl);
   }
