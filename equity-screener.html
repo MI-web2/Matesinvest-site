@@ -21,6 +21,7 @@
         --glass: rgba(255, 255, 255, 0.92);
         --radius: 18px;
         --gap: 1rem;
+        --slip-share-btn-height: 72px;
       }
       /* ---------- HOME-STYLE TOP NAV (matches styles.css) ---------- */
 .container {
@@ -1590,8 +1591,9 @@ tbody tr:nth-child(even) {
   margin-right: auto;
 }
 
+/* Invest slip modal bottom padding to accommodate share button + spacing */
 .mi-slip-modal{
-  padding-bottom: calc(106px + env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--slip-share-btn-height) + 34px + env(safe-area-inset-bottom));
 }
 
 
@@ -1621,7 +1623,7 @@ tbody tr:nth-child(even) {
   bottom: 0;
   z-index: 10001;
 
-  height: 72px;
+  height: var(--slip-share-btn-height);
   padding-bottom: env(safe-area-inset-bottom);
 
   display: flex;
@@ -2106,7 +2108,7 @@ tbody tr:nth-child(even) {
     <div class="mi-slip-footer">
       <div class="mi-slip-time" id="mi-slip-time">Timeframe: Days → Weeks</div>
       <div class="mi-slip-brand">
-        Create your own → <a href="https://matesinvest.com/equity-screener.html" class="mi-slip-url" target="_blank" rel="noopener">matesinvest.com</a>
+        Create your own → <a href="https://matesinvest.com/equity-screener.html" class="mi-slip-url" target="_blank" rel="noopener noreferrer">matesinvest.com</a>
       </div>
       <div class="mi-slip-disclaimer">Not advice. Informational only.</div>
     </div>
