@@ -3412,8 +3412,8 @@ async function miShareSlip(){
 
   const codeEl = document.getElementById("mi-slip-code");
   const codeText = codeEl?.textContent || "Invest Slip";
-  // Remove exchange suffix (e.g., .ASX, .NYSE) if present
-  const stockCode = codeText.replace(/\.[A-Z]+$/, "").trim() || "";
+  // Remove exchange suffix (e.g., .ASX, .NYSE, .AX) if present
+  const stockCode = codeText.replace(/\.[A-Z0-9]+$/i, "").trim() || "";
   const deepLinkUrl = stockCode 
     ? `${window.location.origin}${window.location.pathname}?stock=${encodeURIComponent(stockCode)}`
     : `${window.location.origin}${window.location.pathname}`;
