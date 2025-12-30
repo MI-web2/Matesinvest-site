@@ -3970,9 +3970,9 @@ loadMarketPulseCards("1d");
           if (inflight.has(period)) return inflight.get(period);
 
           const p = (async () => {
-            const res = await fetch(`/.netlify/functions/get-sector-performance?period=${period}`, {
-              cache: "force-cache",
-            });
+const res = await fetch(`/.netlify/functions/get-sector-performance?period=${period}&_=${Date.now()}`, {
+  cache: "no-store",
+});
             const json = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(json?.error || "Not available");
             cache.set(period, json);
