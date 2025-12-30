@@ -80,6 +80,12 @@
   [functions."market-pulse-window-cache"]
   schedule = "15 20 * * 1-5"
 
+  [functions."build-sectors-day"]
+  # Build daily ASX sector snapshots
+  # Runs AFTER universe merge, BEFORE market-pulse readers
+  # 20:00 UTC ≈ 6:00am AEST / 7:00am AEDT
+  schedule = "0 20 * * 1-5"
+
 [[redirects]]
   from = "/content/articles"
   to = "/content-index.html"
