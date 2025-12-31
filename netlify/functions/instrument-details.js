@@ -284,7 +284,6 @@ async function findUniverseFundamentalsByCode(baseCode) {
     const highlights = f.Highlights || {};
     const financials = f.Financials || {};
     const ratios = f.ValuationRatios || f.Valuation || {};
-    const valuation = f.Valuation || {};
     const incomeYearly =
       financials.Income_Statement && financials.Income_Statement.yearly
         ? financials.Income_Statement.yearly
@@ -422,13 +421,11 @@ async function findUniverseFundamentalsByCode(baseCode) {
     const pbVal = pickNumber(
       ratios.PriceBookMRQ,
       ratios.PriceToBookRatio,
-      valuation.PriceBookMRQ,
       highlights.PriceBookMRQ
     );
     const psVal = pickNumber(
       ratios.PriceSalesTTM,
       ratios.PriceToSalesRatio,
-      valuation.PriceSalesTTM,
       highlights.PriceSalesTTM
     );
 
@@ -594,8 +591,8 @@ async function findUniverseFundamentalsByCode(baseCode) {
         body: JSON.stringify({ 
           error: "No data sources available. Missing both Upstash credentials and EODHD_API_TOKEN",
           debug: {
-            hasUpstash: false,
-            hasEodhd: false,
+            hasUpstash,
+            hasEodhd,
           }
         }),
       };
