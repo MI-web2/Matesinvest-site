@@ -283,6 +283,8 @@ async function findUniverseFundamentalsByCode(baseCode) {
     const general = f.General || {};
     const highlights = f.Highlights || {};
     const financials = f.Financials || {};
+    const ratios = f.ValuationRatios || f.Valuation || {};
+    const valuation = f.Valuation || {};
     const incomeYearly =
       financials.Income_Statement && financials.Income_Statement.yearly
         ? financials.Income_Statement.yearly
@@ -440,14 +442,24 @@ async function findUniverseFundamentalsByCode(baseCode) {
         typeof highlights.PERatio === "number"
           ? fmt(highlights.PERatio, 2)
           : null,
-      priceToBook:
-        typeof highlights.PriceBookMRQ === "number"
-          ? fmt(highlights.PriceBookMRQ, 2)
-          : null,
-      priceToSales:
-        typeof highlights.PriceSalesTTM === "number"
-          ? fmt(highlights.PriceSalesTTM, 2)
-          : null,
+      priceToBook: (() => {
+        const val = pickNumber(
+          ratios.PriceBookMRQ,
+          ratios.PriceToBookRatio,
+          valuation.PriceBookMRQ,
+          highlights.PriceBookMRQ
+        );
+        return val !== null ? fmt(val, 2) : null;
+      })(),
+      priceToSales: (() => {
+        const val = pickNumber(
+          ratios.PriceSalesTTM,
+          ratios.PriceToSalesRatio,
+          valuation.PriceSalesTTM,
+          highlights.PriceSalesTTM
+        );
+        return val !== null ? fmt(val, 2) : null;
+      })(),
       eps:
         typeof highlights.EarningsShare === "number"
           ? fmt(highlights.EarningsShare, 2)
