@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>MatesInvest – ASX Dashboard</title>
+    <title>MatesInvest – Investment Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <style>
@@ -1744,6 +1744,30 @@ tbody tr:nth-child(even) {
   border-color: rgba(0, 191, 255, 0.55);
   background: rgba(0, 191, 255, 0.12);
 }
+      h1 {
+  margin: 0.6rem auto 0.35rem;
+  padding: 0 1.5rem;
+  text-align: center;
+  font-size: 1.35rem;       /* smaller */
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* NEW: tiny landscape tip under Across Markets */
+.mi-tip {
+  margin: -2px 0 10px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted-2);
+  line-height: 1.25;
+}
+.mi-tip strong { font-weight: 700; }
+
+/* Mobile tweak */
+@media (max-width: 768px) {
+  h1 { font-size: 1.18rem; }
+  .mi-tip { font-size: 10.5px; }
+}
 
     </style>
   </head>
@@ -1769,13 +1793,10 @@ tbody tr:nth-child(even) {
       <button class="menu-btn" aria-label="Toggle navigation">☰</button>
     </div>
   </header>
-      <header>
-        <h1>ASX Dashboard</h1>
-<p class="muted">
-  Scan the ASX with filters and sorting like a simple spreadsheet.
-  <strong>Tip:</strong> best viewed in <strong>landscape</strong> on mobile (turn your phone sideways).
-</p>
-      </header>
+<header>
+  <h1>Investment Dashboard</h1>
+</header>
+
 <!-- Market Pulse (cards) -->
 <section class="mp-wrap" aria-label="Market pulse summary">
   <div class="mp-grid">
@@ -1836,6 +1857,9 @@ tbody tr:nth-child(even) {
     <!-- chips render here -->
   </div>
 </section>
+<div class="mi-tip">
+  Tip: best viewed in <strong>landscape</strong> on mobile (turn your phone sideways).
+</div>
 
       <section class="filters-card" id="filtersCard">
         <button type="button" class="filters-toggle" id="filtersToggle">
