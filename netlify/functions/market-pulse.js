@@ -176,7 +176,17 @@ exports.handler = async function () {
     const latestRaw = await redisGet(EOD_LATEST_KEY);
     const latestObj = parse(latestRaw);
 
-    if (!latestObj || !Array.isArray(latestObj.rows) || latestObj.rows.length === 0) {
+    // Support both array format and object with .rows property
+    let priceRows, asOfDate;
+    if (Array.isArray(latestObj)) {
+      // Direct array format (from snapshot-asx-universe-prices)
+      priceRows = latestObj;
+      asOfDate = priceRows[0]?.date || null;
+    } else if (latestObj && Array.isArray(latestObj.rows)) {
+      // Object format with .rows property
+      priceRows = latestObj.rows;
+      asOfDate = latestObj.asOfDate || latestObj.date || null;
+    } else {
       return {
         statusCode: 503,
         headers: { "Content-Type": "text/plain" },
@@ -184,8 +194,13 @@ exports.handler = async function () {
       };
     }
 
-    const asOfDate = latestObj.asOfDate || latestObj.date || null;
-    const priceRows = latestObj.rows;
+    if (!priceRows || priceRows.length === 0) {
+      return {
+        statusCode: 503,
+        headers: { "Content-Type": "text/plain" },
+        body: "No latest EOD universe available yet",
+      };
+    }
 
     // Load fundamentals for ASX200 membership + market caps + sectors
     const fundRaw = await redisGet(FUND_LATEST_KEY);
