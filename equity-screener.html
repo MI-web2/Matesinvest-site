@@ -4025,7 +4025,8 @@ loadMarketPulseCards("1d");
               // Make chart clickable - filter by sector when bar is clicked
               if (elements.length > 0) {
                 const index = elements[0].index;
-                const sector = fullLabels[index];
+                // Use chart.fullLabels to get current period's sector data
+                const sector = chart && chart.fullLabels ? chart.fullLabels[index] : fullLabels[index];
                 
                 // Set the sector dropdown to the clicked sector
                 if (sectorSelect) {
