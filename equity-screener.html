@@ -1638,11 +1638,6 @@ tbody tr:nth-child(even) {
   background: rgba(15,23,42,0.60);
   border: 1px solid rgba(148,163,184,0.25);
 }
-
-/* Hide close button when sharing */
-.mi-slip-close.sharing-hide {
-  display: none !important;
-}
       .mi-slip-bullets li{
   color: #e2e8f0;
 }
@@ -2286,6 +2281,14 @@ tbody tr:nth-child(even) {
     <button class="mi-slip-deepdive-btn" type="button" id="mi-slip-deepdive-btn">
       Deep Dive →
     </button>
+
+    <div class="mi-slip-footer">
+      <div class="mi-slip-time" id="mi-slip-time">Timeframe: Days → Weeks</div>
+      <div class="mi-slip-brand">
+        Create your own → <a href="https://matesinvest.com/equity-screener.html" class="mi-slip-url" target="_blank" rel="noopener noreferrer">matesinvest.com</a>
+      </div>
+      <div class="mi-slip-disclaimer">Not advice. Informational only.</div>
+    </div>
   </div>
 </div>
     <script>
@@ -3609,10 +3612,6 @@ async function miShareSlip() {
   try {
     if (typeof html2canvas !== "function") throw new Error("html2canvas not available");
 
-    // Hide close button during screenshot
-    const closeBtn = document.getElementById("mi-slip-close-btn");
-    if (closeBtn) closeBtn.classList.add("sharing-hide");
-
     const canvas = await html2canvas(el, {
       backgroundColor: "#050812",
       scale: 2,
@@ -3620,9 +3619,6 @@ async function miShareSlip() {
       scrollX: 0,
       scrollY: -window.scrollY,
     });
-
-    // Show close button again
-    if (closeBtn) closeBtn.classList.remove("sharing-hide");
 
     const blob = await new Promise((res) => canvas.toBlob(res, "image/png", 1.0));
     if (!blob) throw new Error("Image blob failed");
@@ -3647,9 +3643,6 @@ async function miShareSlip() {
       return;
     }
   } catch (_) {
-    // Make sure close button is visible again even if screenshot fails
-    const closeBtn = document.getElementById("mi-slip-close-btn");
-    if (closeBtn) closeBtn.classList.remove("sharing-hide");
     // fall through
   }
 

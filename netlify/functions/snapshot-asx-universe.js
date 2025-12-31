@@ -502,11 +502,8 @@ exports.handler = async function (event) {
         const price = Number(
           highlights.Close || highlights.LastClose || highlights.LatestClose
         );
-        const num = (v) => {
-          if (v === null || typeof v === "undefined" || v === "") return null;
-          const n = Number(v);
-          return Number.isFinite(n) ? n : null;
-        };
+        const num = (v) =>
+          v === null || typeof v === "undefined" || v === "" ? null : Number(v);
 
         // NEW: capture description / summary for tagging + UI (capped)
         const description =
