@@ -147,7 +147,7 @@ exports.handler = async function (event) {
       fundamentalsArr = fundamentalsData.items;
     }
 
-    if (!Array.isArray(todayArr) || !Array.isArray(prevArr) || !fundamentalsArr) {
+    if (!Array.isArray(todayArr) || !Array.isArray(prevArr) || !Array.isArray(fundamentalsArr)) {
       return { statusCode: 500, body: "Missing/invalid cached arrays (eod or fundamentals)" };
     }
 
