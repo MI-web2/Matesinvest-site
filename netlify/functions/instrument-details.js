@@ -143,14 +143,39 @@ async function getUniverseFundamentalsLatestManifest() {
 
 async function findUniverseFundamentalsByCode(baseCode) {
   const manifest = await getUniverseFundamentalsLatestManifest();
-  if (!manifest || !Array.isArray(manifest.parts) || manifest.parts.length === 0) return null;
+  if (!manifest) return null;
 
   const norm = normalizeCode(baseCode);
 
+  // Case 1: Direct items array (merged object)
+  if (Array.isArray(manifest.items)) {
+    const hit = manifest.items.find((x) => normalizeCode(x && x.code) === norm);
+    if (hit) return hit;
+  }
+
+  // Case 2: Manifest with parts (fallback mode for large datasets)
+  const partKeys = Array.isArray(manifest.parts)
+    ? manifest.parts
+    : Array.isArray(manifest.partKeys)
+    ? manifest.partKeys
+    : null;
+
+  if (!partKeys || partKeys.length === 0) return null;
+
   // Pull each part and search for the code
-  for (const partKey of manifest.parts) {
-    const arr = await redisGetJson(partKey);
-    if (!Array.isArray(arr)) continue;
+  for (const partKey of partKeys) {
+    const rawPart = await redisGetJson(partKey);
+    if (!rawPart) continue;
+
+    // Support both: objects with .items property AND raw arrays
+    let arr;
+    if (Array.isArray(rawPart.items)) {
+      arr = rawPart.items;
+    } else if (Array.isArray(rawPart)) {
+      arr = rawPart;
+    } else {
+      continue;
+    }
 
     const hit = arr.find((x) => normalizeCode(x && x.code) === norm);
     if (hit) return hit;
