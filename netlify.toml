@@ -75,16 +75,19 @@
   # Daily ASX Market Pulse
   # Runs at 06:10 AEST (20:10 UTC previous day)
   # Calculates ASX 200 (internal), breadth, turnover, movers
-  schedule = "10 20 * * 1-5"
+  # Runs daily to keep data fresh even on weekends
+  schedule = "10 20 * * *"
   
   [functions."market-pulse-window-cache"]
-  schedule = "15 20 * * 1-5"
+  # Runs daily to keep window caches fresh
+  schedule = "15 20 * * *"
 
   [functions."build-sectors-day"]
   # Build daily ASX sector snapshots
   # Runs AFTER universe merge, BEFORE market-pulse readers
   # 20:00 UTC ≈ 6:00am AEST / 7:00am AEDT
-  schedule = "0 20 * * 1-5"
+  # Runs daily to keep sector data fresh
+  schedule = "0 20 * * *"
 
 [[redirects]]
   from = "/content/articles"
