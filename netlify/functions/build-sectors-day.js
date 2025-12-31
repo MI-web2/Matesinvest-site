@@ -140,14 +140,14 @@ exports.handler = async function (event) {
     ]);
 
     // Support both direct array and object with .items property
-    let fundamentalsArr = null;
+    let fundamentalsArr = [];
     if (Array.isArray(fundamentalsData)) {
       fundamentalsArr = fundamentalsData;
     } else if (fundamentalsData && Array.isArray(fundamentalsData.items)) {
       fundamentalsArr = fundamentalsData.items;
     }
 
-    if (!Array.isArray(todayArr) || !Array.isArray(prevArr) || !Array.isArray(fundamentalsArr)) {
+    if (!Array.isArray(todayArr) || !Array.isArray(prevArr) || fundamentalsArr.length === 0) {
       return { statusCode: 500, body: "Missing/invalid cached arrays (eod or fundamentals)" };
     }
 

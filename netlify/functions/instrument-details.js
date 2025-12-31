@@ -154,11 +154,12 @@ async function findUniverseFundamentalsByCode(baseCode) {
   }
 
   // Case 2: Manifest with parts (fallback mode for large datasets)
-  const partKeys = Array.isArray(manifest.parts)
-    ? manifest.parts
-    : Array.isArray(manifest.partKeys)
-    ? manifest.partKeys
-    : null;
+  let partKeys = null;
+  if (Array.isArray(manifest.parts)) {
+    partKeys = manifest.parts;
+  } else if (Array.isArray(manifest.partKeys)) {
+    partKeys = manifest.partKeys;
+  }
 
   if (!partKeys || partKeys.length === 0) return null;
 
