@@ -40,6 +40,13 @@ function normalizeCode(code) {
     .toUpperCase();
 }
 
+// Helper to safely convert to number, returning null for NaN
+function toFiniteNumber(v) {
+  if (v === null || typeof v === "undefined" || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function readAsx200ListSync() {
   const candidates = [
     path.join(__dirname, "asx200.txt"),
@@ -225,16 +232,16 @@ for (const rawCode of tickers) {
         : null,
 
     // === Valuation metrics ===
-    trailingPE: v.TrailingPE != null ? Number(v.TrailingPE) : null,
-    forwardPE: v.ForwardPE != null ? Number(v.ForwardPE) : null,
-    priceToSales: v.PriceSalesTTM != null ? Number(v.PriceSalesTTM) : null,
-    priceToBook: v.PriceBookMRQ != null ? Number(v.PriceBookMRQ) : null,
+    trailingPE: v.TrailingPE != null ? toFiniteNumber(v.TrailingPE) : null,
+    forwardPE: v.ForwardPE != null ? toFiniteNumber(v.ForwardPE) : null,
+    priceToSales: v.PriceSalesTTM != null ? toFiniteNumber(v.PriceSalesTTM) : null,
+    priceToBook: v.PriceBookMRQ != null ? toFiniteNumber(v.PriceBookMRQ) : null,
     enterpriseValue:
-      v.EnterpriseValue != null ? Number(v.EnterpriseValue) : null,
+      v.EnterpriseValue != null ? toFiniteNumber(v.EnterpriseValue) : null,
     evToRevenue:
-      v.EnterpriseValueRevenue != null ? Number(v.EnterpriseValueRevenue) : null,
+      v.EnterpriseValueRevenue != null ? toFiniteNumber(v.EnterpriseValueRevenue) : null,
     evToEbitda:
-      v.EnterpriseValueEbitda != null ? Number(v.EnterpriseValueEbitda) : null,
+      v.EnterpriseValueEbitda != null ? toFiniteNumber(v.EnterpriseValueEbitda) : null,
   };
 }
 
