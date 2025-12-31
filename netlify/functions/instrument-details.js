@@ -418,6 +418,20 @@ async function findUniverseFundamentalsByCode(baseCode) {
       );
     }
 
+    // Extract priceToBook and priceToSales from multiple possible locations
+    const pbVal = pickNumber(
+      ratios.PriceBookMRQ,
+      ratios.PriceToBookRatio,
+      valuation.PriceBookMRQ,
+      highlights.PriceBookMRQ
+    );
+    const psVal = pickNumber(
+      ratios.PriceSalesTTM,
+      ratios.PriceToSalesRatio,
+      valuation.PriceSalesTTM,
+      highlights.PriceSalesTTM
+    );
+
     return {
       name: general.Name || null,
       sector: general.Sector || null,
@@ -442,24 +456,8 @@ async function findUniverseFundamentalsByCode(baseCode) {
         typeof highlights.PERatio === "number"
           ? fmt(highlights.PERatio, 2)
           : null,
-      priceToBook: (() => {
-        const val = pickNumber(
-          ratios.PriceBookMRQ,
-          ratios.PriceToBookRatio,
-          valuation.PriceBookMRQ,
-          highlights.PriceBookMRQ
-        );
-        return val !== null ? fmt(val, 2) : null;
-      })(),
-      priceToSales: (() => {
-        const val = pickNumber(
-          ratios.PriceSalesTTM,
-          ratios.PriceToSalesRatio,
-          valuation.PriceSalesTTM,
-          highlights.PriceSalesTTM
-        );
-        return val !== null ? fmt(val, 2) : null;
-      })(),
+      priceToBook: pbVal !== null ? fmt(pbVal, 2) : null,
+      priceToSales: psVal !== null ? fmt(psVal, 2) : null,
       eps:
         typeof highlights.EarningsShare === "number"
           ? fmt(highlights.EarningsShare, 2)
