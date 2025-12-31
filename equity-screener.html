@@ -1699,6 +1699,45 @@ tbody tr:nth-child(even) {
 
 /* Optional: if you want text instead of icon, remove ::before and use the button text */
 
+/* Deep Dive button - slick styling matching the invest slip theme */
+.mi-slip-deepdive-btn{
+  width: 100%;
+  padding: 14px 18px;
+  margin: 16px 0 0;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(56,189,248,0.15),
+    rgba(56,189,248,0.08)
+  );
+  border: 1px solid rgba(56,189,248,0.35);
+  color: #f9fafb;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.mi-slip-deepdive-btn:hover{
+  background: linear-gradient(
+    135deg,
+    rgba(56,189,248,0.25),
+    rgba(56,189,248,0.15)
+  );
+  border-color: rgba(56,189,248,0.55);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+.mi-slip-deepdive-btn:active{
+  transform: translateY(0px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
 /* Deep link display - shows above share button */
 .mi-slip-deeplink{
   display: flex;
@@ -2237,6 +2276,11 @@ tbody tr:nth-child(even) {
         </div>
       </div>
     </div>
+
+    <!-- Deep Dive button -->
+    <button class="mi-slip-deepdive-btn" type="button" id="mi-slip-deepdive-btn">
+      Deep Dive →
+    </button>
 
     <div class="mi-slip-footer">
       <div class="mi-slip-time" id="mi-slip-time">Timeframe: Days → Weeks</div>
@@ -3674,6 +3718,12 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") miCloseSlip();
 });
 
+// Wire Deep Dive button in slip
+document.getElementById("mi-slip-deepdive-btn")?.addEventListener("click", () => {
+  if (!miCurrentCode) return;
+  window.location.href = `/stocks/${miCurrentCode}.html`;
+});
+
       function miCloseInstrumentModal() {
         const overlay = document.getElementById("mi-instrument-overlay");
         if (!overlay) return;
@@ -3681,7 +3731,7 @@ document.addEventListener("keydown", (e) => {
         overlay.setAttribute("aria-hidden", "true");
       }
 
-      // Row clicks open modal
+      // Row clicks open invest slip directly
       tableBody.addEventListener("click", async (e) => {
         const row = e.target.closest("tr[data-code]");
         if (!row) return;
@@ -3691,7 +3741,11 @@ document.addEventListener("keydown", (e) => {
 
         try {
           const data = await miFetchInstrumentDetails(type, code);
-          miOpenInstrumentModal(data);
+          // Store data for slip to use
+          miLastInstrumentData = data;
+          miCurrentCode = data.code || data.ticker || null;
+          // Open invest slip directly
+          miOpenSlipFromCurrent();
         } catch (err) {
           console.error("Failed to load instrument details", err);
           alert("Sorry, we couldn't load that company at the moment.");
