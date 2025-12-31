@@ -574,55 +574,75 @@ async function findUniverseFundamentalsByCode(baseCode) {
       };
     }
 
-    if (!UPSTASH_URL || !UPSTASH_TOKEN) {
+    // Check if we have at least one data source available
+    const hasUpstash = !!(UPSTASH_URL && UPSTASH_TOKEN);
+    const hasEodhd = !!EODHD_TOKEN;
+
+    if (!hasUpstash && !hasEodhd) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: "Missing Upstash env" }),
+        body: JSON.stringify({ 
+          error: "No data sources available. Missing both Upstash credentials and EODHD_API_TOKEN",
+          debug: {
+            hasUpstash: false,
+            hasEodhd: false,
+          }
+        }),
       };
     }
 
-    if (!EODHD_TOKEN) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: "Missing EODHD_API_TOKEN" }),
-      };
-    }
+    // We can proceed with at least one data source
+    // If only EODHD is available, we'll skip Upstash lookups
 
-    const debug = { steps: [] };
+    const debug = { steps: [], hasUpstash, hasEodhd };
     const baseCode = normalizeCode(codeRaw);
     // A) Pull the same fundamentals row the screener uses (manifest + parts)
 let universeRow = null;
-try {
-  universeRow = await findUniverseFundamentalsByCode(baseCode);
+if (hasUpstash) {
+  try {
+    universeRow = await findUniverseFundamentalsByCode(baseCode);
+    debug.steps.push({
+      step: "universe-fundamentals-latest",
+      found: !!universeRow,
+    });
+  } catch (e) {
+    debug.steps.push({
+      step: "universe-fundamentals-latest-error",
+      error: e && e.message,
+    });
+  }
+} else {
   debug.steps.push({
-    step: "universe-fundamentals-latest",
-    found: !!universeRow,
-  });
-} catch (e) {
-  debug.steps.push({
-    step: "universe-fundamentals-latest-error",
-    error: e && e.message,
+    step: "universe-fundamentals-latest-skipped",
+    reason: "Upstash not available",
   });
 }
 
     // 1) Try to resolve from asx200:latest
     let asxRow = null;
-    try {
-      const rows = await getAsx200LatestRows();
-      if (rows) {
-        asxRow = findAsxRowForCode(rows, baseCode);
+    if (hasUpstash) {
+      try {
+        const rows = await getAsx200LatestRows();
+        if (rows) {
+          asxRow = findAsxRowForCode(rows, baseCode);
+          debug.steps.push({
+            step: "asx200-latest",
+            found: !!asxRow,
+            rows: Array.isArray(rows) ? rows.length : 0,
+          });
+        } else {
+          debug.steps.push({ step: "asx200-latest", found: false });
+        }
+      } catch (e) {
         debug.steps.push({
-          step: "asx200-latest",
-          found: !!asxRow,
-          rows: Array.isArray(rows) ? rows.length : 0,
+          step: "asx200-latest-error",
+          error: e && e.message,
         });
-      } else {
-        debug.steps.push({ step: "asx200-latest", found: false });
       }
-    } catch (e) {
+    } else {
       debug.steps.push({
-        step: "asx200-latest-error",
-        error: e && e.message,
+        step: "asx200-latest-skipped",
+        reason: "Upstash not available",
       });
     }
 
@@ -654,21 +674,28 @@ try {
 
     // 3) History (cached)
     let history = null;
-    try {
-      history = await getOrBuildEquityHistory(eodSymbol, HISTORY_MONTHS);
+    if (hasUpstash) {
+      try {
+        history = await getOrBuildEquityHistory(eodSymbol, HISTORY_MONTHS);
+        debug.steps.push({
+          step: "history",
+          symbol: eodSymbol,
+          points:
+            history && Array.isArray(history.points)
+              ? history.points.length
+              : 0,
+        });
+      } catch (e) {
+        debug.steps.push({
+          step: "history-error",
+          symbol: eodSymbol,
+          error: e && e.message,
+        });
+      }
+    } else {
       debug.steps.push({
-        step: "history",
-        symbol: eodSymbol,
-        points:
-          history && Array.isArray(history.points)
-            ? history.points.length
-            : 0,
-      });
-    } catch (e) {
-      debug.steps.push({
-        step: "history-error",
-        symbol: eodSymbol,
-        error: e && e.message,
+        step: "history-skipped",
+        reason: "Upstash not available",
       });
     }
 
@@ -706,7 +733,7 @@ if (universeRow && typeof universeRow === "object") {
   };
 
   debug.steps.push({ step: "fundamentals-from-upstash", ok: true });
-} else {
+} else if (hasEodhd) {
   // Fallback to EODHD if Upstash row missing
   try {
     fundamentalsRaw = await fetchFundamentals(eodSymbol);
@@ -719,6 +746,11 @@ if (universeRow && typeof universeRow === "object") {
       error: e && e.message,
     });
   }
+} else {
+  debug.steps.push({
+    step: "fundamentals-unavailable",
+    reason: "No Upstash row and EODHD not available",
+  });
 }
     // 5) Latest price (prefer ASX snapshot)
     let latest = {
