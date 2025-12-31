@@ -137,7 +137,27 @@ exports.handler = async function (event) {
     if (typeof raw === "object") return raw;
     return null;
   }
+async function getUniverseFundamentalsLatestManifest() {
+  return await redisGetJson("asx:universe:fundamentals:latest");
+}
 
+async function findUniverseFundamentalsByCode(baseCode) {
+  const manifest = await getUniverseFundamentalsLatestManifest();
+  if (!manifest || !Array.isArray(manifest.parts) || manifest.parts.length === 0) return null;
+
+  const norm = normalizeCode(baseCode);
+
+  // Pull each part and search for the code
+  for (const partKey of manifest.parts) {
+    const arr = await redisGetJson(partKey);
+    if (!Array.isArray(arr)) continue;
+
+    const hit = arr.find((x) => normalizeCode(x && x.code) === norm);
+    if (hit) return hit;
+  }
+
+  return null;
+}
   // -------------------------------
   // EODHD helpers (equities only)
   // -------------------------------
@@ -545,6 +565,20 @@ exports.handler = async function (event) {
 
     const debug = { steps: [] };
     const baseCode = normalizeCode(codeRaw);
+    // A) Pull the same fundamentals row the screener uses (manifest + parts)
+let universeRow = null;
+try {
+  universeRow = await findUniverseFundamentalsByCode(baseCode);
+  debug.steps.push({
+    step: "universe-fundamentals-latest",
+    found: !!universeRow,
+  });
+} catch (e) {
+  debug.steps.push({
+    step: "universe-fundamentals-latest-error",
+    error: e && e.message,
+  });
+}
 
     // 1) Try to resolve from asx200:latest
     let asxRow = null;
@@ -613,21 +647,54 @@ exports.handler = async function (event) {
       });
     }
 
-    // 4) Fundamentals
-    let fundamentalsRaw = null;
-    let fundamentals = {};
-    try {
-      fundamentalsRaw = await fetchFundamentals(eodSymbol);
-      fundamentals = extractEquityFundamentals(fundamentalsRaw);
-      debug.steps.push({ step: "fundamentals", ok: true });
-    } catch (e) {
-      debug.steps.push({
-        step: "fundamentals-error",
-        symbol: eodSymbol,
-        error: e && e.message,
-      });
-    }
+// 4) Fundamentals (SOURCE OF TRUTH = Upstash screener fundamentals if present)
+let fundamentalsRaw = null;
+let fundamentals = {};
 
+if (universeRow && typeof universeRow === "object") {
+  fundamentals = {
+    // Keep only what your UI expects under fundamentals:
+    name: universeRow.name || null,
+    sector: universeRow.sector || null,
+    industry: universeRow.industry || null,
+    currency: "AUD",
+
+    marketCap: typeof universeRow.marketCap === "number" ? universeRow.marketCap : null,
+
+    // Ratios / per-share
+    pe: typeof universeRow.peRatio === "number" ? fmt(universeRow.peRatio, 2) : null,
+    priceToBook: typeof universeRow.priceToBook === "number" ? fmt(universeRow.priceToBook, 2) : null,
+    priceToSales: typeof universeRow.priceToSales === "number" ? fmt(universeRow.priceToSales, 2) : null,
+    eps: typeof universeRow.eps === "number" ? fmt(universeRow.eps, 2) : null,
+    dividendYield: typeof universeRow.dividendYield === "number" ? fmt(universeRow.dividendYield, 2) : null,
+
+    // Optional extras if your slip uses them later
+    revenueLastYear: typeof universeRow.revenue === "number" ? universeRow.revenue : null,
+    grossProfitLastYear: typeof universeRow.grossProfit === "number" ? universeRow.grossProfit : null,
+    netIncomeLastYear: null,
+
+    netDebt: null,
+    sizeBucket: null,
+    leverageBucket: "unknown",
+    paysDividend: (typeof universeRow.dividendYield === "number" && universeRow.dividendYield > 0) || false,
+    dividendsPerShareLastYear: typeof universeRow.dividendPerShare === "number" ? universeRow.dividendPerShare : null,
+  };
+
+  debug.steps.push({ step: "fundamentals-from-upstash", ok: true });
+} else {
+  // Fallback to EODHD if Upstash row missing
+  try {
+    fundamentalsRaw = await fetchFundamentals(eodSymbol);
+    fundamentals = extractEquityFundamentals(fundamentalsRaw);
+    debug.steps.push({ step: "fundamentals-from-eodhd", ok: true });
+  } catch (e) {
+    debug.steps.push({
+      step: "fundamentals-error",
+      symbol: eodSymbol,
+      error: e && e.message,
+    });
+  }
+}
     // 5) Latest price (prefer ASX snapshot)
     let latest = {
       date: null,
@@ -707,9 +774,9 @@ exports.handler = async function (event) {
       type: "equity",
       code: baseCode,
       fullCode: eodSymbol,
-      name: fundamentals.name || null,
-      sector: fundamentals.sector || null,
-      industry: fundamentals.industry || null,
+name: (fundamentals.name || (universeRow && universeRow.name) || null),
+sector: (fundamentals.sector || (universeRow && universeRow.sector) || null),
+industry: (fundamentals.industry || (universeRow && universeRow.industry) || null),
       latest,
       history: history || null,
       fundamentals,
