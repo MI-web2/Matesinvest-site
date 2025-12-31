@@ -117,7 +117,8 @@ exports.handler = async function (event) {
         const url = new URL(event.rawUrl);
         asOfDate = url.searchParams.get("date");
       } catch (e) {
-        // Invalid URL, will use getLatestEodDate() below
+        // URL parsing failed (e.g., scheduled invocation or malformed rawUrl)
+        console.warn('build-sectors-day: URL parsing failed, using latest EOD date:', e.message);
       }
     }
 
