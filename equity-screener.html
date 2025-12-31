@@ -3609,8 +3609,6 @@ async function miShareSlip() {
       if (clipboardOk) miSlipToast("Link copied — paste into Messenger");
       else miSlipToast("Paste the link manually (copy failed)");
 
-      // Restore close button visibility before return
-      if (closeBtn && closeBtnWasVisible) closeBtn.style.display = "";
       return;
     }
   } catch (_) {
