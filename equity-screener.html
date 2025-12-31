@@ -2453,6 +2453,50 @@ setAcrossActiveUI();
     `;
   }
 }
+(function autoScrollAcrossMarkets() {
+  const scroller = document.getElementById("acrossItems");
+  if (!scroller) return;
+
+  let rafId = null;
+  let paused = false;
+  let resumeTimer = null;
+
+  const SPEED = 0.25;        // px per frame (slow + classy)
+  const RESUME_DELAY = 2000; // ms after user interaction
+
+  function step() {
+    if (!paused) {
+      scroller.scrollLeft += SPEED;
+
+      // Loop back to start when near the end
+      if (scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 2) {
+        scroller.scrollLeft = 0;
+      }
+    }
+    rafId = requestAnimationFrame(step);
+  }
+
+  function pause() {
+    paused = true;
+    clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(() => {
+      paused = false;
+    }, RESUME_DELAY);
+  }
+
+  // Pause on any user intent
+  ["wheel", "touchstart", "mousedown", "mouseenter"].forEach(evt =>
+    scroller.addEventListener(evt, pause, { passive: true })
+  );
+
+  // Resume when pointer leaves (desktop)
+  scroller.addEventListener("mouseleave", () => {
+    paused = false;
+  });
+
+  // Kick it off
+  step();
+})();
       // ----------------------------
       // NEW: Style presets (no JSON file needed)
       // ----------------------------
