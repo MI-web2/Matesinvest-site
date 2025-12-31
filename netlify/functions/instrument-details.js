@@ -154,6 +154,7 @@ async function findUniverseFundamentalsByCode(baseCode) {
   }
 
   // Case 2: Manifest with parts (fallback mode for large datasets)
+  // Support both 'parts' and 'partKeys' property names for flexibility
   let partKeys = null;
   if (Array.isArray(manifest.parts)) {
     partKeys = manifest.parts;
