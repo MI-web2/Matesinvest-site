@@ -28,10 +28,11 @@
       <span>MatesInvest</span>
     </div>
 
-    <nav>
-      <a href="/">Home</a>
-      <a href="/mates-summaries">ASX daily brief</a>
-    </nav>
+<nav>
+  <a href="/">Home</a>
+  <a href="/equity-screener.html">ASX Dashboard</a>
+  <a href="/mates-feedback.html">Feedback</a>
+</nav>
 
     <!-- Mobile menu button (same as index.html) -->
     <button class="menu-btn" aria-label="Toggle navigation">☰</button>
@@ -158,14 +159,24 @@
         });
       })();
   // Mobile nav toggle (same behaviour as index.html)
-  (function () {
-    const btn = document.querySelector('.menu-btn');
-    const body = document.body;
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      body.classList.toggle('open');
-    });
-  })();
+(function () {
+  const btn = document.querySelector(".menu-btn");
+  const body = document.body;
+  const nav = document.querySelector("header.nav nav");
+  if (!btn || !nav) return;
+
+  btn.addEventListener("click", function () {
+    body.classList.toggle("nav-open");
+  });
+
+  // Close menu when a nav link is tapped
+  nav.addEventListener("click", function (evt) {
+    const target = evt.target;
+    if (target && target.tagName.toLowerCase() === "a") {
+      body.classList.remove("nav-open");
+    }
+  });
+})();
 </script>
 
   </body>
