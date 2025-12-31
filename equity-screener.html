@@ -1552,40 +1552,7 @@ tbody tr:nth-child(even) {
   color: #e5e7eb;
 }
 
-.mi-slip-footer{
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(148,163,184,0.18);
-  text-align:center;
-}
-.mi-slip-time{
-  font-size: 12px;
-  color:#cbd5e1;
-  font-weight: 800;
-}
-.mi-slip-brand{
-  margin-top: 6px;
-  font-size: 12px;
-  color:#94a3b8;
-}
-.mi-slip-url{ 
-  color:#38bdf8; 
-  font-weight: 800; 
-  text-decoration: none;
-  border-bottom: 1px solid rgba(56,189,248,0.4);
-  transition: all 0.2s ease;
-}
-
-.mi-slip-url:hover {
-  color: #7dd3fc;
-  border-bottom-color: rgba(56,189,248,0.8);
-}
-.mi-slip-disclaimer{
-  margin-top: 6px;
-  font-size: 11px;
-  color:#6b7280;
-}
-      .mi-slip-overlay{
+.mi-slip-overlay{
   position: fixed;
   inset: 0;
   background: #050812;           /* no dim background */
@@ -1702,8 +1669,10 @@ tbody tr:nth-child(even) {
 /* Deep Dive button - slick styling matching the invest slip theme */
 .mi-slip-deepdive-btn{
   width: 100%;
+  max-width: 280px;
   padding: 14px 18px;
-  margin: 16px 0 0;
+  margin: 16px auto 0;
+  display: block;
   border: none;
   border-radius: 14px;
   background: linear-gradient(
@@ -2281,14 +2250,6 @@ tbody tr:nth-child(even) {
     <button class="mi-slip-deepdive-btn" type="button" id="mi-slip-deepdive-btn">
       Deep Dive →
     </button>
-
-    <div class="mi-slip-footer">
-      <div class="mi-slip-time" id="mi-slip-time">Timeframe: Days → Weeks</div>
-      <div class="mi-slip-brand">
-        Create your own → <a href="https://matesinvest.com/equity-screener.html" class="mi-slip-url" target="_blank" rel="noopener noreferrer">matesinvest.com</a>
-      </div>
-      <div class="mi-slip-disclaimer">Not advice. Informational only.</div>
-    </div>
   </div>
 </div>
     <script>
@@ -3515,7 +3476,6 @@ if (pct == null) {
 }
 
   document.getElementById("mi-slip-risk").textContent = `Risk: ${built.risk}`;
-  document.getElementById("mi-slip-time").textContent = `Timeframe: ${built.timeframe}`;
 
   const ul = document.getElementById("mi-slip-bullets");
   ul.innerHTML = built.bullets.map(b => `<li>${b}</li>`).join("");
@@ -3609,8 +3569,17 @@ async function miShareSlip() {
   }
 
   // ---------- Attempt 1: Share image (best UX) ----------
+  // Store close button reference for restoration
+  let closeBtn = null;
+  let closeBtnWasVisible = false;
+  
   try {
     if (typeof html2canvas !== "function") throw new Error("html2canvas not available");
+
+    // Hide close button before screenshot
+    closeBtn = document.getElementById("mi-slip-close-btn");
+    closeBtnWasVisible = closeBtn && getComputedStyle(closeBtn).display !== "none";
+    if (closeBtn) closeBtn.style.display = "none";
 
     const canvas = await html2canvas(el, {
       backgroundColor: "#050812",
@@ -3644,6 +3613,9 @@ async function miShareSlip() {
     }
   } catch (_) {
     // fall through
+  } finally {
+    // Always restore close button visibility
+    if (closeBtn && closeBtnWasVisible) closeBtn.style.display = "";
   }
 
   // ---------- Attempt 2: Link-only share (most reliable for Messenger preview) ----------
