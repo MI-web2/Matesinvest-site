@@ -190,7 +190,14 @@ exports.handler = async function () {
     // Load fundamentals for ASX200 membership + market caps + sectors
     const fundRaw = await redisGet(FUND_LATEST_KEY);
     const fundObj = parse(fundRaw) || {};
-    const fundRows = Array.isArray(fundObj.rows) ? fundObj.rows : [];
+    
+    // Support both .items (new format) and .rows (legacy format)
+    let fundRows = [];
+    if (Array.isArray(fundObj.items)) {
+      fundRows = fundObj.items;
+    } else if (Array.isArray(fundObj.rows)) {
+      fundRows = fundObj.rows;
+    }
 
     // Map code -> fundamentals
     const fundMap = new Map();

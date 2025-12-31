@@ -133,13 +133,21 @@ exports.handler = async function (event) {
       return { statusCode: 409, body: `No prior trading day snapshot found before ${asOfDate}` };
     }
 
-    const [todayArr, prevArr, fundamentalsArr] = await Promise.all([
+    const [todayArr, prevArr, fundamentalsData] = await Promise.all([
       loadJson(`asx:universe:eod:${asOfDate}`),
       loadJson(`asx:universe:eod:${prevDate}`),
       loadJson(`asx:universe:fundamentals:latest`),
     ]);
 
-    if (!Array.isArray(todayArr) || !Array.isArray(prevArr) || !Array.isArray(fundamentalsArr)) {
+    // Support both direct array and object with .items property
+    let fundamentalsArr = [];
+    if (Array.isArray(fundamentalsData)) {
+      fundamentalsArr = fundamentalsData;
+    } else if (fundamentalsData && Array.isArray(fundamentalsData.items)) {
+      fundamentalsArr = fundamentalsData.items;
+    }
+
+    if (!Array.isArray(todayArr) || !Array.isArray(prevArr) || !Array.isArray(fundamentalsArr) || fundamentalsArr.length === 0) {
       return { statusCode: 500, body: "Missing/invalid cached arrays (eod or fundamentals)" };
     }
 
