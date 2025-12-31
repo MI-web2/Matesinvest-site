@@ -110,10 +110,18 @@ exports.handler = async function (event) {
   try {
     assertEnv();
 
-    const url = new URL(event.rawUrl);
-    let asOfDate = url.searchParams.get("date");
+    // ✅ Scheduler-safe: handle both HTTP requests and scheduled invocations
+    let asOfDate = null;
+    if (event?.rawUrl) {
+      try {
+        const url = new URL(event.rawUrl);
+        asOfDate = url.searchParams.get("date");
+      } catch (e) {
+        // Invalid URL, will use getLatestEodDate() below
+      }
+    }
 
-    // ✅ Scheduler-safe: if no ?date= provided, use universe EOD latest
+    // If no ?date= provided or scheduled invocation, use universe EOD latest
     if (!asOfDate) {
       asOfDate = await getLatestEodDate();
     }
