@@ -443,8 +443,6 @@ async function findUniverseFundamentalsByCode(baseCode) {
       priceToBook:
         typeof highlights.PriceBookMRQ === "number"
           ? fmt(highlights.PriceBookMRQ, 2)
-          : typeof highlights.BookValue === "number" && typeof highlights.PERatio === "number"
-          ? null
           : null,
       priceToSales:
         typeof highlights.PriceSalesTTM === "number"
