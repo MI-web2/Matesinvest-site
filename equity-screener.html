@@ -2287,6 +2287,7 @@ let activeAcrossTag = null;
 // Map chip symbol -> fundamentals tag
 const ACROSS_TAG_MAP = {
   XAU: "Gold",
+  XAG: "Silver", 
   IRON: "Iron Ore",
   URANIUM: "Uranium",
   NI: "Nickel",
@@ -2356,6 +2357,7 @@ async function loadAcrossMarkets() {
   // Which chips we want (keep it tight)
   const metalsOrder = [
     { key: "XAU", label: "Gold" },
+    { key: "XAG", label: "Silver" }, 
     { key: "IRON", label: "Iron ore" },
     { key: "URANIUM", label: "Uranium" },
     { key: "NI", label: "Nickel" },
@@ -2407,7 +2409,8 @@ wrap.innerHTML = chips
     const chgTxt = x.chg == null ? "—" : fmtPct(x.chg);
     const cls = pctClass(x.chg);
 
-    const tag = ACROSS_TAG_MAP[x.sym] || ""; // <-- NEW
+const isCrypto = (x.sym === "BTC" || x.sym === "ETH" || x.sym === "SOL");
+const tag = isCrypto ? "" : (ACROSS_TAG_MAP[x.sym] || "");
 
     return `
       <div class="across-chip" title="${x.lbl}" data-sym="${x.sym}" data-tag="${tag}">
