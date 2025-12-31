@@ -1702,8 +1702,10 @@ tbody tr:nth-child(even) {
 /* Deep Dive button - slick styling matching the invest slip theme */
 .mi-slip-deepdive-btn{
   width: 100%;
+  max-width: 280px;
   padding: 14px 18px;
-  margin: 16px 0 0;
+  margin: 16px auto 0;
+  display: block;
   border: none;
   border-radius: 14px;
   background: linear-gradient(
@@ -2281,14 +2283,6 @@ tbody tr:nth-child(even) {
     <button class="mi-slip-deepdive-btn" type="button" id="mi-slip-deepdive-btn">
       Deep Dive →
     </button>
-
-    <div class="mi-slip-footer">
-      <div class="mi-slip-time" id="mi-slip-time">Timeframe: Days → Weeks</div>
-      <div class="mi-slip-brand">
-        Create your own → <a href="https://matesinvest.com/equity-screener.html" class="mi-slip-url" target="_blank" rel="noopener noreferrer">matesinvest.com</a>
-      </div>
-      <div class="mi-slip-disclaimer">Not advice. Informational only.</div>
-    </div>
   </div>
 </div>
     <script>
@@ -3515,7 +3509,6 @@ if (pct == null) {
 }
 
   document.getElementById("mi-slip-risk").textContent = `Risk: ${built.risk}`;
-  document.getElementById("mi-slip-time").textContent = `Timeframe: ${built.timeframe}`;
 
   const ul = document.getElementById("mi-slip-bullets");
   ul.innerHTML = built.bullets.map(b => `<li>${b}</li>`).join("");
@@ -3609,8 +3602,17 @@ async function miShareSlip() {
   }
 
   // ---------- Attempt 1: Share image (best UX) ----------
+  // Store close button reference for restoration
+  let closeBtn = null;
+  let closeBtnWasVisible = false;
+  
   try {
     if (typeof html2canvas !== "function") throw new Error("html2canvas not available");
+
+    // Hide close button before screenshot
+    closeBtn = document.getElementById("mi-slip-close-btn");
+    closeBtnWasVisible = closeBtn && closeBtn.style.display !== "none";
+    if (closeBtn) closeBtn.style.display = "none";
 
     const canvas = await html2canvas(el, {
       backgroundColor: "#050812",
@@ -3640,10 +3642,15 @@ async function miShareSlip() {
       if (clipboardOk) miSlipToast("Link copied — paste into Messenger");
       else miSlipToast("Paste the link manually (copy failed)");
 
+      // Restore close button visibility before return
+      if (closeBtn && closeBtnWasVisible) closeBtn.style.display = "";
       return;
     }
   } catch (_) {
     // fall through
+  } finally {
+    // Always restore close button visibility
+    if (closeBtn && closeBtnWasVisible) closeBtn.style.display = "";
   }
 
   // ---------- Attempt 2: Link-only share (most reliable for Messenger preview) ----------
