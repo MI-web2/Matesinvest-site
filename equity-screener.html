@@ -2957,7 +2957,19 @@ filteredItems.sort((a, b) => {
           type
         )}&code=${encodeURIComponent(code)}`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error(`instrument-details failed: ${res.status}`);
+        if (!res.ok) {
+          // Try to get error details from response
+          let errorDetail = `HTTP ${res.status}`;
+          try {
+            const errorData = await res.json();
+            if (errorData && errorData.error) {
+              errorDetail = errorData.error;
+            }
+          } catch (e) {
+            // If we can't parse the error, just use the status
+          }
+          throw new Error(`instrument-details failed: ${errorDetail}`);
+        }
         return res.json();
       }
 
@@ -3754,8 +3766,21 @@ document.getElementById("mi-slip-deepdive-btn")?.addEventListener("click", () =>
           // Open invest slip directly
           miOpenSlipFromCurrent();
         } catch (err) {
-          console.error("Failed to load instrument details", err);
-          alert("Sorry, we couldn't load that company at the moment.");
+          console.error("Failed to load instrument details for", code, err);
+          console.error("Full error:", err);
+          
+          // Show more helpful error message
+          let userMessage = `Sorry, we couldn't load ${code} at the moment.`;
+          
+          if (err.message && err.message.includes("Missing")) {
+            userMessage += "\n\nThe data service may be temporarily unavailable. Please try again later.";
+          } else if (err.message && err.message.includes("No data sources available")) {
+            userMessage += "\n\nThe data service is not properly configured. Please contact support.";
+          } else {
+            userMessage += "\n\nThis company may not be in our database yet, or the data is being updated.";
+          }
+          
+          alert(userMessage);
         }
       });
 
