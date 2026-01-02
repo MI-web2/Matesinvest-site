@@ -2,9 +2,12 @@
 // Scheduled: emails yesterday + MTD + YTD analytics summary via Resend.
 // Requires Upstash + Resend env vars.
 //
-// Also includes "Top pages (Yesterday)" using:
+// Combines ALL mates:analytics:day keys from:
+//   - track-visit.js: visits, unique_users, new_users, returning_users
+//   - track-session.js: session_count, session_seconds_total, engaged_sessions
+//
+// Also includes "Top pages (Yesterday)" with both visit and session metrics using:
 //   mates:analytics:day:YYYY-MM-DD:pathstats
-// (populated by the updated track-visit.js)
 
 const fetch = (...args) => global.fetch(...args);
 
