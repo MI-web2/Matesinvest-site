@@ -174,5 +174,29 @@
   </div>
 </footer>
 
+<!-- Track Visit & Session Analytics -->
+<script>
+  (() => {
+    const KEY = "mates_user_id_v1";
+
+    let uid = localStorage.getItem(KEY);
+    if (!uid) {
+      uid = (crypto?.randomUUID?.() || String(Math.random()).slice(2) + Date.now());
+      localStorage.setItem(KEY, uid);
+    }
+
+    fetch("/.netlify/functions/track-visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid,
+        path: window.location.pathname,
+        ts: Date.now()
+      })
+    }).catch(() => {});
+  })();
+</script>
+<script src="/scripts/track-session.js"></script>
+
 </body>
 </html>
