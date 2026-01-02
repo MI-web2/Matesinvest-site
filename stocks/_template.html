@@ -566,8 +566,12 @@
                 </div>
               </div>
 
-              <div id="fundamentals-grid" class="fundamentals-grid">
-                <!-- Filled by JS -->
+              <div class="metrics-table-wrap">
+                <table class="metrics-table" role="table" aria-label="Company metrics">
+                  <tbody id="metrics-table-body">
+                    <!-- Filled by JS -->
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -868,83 +872,92 @@
         if (!wrap || !row) return;
 
         const mc = toMillions(row.marketCap);
-        const pe = formatNumber(row.peRatio);
-        const dy = formatPercentFrac(row.dividendYield);
+        const px = formatNumber(row.price);
+        const pc = (typeof row.pctChange === "number" && isFinite(row.pctChange))
+          ? (row.pctChange >= 0 ? "+" : "") + row.pctChange.toFixed(2) + "%"
+          : "—";
 
         wrap.innerHTML = `
+          <div class="hero-metric">Price: ${px}</div>
+          <div class="hero-metric">% Chg: ${pc}</div>
           <div class="hero-metric">Mkt cap: ${mc} A$m</div>
-          <div class="hero-metric">P/E: ${pe}</div>
-          <div class="hero-metric">Div yield: ${dy}</div>
         `;
       }
 
       function renderFundamentals(row) {
-        const grid = document.getElementById("fundamentals-grid");
-        if (!grid) return;
+        const tbody = document.getElementById("metrics-table-body");
+        if (!tbody) return;
 
         if (!row) {
-          grid.innerHTML =
-            '<div class="empty-state">Couldn’t find fundamentals for this code in the screener.</div>';
+          tbody.innerHTML =
+            '<tr><td class="m-label">Status</td><td class="m-value">No fundamentals found</td></tr>';
           return;
         }
 
-        const bits = [];
+        // helpers
+        const rowHtml = (label, value) => `
+          <tr>
+            <td class="m-label">${label}</td>
+            <td class="m-value">${value}</td>
+          </tr>
+        `;
 
-        bits.push({
-          label: "Market cap (A$m)",
-          value: toMillions(row.marketCap),
-        });
-        bits.push({
-          label: "Price (yesterday)",
-          value: formatNumber(row.price),
-        });
-        bits.push({ label: "P/E", value: formatNumber(row.peRatio) });
-        bits.push({
-          label: "Div. yield",
-          value: formatPercentFrac(row.dividendYield),
-        });
-        bits.push({ label: "EPS", value: formatNumber(row.eps) });
-        bits.push({
-          label: "Profit margin",
-          value: formatPercentFrac(row.profitMargin),
-        });
-        bits.push({
-          label: "Operating margin",
-          value: formatPercentFrac(row.operatingMargin),
-        });
-        bits.push({
-          label: "ROE",
-          value: formatPercentFrac(row.returnOnEquity),
-        });
-        bits.push({
-          label: "Revenue (A$m)",
-          value: toMillions(row.revenue),
-        });
-        bits.push({
-          label: "Gross profit (A$m)",
-          value: toMillions(row.grossProfit),
-        });
-        bits.push({
-          label: "EV (A$m)",
-          value: toMillions(row.enterpriseValue),
-        });
-        bits.push({
-          label: "EV / revenue",
-          value: formatNumber(row.evToRevenue),
-        });
+        const sectionHtml = (title) => `
+          <tr class="m-section">
+            <th colspan="2">${title}</th>
+          </tr>
+        `;
 
-        grid.innerHTML = bits
-          .map(
-            (b) => `
-          <div class="fundamentals-item">
-            <div class="fund-label">${b.label}</div>
-            <div class="fund-value">${b.value}</div>
-          </div>
-        `
-          )
-          .join("");
+        const yesNo = (v) => (v === 1 || v === true ? "Yes" : v === 0 || v === false ? "No" : "—");
 
-        // Fill hero metric chips too
+        // Build rows (mirror screener metrics, but grouped so it's readable)
+        let out = "";
+        out += sectionHtml("Market");
+        out += rowHtml("Price (last close)", formatNumber(row.price));
+        out += rowHtml("Yesterday close", formatNumber(row.yesterdayPrice));
+        out += rowHtml("% change", formatPercentFrac(row.pctChange != null ? row.pctChange/100 : null));
+        // pctChange in screener is already percent (e.g., 1.23). Convert to fraction for formatter.
+        out += rowHtml("Volume", miFormatCompactNumber(row.volume));
+        out += rowHtml("Last trading date", miFormatDate(row.lastDate));
+
+        out += sectionHtml("Size & index");
+        out += rowHtml("Market cap (A$m)", toMillions(row.marketCap));
+        out += rowHtml("Enterprise value (A$m)", toMillions(row.enterpriseValue));
+        out += rowHtml("ASX 200", yesNo(row.inAsx200));
+
+        out += sectionHtml("Valuation");
+        out += rowHtml("P/E", formatNumber(row.peRatio));
+        out += rowHtml("Trailing P/E", formatNumber(row.trailingPE));
+        out += rowHtml("Forward P/E", formatNumber(row.forwardPE));
+        out += rowHtml("Price / sales", formatNumber(row.priceToSalesRatio));
+        out += rowHtml("Price / book", formatNumber(row.priceToBookRatio));
+        out += rowHtml("EV / revenue", formatNumber(row.evToRevenue));
+
+        out += sectionHtml("Dividends");
+        out += rowHtml("Dividend / share", formatNumber(row.dividendPerShare));
+        out += rowHtml("Dividend yield", formatPercentFrac(row.dividendYield));
+
+        out += sectionHtml("Profitability");
+        out += rowHtml("Profit margin", formatPercentFrac(row.profitMargin));
+        out += rowHtml("Operating margin", formatPercentFrac(row.operatingMargin));
+        out += rowHtml("ROA", formatPercentFrac(row.returnOnAssets));
+        out += rowHtml("ROE", formatPercentFrac(row.returnOnEquity));
+
+        out += sectionHtml("Financials");
+        out += rowHtml("Revenue (A$m)", toMillions(row.revenue));
+        out += rowHtml("Revenue / share", formatNumber(row.revenuePerShare));
+        out += rowHtml("Gross profit (A$m)", toMillions(row.grossProfit));
+        out += rowHtml("EPS", formatNumber(row.eps));
+        out += rowHtml("Diluted EPS", formatNumber(row.dilutedEps));
+        out += rowHtml("Book value", formatNumber(row.bookValue));
+
+        out += sectionHtml("Growth");
+        out += rowHtml("Q rev growth YoY", formatPercentFrac(row.quarterlyRevenueGrowthYOY));
+        out += rowHtml("Q EPS growth YoY", formatPercentFrac(row.quarterlyEarningsGrowthYOY));
+
+        tbody.innerHTML = out;
+
+        // Keep the hero chips, but make them match the table values
         renderHeroMetrics(row);
       }
 
