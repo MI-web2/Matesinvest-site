@@ -478,6 +478,59 @@
   font-size: 0.8rem;
   color: #0f172a;
 }
+/* === Fundamentals table (compact, screener-style) === */
+
+.metrics-table-wrap {
+  margin-top: 8px;
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;              /* 👈 key change */
+  line-height: 1.35;
+}
+
+.metrics-table td {
+  padding: 6px 0;               /* 👈 tighter rows */
+  vertical-align: middle;
+}
+
+.metrics-table tr:not(.section-row) {
+  border-bottom: 1px solid #eef2f7;
+}
+
+/* Left label */
+.metrics-table .label {
+  color: #475569;
+  font-weight: 500;
+}
+
+/* Right value */
+.metrics-table .value {
+  color: #0f172a;
+  text-align: right;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Muted placeholder (—) */
+.metrics-table .muted {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* Section headers (Market, Valuation, etc.) */
+.metrics-table .section-row td {
+  padding: 12px 0 6px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #e2e8f0;
+}
+      
     </style>
   </head>
   <body data-code="{{CODE}}">
