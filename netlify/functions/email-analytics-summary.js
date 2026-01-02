@@ -86,12 +86,23 @@ function hgetallArrayToStringObject(arr) {
 }
 
 function sumCounters(objs) {
-  const total = { visits: 0, unique_users: 0, new_users: 0, returning_users: 0 };
+  const total = { 
+    visits: 0, 
+    unique_users: 0, 
+    new_users: 0, 
+    returning_users: 0,
+    session_count: 0,
+    session_seconds_total: 0,
+    engaged_sessions: 0
+  };
   for (const o of objs) {
     total.visits += o.visits || 0;
     total.unique_users += o.unique_users || 0;
     total.new_users += o.new_users || 0;
     total.returning_users += o.returning_users || 0;
+    total.session_count += o.session_count || 0;
+    total.session_seconds_total += o.session_seconds_total || 0;
+    total.engaged_sessions += o.engaged_sessions || 0;
   }
   return total;
 }
@@ -99,6 +110,24 @@ function sumCounters(objs) {
 function pct(n, d) {
   if (!d) return "0%";
   return ((n / d) * 100).toFixed(1) + "%";
+}
+
+function formatDuration(seconds) {
+  if (!seconds || seconds === 0) return "0s";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  if (mins === 0) return `${secs}s`;
+  return `${mins}m ${secs}s`;
+}
+
+function avgSessionDuration(sessionSecondsTotal, sessionCount) {
+  if (!sessionCount || sessionCount === 0) return "0s";
+  return formatDuration(sessionSecondsTotal / sessionCount);
+}
+
+function engagementRate(engagedSessions, sessionCount) {
+  if (!sessionCount || sessionCount === 0) return "0%";
+  return ((engagedSessions / sessionCount) * 100).toFixed(1) + "%";
 }
 
 async function resendSend({ to, subject, html }) {
@@ -185,7 +214,7 @@ exports.handler = async function () {
     // Build top pages list (Yesterday)
     // Strategy:
     // - Use mates:...:paths to find top visited pages
-    // - Then use mates:...:pathstats to show unique/returning/returning%
+    // - Then use mates:...:pathstats to show unique/returning/returning% + session metrics
     const topPages = Object.entries(pathsObj || {})
       .map(([path, v]) => ({ path, visits: Number(v || 0) }))
       .sort((a, b) => b.visits - a.visits)
@@ -196,6 +225,10 @@ exports.handler = async function () {
 
         const unique = Number(pathStatsObj[`${path}|unique_users`] || 0);
         const returning = Number(pathStatsObj[`${path}|returning_users`] || 0);
+        
+        const sessionCount = Number(pathStatsObj[`${path}|session_count`] || 0);
+        const sessionSecondsTotal = Number(pathStatsObj[`${path}|session_seconds_total`] || 0);
+        const engagedSessions = Number(pathStatsObj[`${path}|engaged_sessions`] || 0);
 
         return {
           path,
@@ -203,6 +236,9 @@ exports.handler = async function () {
           unique,
           returning,
           returningPct: visits ? ((returning / visits) * 100).toFixed(1) + "%" : "0%",
+          sessionCount,
+          avgDuration: avgSessionDuration(sessionSecondsTotal, sessionCount),
+          engagementPct: engagementRate(engagedSessions, sessionCount),
         };
       });
 
@@ -216,13 +252,16 @@ exports.handler = async function () {
                 <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.unique}</td>
                 <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.returning}</td>
                 <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.returningPct}</td>
+                <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.sessionCount}</td>
+                <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.avgDuration}</td>
+                <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${r.engagementPct}</td>
               </tr>
             `
           )
           .join("")
       : `
           <tr>
-            <td colspan="5" style="padding:8px;color:#666;">
+            <td colspan="8" style="padding:8px;color:#666;">
               No per-page stats yet (tracker may have just been enabled).
             </td>
           </tr>
@@ -280,14 +319,52 @@ exports.handler = async function () {
           </tr>
         </table>
 
-        <h3 style="margin:18px 0 8px;">Top pages (Yesterday)</h3>
+        <h3 style="margin:18px 0 8px;">Session Metrics</h3>
         <table style="border-collapse:collapse;width:100%;max-width:640px;">
+          <tr>
+            <th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">Period</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Sessions</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Avg Duration</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Engaged</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Engagement %</th>
+          </tr>
+
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #f5f5f5;"><b>Yesterday</b></td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${yObj.session_count || 0}</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${avgSessionDuration(yObj.session_seconds_total || 0, yObj.session_count || 0)}</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${yObj.engaged_sessions || 0}</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${engagementRate(yObj.engaged_sessions || 0, yObj.session_count || 0)}</td>
+          </tr>
+
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #f5f5f5;"><b>Month-to-date</b></td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${mtd.session_count}</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${avgSessionDuration(mtd.session_seconds_total, mtd.session_count)}</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${mtd.engaged_sessions}</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${engagementRate(mtd.engaged_sessions, mtd.session_count)}</td>
+          </tr>
+
+          <tr>
+            <td style="padding:8px;"><b>Year-to-date</b></td>
+            <td style="text-align:right;padding:8px;">${ytd.session_count}</td>
+            <td style="text-align:right;padding:8px;">${avgSessionDuration(ytd.session_seconds_total, ytd.session_count)}</td>
+            <td style="text-align:right;padding:8px;">${ytd.engaged_sessions}</td>
+            <td style="text-align:right;padding:8px;">${engagementRate(ytd.engaged_sessions, ytd.session_count)}</td>
+          </tr>
+        </table>
+
+        <h3 style="margin:18px 0 8px;">Top pages (Yesterday)</h3>
+        <table style="border-collapse:collapse;width:100%;max-width:800px;">
           <tr>
             <th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">Page</th>
             <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Visits</th>
             <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Unique</th>
             <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Returning</th>
-            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Returning %</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Ret. %</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Sessions</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Avg Duration</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Eng. %</th>
           </tr>
           ${pagesRowsHtml}
         </table>
