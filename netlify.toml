@@ -116,6 +116,16 @@
   to = "/how-you-think"
   status = 301
 
+  [[redirects]]
+  from = "/equity-screener"
+  to = "/discover"
+  status = 301
+
+[[redirects]]
+  from = "/equity-screener.html"
+  to = "/discover"
+  status = 301
+
 
 [build.environment]
   NODE_VERSION = "20"
