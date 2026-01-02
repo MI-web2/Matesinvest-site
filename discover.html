@@ -3936,7 +3936,10 @@ async function loadMarketPulseCards(period = "1d") {
       // Show a subtle indicator that data is incomplete
       const dateHeader = mpEl("mpDateHeader");
       if (dateHeader && data.asOfDate) {
-        dateHeader.textContent = `Market data as of ${mpFormatDate(data.asOfDate)} (calculating changes...)`;
+        const formattedDate = mpFormatDate(data.asOfDate);
+        dateHeader.textContent = formattedDate 
+          ? `Market data as of ${formattedDate} (calculating changes...)`
+          : "Market data (calculating changes...)";
         dateHeader.style.opacity = "0.7";
       }
     }
