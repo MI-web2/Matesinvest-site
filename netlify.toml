@@ -59,8 +59,11 @@
   schedule = "*/2 11-23 * * *"
 
 [functions."snapshot-asx-universe-prices"]
-  # Run repeatedly overnight in the same window (every 2 minutes between 11:00–23:59 UTC)
-  schedule = "*/2 11-23 * * *"
+  # Run after ASX closes (4pm AEST/AEDT) and after EODHD updates EOD data
+  # EODHD typically updates within 2-3 hours of market close
+  # Run ONCE per day at a fixed time to avoid overwriting the same date's snapshot
+  # 12:00 UTC = 10:00pm AEST / 11:00pm AEDT (well after market close, after EODHD updates)
+  schedule = "0 12 * * *"
 
 # Merge job: run shortly after snapshot window ends so all parts are expected to be written.
 # Runs daily at 00:05 UTC; second run at 02:05 UTC as a fallback.
@@ -76,21 +79,24 @@
   schedule = "5 20 * * 0"
 [functions."market-pulse"]
   # Daily ASX Market Pulse
-  # Runs at 06:10 AEST (20:10 UTC previous day)
+  # Runs at 06:12 AEST (20:12 UTC previous day)
+  # Runs AFTER build-sectors-day completes (20:05)
   # Calculates ASX 200 (internal), breadth, turnover, movers
   # Runs daily to keep data fresh even on weekends
-  schedule = "10 20 * * *"
+  schedule = "12 20 * * *"
   
   [functions."market-pulse-window-cache"]
+  # Runs AFTER market-pulse completes (20:12)
+  # Builds 1D/5D/1M window caches for fast UI reads
   # Runs daily to keep window caches fresh
-  schedule = "15 20 * * *"
+  schedule = "18 20 * * *"
 
   [functions."build-sectors-day"]
   # Build daily ASX sector snapshots
-  # Runs AFTER universe merge, BEFORE market-pulse readers
-  # 20:00 UTC ≈ 6:00am AEST / 7:00am AEDT
+  # Runs AFTER universe merge (02:05 UTC), BEFORE market-pulse
+  # 20:05 UTC ≈ 6:05am AEST / 7:05am AEDT
   # Runs daily to keep sector data fresh
-  schedule = "0 20 * * *"
+  schedule = "5 20 * * *"
 
 [[redirects]]
   from = "/content/articles"
