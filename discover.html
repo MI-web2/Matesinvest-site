@@ -2407,6 +2407,16 @@ async function loadAcrossMarkets() {
       });
     }
 
+    // VXX chip (before crypto)
+    if (data?.vxx && typeof data.vxx.priceAUD === "number") {
+      chips.push({
+        sym: "VXX",
+        lbl: "VIX Proxy",
+        px: data.vxx.priceAUD,
+        chg: data.vxx.pctChange,
+      });
+    }
+
     // Crypto chips
     for (const c of cryptoOrder) {
       const row = data?.crypto?.[c.key];
@@ -2416,16 +2426,6 @@ async function loadAcrossMarkets() {
         lbl: c.label,
         px: row.priceAUD,
         chg: row.pctChange,
-      });
-    }
-
-    // VXX chip
-    if (data?.vxx && typeof data.vxx.priceAUD === "number") {
-      chips.push({
-        sym: "VXX",
-        lbl: "VIX Proxy",
-        px: data.vxx.priceAUD,
-        chg: data.vxx.pctChange,
       });
     }
 
