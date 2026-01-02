@@ -86,10 +86,20 @@ exports.handler = async function (event) {
 
     const qs = event.queryStringParameters || {};
     const dryrun = String(qs.dryrun || "") === "1";
-    const asOf = (qs.asOf && /^\d{4}-\d{2}-\d{2}$/.test(qs.asOf)) ? qs.asOf : isoDateUTC();
 
-    // Pull a small window so we always catch the latest US trading day
-    const from = shiftIsoDate(asOf, -12);
+    // backfill=30  (days)
+    const backfillDays = Number(qs.backfill || 0);
+    const doBackfill = Number.isFinite(backfillDays) && backfillDays > 0;
+
+    // Optional override for debugging
+    const asOf =
+      qs.asOf && /^\d{4}-\d{2}-\d{2}$/.test(qs.asOf) ? qs.asOf : isoDateUTC();
+
+    // Range selection:
+    // - Normal run: last ~12 days (to guarantee last US trading day)
+    // - Backfill: pull N days + buffer
+    const bufferDays = 5;
+    const from = doBackfill ? shiftIsoDate(asOf, -(backfillDays + bufferDays)) : shiftIsoDate(asOf, -12);
     const to = asOf;
 
     const symbol = "VXX.US";
@@ -111,35 +121,54 @@ exports.handler = async function (event) {
       });
     }
 
-    // EODHD returns ascending by date; take last element as most recent bar
-    const last = rows[rows.length - 1];
-    if (!last || !last.date) throw new Error("EODHD response missing last.date");
+    // Filter rows if backfill requested (keep last N calendar days worth of bars)
+    // EODHD returns trading days only, so we take the last N rows, not calendar days.
+    const selected = doBackfill ? rows.slice(-backfillDays) : [rows[rows.length - 1]];
 
-    const payload = {
-      code: symbol,
-      name: "VIX Proxy (VXX) — Short-Term VIX Futures ETN",
-      date: last.date,
-      open: last.open,
-      high: last.high,
-      low: last.low,
-      close: last.close,
-      adj_close: last.adjusted_close ?? null,
-      volume: last.volume ?? null,
-      updatedAt: new Date().toISOString(),
-      source: "eodhd",
-      note: "VXX is a tradable proxy tied to short-term VIX futures; can decay in calm markets.",
-    };
+    // Build payloads
+    const payloads = selected
+      .filter(r => r && r.date)
+      .map(r => ({
+        code: symbol,
+        name: "VIX Proxy (VXX) — Short-Term VIX Futures ETN",
+        date: r.date,
+        open: r.open,
+        high: r.high,
+        low: r.low,
+        close: r.close,
+        adj_close: r.adjusted_close ?? null,
+        volume: r.volume ?? null,
+        updatedAt: new Date().toISOString(),
+        source: "eodhd",
+        note: "VXX is a tradable proxy tied to short-term VIX futures; can decay in calm markets.",
+      }));
 
+    if (payloads.length === 0) throw new Error("No valid dated bars to write.");
+
+    // Latest = most recent by date (array should already be chronological)
+    const latest = payloads[payloads.length - 1];
+
+    const writtenKeys = [];
     if (!dryrun) {
-      const latestKey = "market:vixproxy:eod:latest";
-      const datedKey = `market:vixproxy:eod:${payload.date}`;
-      const dateKey = "market:vixproxy:latestDate";
+      const cmds = [];
 
-      await redisPipeline([
-        ["SET", latestKey, JSON.stringify(payload)],
-        ["SET", datedKey, JSON.stringify(payload)],
-        ["SET", dateKey, payload.date],
-      ]);
+      // Write each dated key
+      for (const p of payloads) {
+        const datedKey = `market:vixproxy:eod:${p.date}`;
+        cmds.push(["SET", datedKey, JSON.stringify(p)]);
+        writtenKeys.push(datedKey);
+      }
+
+      // Write latest keys
+      cmds.push(["SET", "market:vixproxy:eod:latest", JSON.stringify(latest)]);
+      cmds.push(["SET", "market:vixproxy:latestDate", latest.date]);
+      writtenKeys.push("market:vixproxy:eod:latest", "market:vixproxy:latestDate");
+
+      // Upstash pipeline can be large; chunk to be safe
+      const CHUNK = 250;
+      for (let i = 0; i < cmds.length; i += CHUNK) {
+        await redisPipeline(cmds.slice(i, i + CHUNK));
+      }
     }
 
     return jsonResponse(200, {
@@ -148,16 +177,11 @@ exports.handler = async function (event) {
       symbol,
       from,
       to,
+      mode: doBackfill ? `backfill:${backfillDays}` : "latest-only",
       fetchedRows: rows.length,
-      latestDate: payload.date,
-      payload,
-      writtenKeys: dryrun
-        ? []
-        : [
-            "market:vixproxy:eod:latest",
-            `market:vixproxy:eod:${payload.date}`,
-            "market:vixproxy:latestDate",
-          ],
+      writtenDays: payloads.length,
+      latestDate: latest.date,
+      writtenKeys: dryrun ? [] : writtenKeys.slice(0, 10).concat(writtenKeys.length > 10 ? ["..."] : []),
     });
   } catch (err) {
     return jsonResponse(500, {
