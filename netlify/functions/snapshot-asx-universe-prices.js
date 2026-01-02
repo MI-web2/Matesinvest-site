@@ -178,7 +178,7 @@ async function getPrevTradingDayCloseMap(snapshotDate, maxLookbackDays = 7) {
       );
       return { map, prevDate: d };
     }
-    await sleep(50);
+    // No sleep needed - just check the next day
   }
   
   console.warn(
@@ -237,10 +237,25 @@ const url = `https://eodhd.com/api/eod-bulk-last-day/AU?api_token=${encodeURICom
     };
   }
 
-  // Use the date from the first row, or today as fallback
-  const snapshotDate =
-    (rawArray[0] && (rawArray[0].date || rawArray[0].Date)) || 
-    new Date().toISOString().slice(0, 10);
+  // Extract snapshot date from API data first, validate it exists
+  let snapshotDate = null;
+  if (rawArray && rawArray.length > 0 && (rawArray[0].date || rawArray[0].Date)) {
+    snapshotDate = rawArray[0].date || rawArray[0].Date;
+  }
+  
+  // If no date in API response, something is wrong - fail early
+  if (!snapshotDate) {
+    console.error(
+      `[snapshot-asx-universe-prices] No date found in API response. Response length: ${rawArray.length}`
+    );
+    return {
+      statusCode: 502,
+      body: JSON.stringify({
+        error: "No date found in EODHD API response",
+        detail: "The API response does not contain a valid date field",
+      }),
+    };
+  }
 
   // Fetch previous trading day close prices from historical data
   console.log(
