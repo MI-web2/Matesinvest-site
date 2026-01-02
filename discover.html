@@ -3254,9 +3254,9 @@ function miPct(n, digits=2){
 
 // Helper to get pctChange from the table data for consistency with displayed values
 function getTablePctChange(code) {
-  if (!code) return undefined;
+  if (!code) return null;
   const tableItem = filteredItems.find(item => item.code === code);
-  return tableItem?.pctChange;
+  return tableItem?.pctChange ?? null;
 }
 
 function miPickHistoryWindowPoints(history, days=30){
@@ -3488,9 +3488,12 @@ function miOpenSlipFromCurrent(tablePctChange){
 
 const chgEl = document.getElementById("mi-slip-chg");
 // Use table's pctChange if provided, otherwise fall back to API's latest.pctChange
-const pct = (typeof tablePctChange === "number" && Number.isFinite(tablePctChange)) 
-  ? tablePctChange 
-  : (typeof latest.pctChange === "number" && Number.isFinite(latest.pctChange)) ? latest.pctChange : null;
+let pct = null;
+if (typeof tablePctChange === "number" && Number.isFinite(tablePctChange)) {
+  pct = tablePctChange;
+} else if (typeof latest.pctChange === "number" && Number.isFinite(latest.pctChange)) {
+  pct = latest.pctChange;
+}
 
 if (pct == null) {
   chgEl.textContent = "—";
