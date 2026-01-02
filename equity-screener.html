@@ -856,6 +856,15 @@ tbody tr:nth-child(even) {
   margin-bottom: 0.9rem;
 }
 
+.mp-date-header {
+  text-align: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .mp-head {
   display: flex;
   align-items: flex-end;
@@ -1014,6 +1023,11 @@ tbody tr:nth-child(even) {
   /* Market Pulse cards */
   .mp-wrap {
     padding: 0.8rem;
+  }
+
+  .mp-date-header {
+    font-size: 0.78rem;
+    margin-bottom: 0.65rem;
   }
 
   .mp-grid {
@@ -1803,6 +1817,7 @@ tbody tr:nth-child(even) {
 
 <!-- Market Pulse (cards) -->
 <section class="mp-wrap" aria-label="Market pulse summary">
+  <div class="mp-date-header" id="mpDateHeader">Loading...</div>
   <div class="mp-grid">
     <div class="mp-card">
       <div class="mp-label">ASX 200</div>
@@ -3776,6 +3791,25 @@ function mpSetBar(spanId, pct) {
   s.style.width = clamped.toFixed(0) + "%";
 }
 
+function mpFormatDate(dateStr) {
+  if (!dateStr) return null;
+  try {
+    // Parse YYYY-MM-DD format
+    const parts = String(dateStr).split("-");
+    if (parts.length !== 3) return null;
+    const [year, month, day] = parts.map(p => parseInt(p, 10));
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+    
+    // Format as DD/MM/YYYY
+    const dd = String(day).padStart(2, "0");
+    const mm = String(month).padStart(2, "0");
+    const yyyy = String(year);
+    return `${dd}/${mm}/${yyyy}`;
+  } catch {
+    return null;
+  }
+}
+
 function mpMarketMood(breadthPct) {
   if (typeof breadthPct !== "number" || !Number.isFinite(breadthPct)) {
     return { label: "—", sub: "—" };
@@ -3823,6 +3857,31 @@ async function loadMarketPulseCards(period = "1d") {
     const res = await fetch(`/.netlify/functions/market-pulse-read?period=${encodeURIComponent(period)}`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || "Failed to load pulse");
+
+    // Update date header
+    const dateHeader = mpEl("mpDateHeader");
+    if (dateHeader) {
+      const formattedDate = mpFormatDate(data.asOfDate);
+      if (formattedDate) {
+        // Check if it's likely not today by comparing with current date
+        const today = new Date();
+        const asOfParts = String(data.asOfDate).split("-");
+        const asOfDate = asOfParts.length === 3 
+          ? new Date(parseInt(asOfParts[0]), parseInt(asOfParts[1]) - 1, parseInt(asOfParts[2]))
+          : null;
+        
+        const isToday = asOfDate && 
+          asOfDate.getFullYear() === today.getFullYear() &&
+          asOfDate.getMonth() === today.getMonth() &&
+          asOfDate.getDate() === today.getDate();
+        
+        dateHeader.textContent = isToday 
+          ? `Market data as of ${formattedDate}`
+          : `Previous trading day: ${formattedDate}`;
+      } else {
+        dateHeader.textContent = "Market data";
+      }
+    }
 
     if (mpEl("mpAsOf")) mpEl("mpAsOf").textContent = data.asOfDate ? `As of ${data.asOfDate}` : "As of —";
     if (mpEl("mpUniverse")) mpEl("mpUniverse").textContent = `Universe: ${data.universeCount ?? "—"}`;
