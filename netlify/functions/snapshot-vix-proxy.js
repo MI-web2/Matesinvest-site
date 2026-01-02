@@ -99,8 +99,8 @@ exports.handler = async function (event) {
     // - Normal run: last ~12 days (to guarantee last US trading day)
     // - Backfill: pull N trading days worth of calendar days
     //   Since EODHD only returns trading days (no weekends/holidays), we need to fetch
-    //   more calendar days to get N trading days. Using 1.6x multiplier to account for
-    //   weekends (7/5 = 1.4) plus holidays and market closures.
+    //   more calendar days to get N trading days. Using 1.6x multiplier which accounts for
+    //   weekends (theoretical 7/5 = 1.4) plus additional buffer for holidays and market closures.
     const bufferDays = 5;
     const calendarDaysNeeded = doBackfill ? Math.ceil(backfillDays * 1.6) + bufferDays : 12;
     const from = shiftIsoDate(asOf, -calendarDaysNeeded);
@@ -125,8 +125,8 @@ exports.handler = async function (event) {
       });
     }
 
-    // Filter rows if backfill requested (keep last N calendar days worth of bars)
-    // EODHD returns trading days only, so we take the last N rows, not calendar days.
+    // Filter rows if backfill requested (keep last N trading days worth of bars)
+    // EODHD returns trading days only, so we take the last N rows (each row = 1 trading day).
     const selected = doBackfill ? rows.slice(-backfillDays) : [rows[rows.length - 1]];
 
     // Build payloads
