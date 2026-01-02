@@ -416,11 +416,15 @@ async function findUniverseFundamentalsByCode(baseCode) {
       );
     }
 
+    // Extract description from EODHD
+    const description = general.Description || general.BusinessSummary || general.CompanyDescription || null;
+
     return {
       name: general.Name || null,
       sector: general.Sector || null,
       industry: general.Industry || null,
       currency: general.CurrencyCode || null,
+      description: description ? String(description).slice(0, 1200) : null,
 
       marketCap,
       sizeBucket,
@@ -685,6 +689,7 @@ if (universeRow && typeof universeRow === "object") {
     sector: universeRow.sector || null,
     industry: universeRow.industry || null,
     currency: "AUD",
+    description: universeRow.description || null,
 
     marketCap: typeof universeRow.marketCap === "number" ? universeRow.marketCap : null,
 

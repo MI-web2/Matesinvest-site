@@ -219,6 +219,16 @@
         color: var(--muted-2);
       }
 
+      .hero-description {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: var(--muted);
+        max-width: 800px;
+      }
+
       .hero-links {
         margin-top: 0.6rem;
         display: flex;
@@ -584,6 +594,9 @@
       <div class="hero-change" id="hero-change">Change: —</div>
       <div class="hero-date" id="hero-date"></div>
     </div>
+
+    <!-- Company description -->
+    <div class="hero-description" id="hero-description"></div>
   </div>
 </section>
 
@@ -917,6 +930,18 @@
         if (heroDate) {
           const d = miFormatDate(latest.date);
           heroDate.textContent = d ? `as at ${d}` : "";
+        }
+
+        // Render description
+        const heroDescription = document.getElementById("hero-description");
+        if (heroDescription) {
+          const description = f.description || null;
+          if (description && description.trim()) {
+            heroDescription.textContent = description.trim();
+            heroDescription.style.display = "block";
+          } else {
+            heroDescription.style.display = "none";
+          }
         }
       }
 
