@@ -51,7 +51,7 @@
   }
 
   // Kept for future use (not used in current flow)
-  const SCREENER_URL = "/equity-screener.html";
+  const SCREENER_URL = "/discover.html";
 
   // NEW: Thinking-style pages (education pages)
   const THINKING_PAGES = {
