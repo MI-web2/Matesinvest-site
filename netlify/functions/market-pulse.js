@@ -226,6 +226,13 @@ exports.handler = async function () {
     const { map: prevMap, prevDateUsed } = asOfDate
       ? await getPrevCloseMap(asOfDate, 7)
       : { map: new Map(), prevDateUsed: null };
+    
+    console.log(`market-pulse: asOfDate=${asOfDate}, prevDateUsed=${prevDateUsed}, prevMapSize=${prevMap.size}`);
+    
+    // Warn if we couldn't find previous day data (this would cause all metrics to be zero/null)
+    if (prevMap.size === 0) {
+      console.warn(`market-pulse WARNING: No previous day data found for asOfDate=${asOfDate}. Market pulse calculations will be incomplete.`);
+    }
 
     // Build metrics
     let adv = 0,
@@ -299,6 +306,8 @@ exports.handler = async function () {
 
     const breadthDen = adv + dec;
     const breadthPct = breadthDen > 0 ? (adv / breadthDen) * 100 : null;
+    
+    console.log(`market-pulse: advancers=${adv}, decliners=${dec}, flat=${flat}, breadthPct=${breadthPct}, turnoverAud=${turnoverAud}`);
 
     // ASX200 pct (market-cap weighted, approx)
     let asx200Pct = null;
