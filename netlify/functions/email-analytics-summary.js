@@ -361,10 +361,10 @@ exports.handler = async function () {
             <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Visits</th>
             <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Unique</th>
             <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Returning</th>
-            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Ret. %</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Return %</th>
             <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Sessions</th>
             <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Avg Duration</th>
-            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Eng. %</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Engage %</th>
           </tr>
           ${pagesRowsHtml}
         </table>
