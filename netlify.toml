@@ -59,11 +59,8 @@
   schedule = "*/2 11-23 * * *"
 
 [functions."snapshot-asx-universe-prices"]
-  # Run after ASX closes (4pm AEST/AEDT) and after EODHD updates EOD data
-  # EODHD typically updates within 2-3 hours of market close
-  # Run ONCE per day at a fixed time to avoid overwriting the same date's snapshot
-  # 12:00 UTC = 10:00pm AEST / 11:00pm AEDT (well after market close, after EODHD updates)
-  schedule = "0 12 * * *"
+  # Run repeatedly overnight in the same window (every 2 minutes between 11:00–23:59 UTC)
+  schedule = "*/2 11-23 * * *"
 
 # Merge job: run shortly after snapshot window ends so all parts are expected to be written.
 # Runs daily at 00:05 UTC; second run at 02:05 UTC as a fallback.
