@@ -2674,10 +2674,7 @@ statusMeta.textContent = `Updated ${updatedDate}`;
                 miOpenInstrumentModal(data);
                 // Wait for modal to render before opening slip
                 await new Promise(resolve => requestAnimationFrame(resolve));
-                // Find the item in filteredItems to get the table's pctChange value
-                const tableItem = filteredItems.find(item => item.code === stockCode);
-                const tablePctChange = tableItem?.pctChange;
-                miOpenSlipFromCurrent(tablePctChange);
+                miOpenSlipFromCurrent(getTablePctChange(stockCode));
               } catch (err) {
                 console.error("Failed to auto-open stock slip:", err);
                 // Show user-friendly message
@@ -3255,6 +3252,13 @@ function miPct(n, digits=2){
   return `${sign}${n.toFixed(digits)}%`;
 }
 
+// Helper to get pctChange from the table data for consistency with displayed values
+function getTablePctChange(code) {
+  if (!code) return undefined;
+  const tableItem = filteredItems.find(item => item.code === code);
+  return tableItem?.pctChange;
+}
+
 function miPickHistoryWindowPoints(history, days=30){
   if (!history || !Array.isArray(history.points)) return [];
   const pts = history.points
@@ -3707,14 +3711,7 @@ document.getElementById("mi-slip-share-btn")?.addEventListener("click", miShareS
 
 // Wire buttons (Invest Slip)
 document.getElementById("mi-ins-slip-btn")?.addEventListener("click", () => {
-  // Find the item in filteredItems to get the table's pctChange value
-  if (miCurrentCode) {
-    const tableItem = filteredItems.find(item => item.code === miCurrentCode);
-    const tablePctChange = tableItem?.pctChange;
-    miOpenSlipFromCurrent(tablePctChange);
-  } else {
-    miOpenSlipFromCurrent();
-  }
+  miOpenSlipFromCurrent(getTablePctChange(miCurrentCode));
 });
 
 document.getElementById("mi-slip-close-btn")?.addEventListener("click", miCloseSlip);
@@ -3746,17 +3743,13 @@ document.getElementById("mi-slip-deepdive-btn")?.addEventListener("click", () =>
         const code = row.getAttribute("data-code");
         const type = row.getAttribute("data-type") || "equity";
 
-        // Find the item in filteredItems to get the table's pctChange value
-        const tableItem = filteredItems.find(item => item.code === code);
-        const tablePctChange = tableItem?.pctChange;
-
         try {
           const data = await miFetchInstrumentDetails(type, code);
           // Store data for slip to use
           miLastInstrumentData = data;
           miCurrentCode = data.code || data.ticker || null;
           // Open invest slip directly, passing the table's pctChange
-          miOpenSlipFromCurrent(tablePctChange);
+          miOpenSlipFromCurrent(getTablePctChange(code));
         } catch (err) {
           console.error("Failed to load instrument details", err);
           alert("Sorry, we couldn't load that company at the moment.");
