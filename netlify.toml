@@ -36,6 +36,9 @@
   # (which is Mon & Wed 20:05 UTC)
   schedule = "5 20 * * 1,3"
 
+  [functions."snapshot-vix-proxy"]
+  schedule = "15 20 * * *"
+
 [functions."email-weekly-brief"]
   # Weekly brief: Sat 06:05 AEST (Fri 20:05 UTC)
   schedule = "5 20 * * 5"
