@@ -3552,6 +3552,13 @@ function miCloseSlip(){
   if (!overlay) return;
   overlay.style.display = "none";
   overlay.setAttribute("aria-hidden", "true");
+  
+  // Also close the old instrument modal to ensure we return to the discover table
+  const instrumentOverlay = document.getElementById("mi-instrument-overlay");
+  if (instrumentOverlay) {
+    instrumentOverlay.style.display = "none";
+    instrumentOverlay.setAttribute("aria-hidden", "true");
+  }
 }
 async function miShareSlip() {
   const el = document.querySelector(".mi-slip-modal");
