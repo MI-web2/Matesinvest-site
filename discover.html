@@ -3255,7 +3255,9 @@ function miPct(n, digits=2){
 // Helper to get pctChange from the table data for consistency with displayed values
 function getTablePctChange(code) {
   if (!code) return null;
-  const tableItem = filteredItems.find(item => item.code === code);
+  // Use rawItems (all data) instead of filteredItems to handle edge cases
+  // where the stock may have been filtered out but is still accessible via deep link
+  const tableItem = rawItems.find(item => item.code === code);
   return tableItem?.pctChange ?? null;
 }
 
