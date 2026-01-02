@@ -104,6 +104,89 @@ async function redisSet(urlBase, token, key, value, ttlSeconds) {
   }
 }
 
+async function redisGet(urlBase, token, key) {
+  if (!urlBase || !token) return null;
+  try {
+    const res = await fetchWithTimeout(
+      `${urlBase}/get/${encodeURIComponent(key)}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+      12000
+    );
+    if (!res.ok) return null;
+    const j = await res.json().catch(() => null);
+    return j?.result ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function parse(raw) {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  return raw;
+}
+
+function ymd(d) {
+  const yy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+function dateAddDays(ymdStr, deltaDays) {
+  const [y, m, d] = ymdStr.split("-").map((x) => parseInt(x, 10));
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + deltaDays);
+  return ymd(dt);
+}
+
+async function getPrevTradingDayCloseMap(snapshotDate, maxLookbackDays = 7) {
+  // Look back from snapshotDate-1 to find the most recent trading day with data
+  for (let i = 1; i <= maxLookbackDays; i++) {
+    const d = dateAddDays(snapshotDate, -i);
+    const key = `asx:universe:eod:${d}`;
+    const raw = await redisGet(UPSTASH_URL, UPSTASH_TOKEN, key);
+    const obj = parse(raw);
+    
+    // Support both direct array and object with .rows
+    let rows = null;
+    if (Array.isArray(obj)) {
+      rows = obj;
+    } else if (obj && Array.isArray(obj.rows)) {
+      rows = obj.rows;
+    }
+    
+    if (rows && rows.length > 0) {
+      const map = new Map();
+      for (const r of rows) {
+        const code = r?.code ? String(r.code).toUpperCase() : null;
+        if (!code) continue;
+        // Use close price from that day as the previous close
+        const close = Number(r.close ?? r.last ?? r.price ?? NaN);
+        if (Number.isFinite(close)) {
+          map.set(code, close);
+        }
+      }
+      console.log(
+        `[snapshot-asx-universe-prices] Found previous trading day data: ${d} (${map.size} stocks)`
+      );
+      return { map, prevDate: d };
+    }
+    // No sleep needed - just check the next day
+  }
+  
+  console.warn(
+    `[snapshot-asx-universe-prices] No previous trading day data found within ${maxLookbackDays} days of ${snapshotDate}`
+  );
+  return { map: new Map(), prevDate: null };
+}
+
 exports.handler = async function () {
   const start = Date.now();
 
@@ -154,6 +237,32 @@ const url = `https://eodhd.com/api/eod-bulk-last-day/AU?api_token=${encodeURICom
     };
   }
 
+  // Extract snapshot date from API data first, validate it exists
+  let snapshotDate = null;
+  if (rawArray && rawArray.length > 0 && (rawArray[0].date || rawArray[0].Date)) {
+    snapshotDate = rawArray[0].date || rawArray[0].Date;
+  }
+  
+  // If no date in API response, something is wrong - fail early
+  if (!snapshotDate) {
+    console.error(
+      `[snapshot-asx-universe-prices] No date found in API response. Response length: ${rawArray.length}`
+    );
+    return {
+      statusCode: 502,
+      body: JSON.stringify({
+        error: "No date found in EODHD API response",
+        detail: "The API response does not contain a valid date field",
+      }),
+    };
+  }
+
+  // Fetch previous trading day close prices from historical data
+  console.log(
+    `[snapshot-asx-universe-prices] Looking for previous trading day data for snapshot date: ${snapshotDate}`
+  );
+  const { map: prevTradingDayMap, prevDate } = await getPrevTradingDayCloseMap(snapshotDate, 7);
+
   const rows = [];
 
   for (const r of rawArray) {
@@ -172,51 +281,40 @@ const url = `https://eodhd.com/api/eod-bulk-last-day/AU?api_token=${encodeURICom
         ? Number(close)
         : null;
 
-    // Raw change percent if provided
-    let changePct = Number(
-      r.change_p ??
-        r.changeP ??
-        r.ChangeP ??
-        r.changePercent ??
-        r.ChangePercent ??
-        NaN
-    );
-    if (!Number.isFinite(changePct)) changePct = null;
+    // Get previous trading day close from our historical lookup (preferred)
+    let prevClose = prevTradingDayMap.get(base) ?? null;
 
-    // Previous close straight from API if present
-    let prevRaw =
-      r.previousClose ??
-      r.PreviousClose ??
-      r.previous_close ??
-      r.prev_close ??
-      r.Previous_Close ??
-      null;
-    let prevClose = Number(prevRaw ?? NaN);
-    if (!Number.isFinite(prevClose)) prevClose = null;
-
-    // If we don't have prevClose but we *do* have changePct, derive it
-    if (
-      prevClose === null &&
-      closeVal !== null &&
-      changePct !== null &&
-      changePct !== -100
-    ) {
-      const denom = 1 + changePct / 100;
-      if (denom !== 0) {
-        const calcPrev = closeVal / denom;
-        if (Number.isFinite(calcPrev)) prevClose = calcPrev;
-      }
+    // Fallback: if we don't have historical data, use API's previousClose
+    if (prevClose === null) {
+      let prevRaw =
+        r.previousClose ??
+        r.PreviousClose ??
+        r.previous_close ??
+        r.prev_close ??
+        r.Previous_Close ??
+        null;
+      let apiPrevClose = Number(prevRaw ?? NaN);
+      if (Number.isFinite(apiPrevClose)) prevClose = apiPrevClose;
     }
 
-    // If we have close + prevClose but no pctChange, derive pctChange
-    if (
-      changePct === null &&
-      closeVal !== null &&
-      prevClose !== null &&
-      prevClose !== 0
-    ) {
+    // Calculate pctChange from current close and prevClose
+    let changePct = null;
+    if (closeVal !== null && prevClose !== null && prevClose !== 0) {
       const pc = ((closeVal - prevClose) / prevClose) * 100;
       if (Number.isFinite(pc)) changePct = pc;
+    }
+
+    // Fallback: use API's change percent if we couldn't calculate it
+    if (changePct === null) {
+      let apiChangePct = Number(
+        r.change_p ??
+          r.changeP ??
+          r.ChangeP ??
+          r.changePercent ??
+          r.ChangePercent ??
+          NaN
+      );
+      if (Number.isFinite(apiChangePct)) changePct = apiChangePct;
     }
 
     const volume = Number(r.volume ?? r.Volume ?? NaN);
@@ -241,10 +339,6 @@ const url = `https://eodhd.com/api/eod-bulk-last-day/AU?api_token=${encodeURICom
     });
   }
 
-  // Use the date from the first row, or today as fallback
-  const snapshotDate =
-    (rows[0] && rows[0].date) || new Date().toISOString().slice(0, 10);
-
   const dailyKey = `asx:universe:eod:${snapshotDate}`;
   const latestKey = `asx:universe:eod:latest`;
 
@@ -253,14 +347,20 @@ const url = `https://eodhd.com/api/eod-bulk-last-day/AU?api_token=${encodeURICom
 
   const ok = okDaily && okLatest;
 
+  console.log(
+    `[snapshot-asx-universe-prices] Completed: snapshotDate=${snapshotDate}, prevDate=${prevDate || 'none'}, rows=${rows.length}, prevTradingDayLookupSize=${prevTradingDayMap.size}`
+  );
+
   return {
     statusCode: ok ? 200 : 500,
     body: JSON.stringify({
       ok,
       snapshotDate,
+      prevDateUsed: prevDate,
       dailyKey,
       latestKey,
       rows: rows.length,
+      prevTradingDayLookupSize: prevTradingDayMap.size,
       elapsedMs: Date.now() - start,
     }),
   };
