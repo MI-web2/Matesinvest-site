@@ -3488,22 +3488,22 @@ function miOpenSlipFromCurrent(tablePctChange){
     : "—";
   document.getElementById("mi-slip-price").textContent = px;
 
-const chgEl = document.getElementById("mi-slip-chg");
-// Use table's pctChange if provided, otherwise fall back to API's latest.pctChange
-let pct = null;
-if (typeof tablePctChange === "number" && Number.isFinite(tablePctChange)) {
-  pct = tablePctChange;
-} else if (typeof latest.pctChange === "number" && Number.isFinite(latest.pctChange)) {
-  pct = latest.pctChange;
-}
+  const chgEl = document.getElementById("mi-slip-chg");
+  // Use table's pctChange if provided, otherwise fall back to API's latest.pctChange
+  let pct = null;
+  if (typeof tablePctChange === "number" && Number.isFinite(tablePctChange)) {
+    pct = tablePctChange;
+  } else if (typeof latest.pctChange === "number" && Number.isFinite(latest.pctChange)) {
+    pct = latest.pctChange;
+  }
 
-if (pct == null) {
-  chgEl.textContent = "—";
-  chgEl.style.color = "#cbd5e1";
-} else {
-  chgEl.textContent = `${pct >= 0 ? "▲" : "▼"} ${miPct(pct, 2)} yesterday`;
-  chgEl.style.color = pct >= 0 ? "#4ade80" : "#fb7185";
-}
+  if (pct == null) {
+    chgEl.textContent = "—";
+    chgEl.style.color = "#cbd5e1";
+  } else {
+    chgEl.textContent = `${pct >= 0 ? "▲" : "▼"} ${miPct(pct, 2)} yesterday`;
+    chgEl.style.color = pct >= 0 ? "#4ade80" : "#fb7185";
+  }
 
   document.getElementById("mi-slip-risk").textContent = `Risk: ${built.risk}`;
 
