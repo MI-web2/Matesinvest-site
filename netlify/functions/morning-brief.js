@@ -428,6 +428,124 @@ exports.handler = async function (event) {
     }
 
     // --------------------------------------------------
+    // 1d) VXX (VIX Proxy): snapshot from Upstash
+    // --------------------------------------------------
+    let vxx = {};
+    let vxxDataSource = "snapshot-missing";
+
+    try {
+      const rawVxx = await redisGet("market:vixproxy:eod:latest");
+      let vxxSnapshot = null;
+
+      if (rawVxx) {
+        if (typeof rawVxx === "string") {
+          try {
+            vxxSnapshot = JSON.parse(rawVxx);
+          } catch (e) {
+            vxxSnapshot = null;
+            debug.steps.push({
+              source: "parse-vxx-latest-failed",
+              error: e && e.message,
+            });
+          }
+        } else if (typeof rawVxx === "object") {
+          vxxSnapshot = rawVxx;
+        }
+      }
+
+      if (!vxxSnapshot || !vxxSnapshot.close) {
+        debug.steps.push({
+          source: "vxx-latest-missing-or-invalid",
+          found: !!vxxSnapshot,
+        });
+      } else {
+        vxxDataSource = "market:vixproxy:eod:latest";
+
+        // Get yesterday's data for pct change calculation
+        let yesterdayVxx = null;
+        let yesterdayClose = null;
+        
+        try {
+          // Try to get yesterday's snapshot using the date
+          if (vxxSnapshot.date) {
+            const vxxDate = new Date(vxxSnapshot.date + "T00:00:00Z");
+            const yesterdayDate = new Date(vxxDate.getTime() - 86400000).toISOString().slice(0, 10);
+            const yesterdayKey = `market:vixproxy:eod:${yesterdayDate}`;
+            const rawYesterday = await redisGet(yesterdayKey);
+            
+            if (rawYesterday) {
+              if (typeof rawYesterday === "string") {
+                try {
+                  yesterdayVxx = JSON.parse(rawYesterday);
+                } catch (e) {
+                  yesterdayVxx = null;
+                }
+              } else if (typeof rawYesterday === "object") {
+                yesterdayVxx = rawYesterday;
+              }
+              
+              if (yesterdayVxx && typeof yesterdayVxx.close === "number") {
+                yesterdayClose = yesterdayVxx.close;
+              }
+            }
+            
+            debug.steps.push({
+              source: "vxx-yesterday-lookup",
+              date: yesterdayDate,
+              found: !!yesterdayVxx,
+            });
+          }
+        } catch (e) {
+          debug.steps.push({
+            source: "vxx-yesterday-error",
+            error: e && e.message,
+          });
+        }
+
+        // Calculate percent change
+        let pctChange = null;
+        const todayClose = typeof vxxSnapshot.close === "number" ? vxxSnapshot.close : null;
+        
+        if (todayClose !== null && yesterdayClose !== null && yesterdayClose !== 0) {
+          const rawPct = ((todayClose - yesterdayClose) / yesterdayClose) * 100;
+          if (Number.isFinite(rawPct) && Math.abs(rawPct) <= 1000) {
+            pctChange = Number(rawPct.toFixed(2));
+          }
+        }
+
+        // Convert to AUD if FX rate is available
+        const fx = typeof usdToAud === "number" && Number.isFinite(usdToAud) ? usdToAud : null;
+        const priceAUD = fx !== null && todayClose !== null ? todayClose * fx : null;
+        const yesterdayPriceAUD = fx !== null && yesterdayClose !== null ? yesterdayClose * fx : null;
+
+        vxx = {
+          code: vxxSnapshot.code || "VXX.US",
+          name: vxxSnapshot.name || "VIX Proxy (VXX)",
+          priceUSD: fmt(todayClose),
+          priceAUD: fmt(priceAUD),
+          yesterdayPriceUSD: fmt(yesterdayClose),
+          yesterdayPriceAUD: fmt(yesterdayPriceAUD),
+          pctChange,
+          date: vxxSnapshot.date || null,
+          priceTimestamp: vxxSnapshot.updatedAt || null,
+          note: vxxSnapshot.note || null,
+        };
+
+        debug.steps.push({
+          source: "vxx-loaded",
+          date: vxxSnapshot.date,
+          priceUSD: todayClose,
+          pctChange,
+        });
+      }
+    } catch (e) {
+      debug.steps.push({
+        source: "vxx-error",
+        error: e && e.message,
+      });
+    }
+
+    // --------------------------------------------------
     // 2) TOP PERFORMERS: use asx200:latest from Upstash
     // --------------------------------------------------
     const TOP_N = Number(process.env.TOP_N || 6); // default 6
@@ -587,11 +705,13 @@ exports.handler = async function (event) {
       metals,
       narratives,
       crypto, // <--- new block for BTC / ETH / SOL / ADA
+      vxx, // <--- VIX proxy (VXX) data
       topPerformers,
       _debug: {
         ...debug,
         metalsDataSource,
         cryptoDataSource,
+        vxxDataSource,
         topSource: "asx200:latest",
       },
     };
