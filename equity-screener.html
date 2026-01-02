@@ -3800,6 +3800,14 @@ function mpFormatDate(dateStr) {
     const [year, month, day] = parts.map(p => parseInt(p, 10));
     if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
     
+    // Validate the date is real (e.g., not Feb 30th)
+    const testDate = new Date(year, month - 1, day);
+    if (testDate.getFullYear() !== year || 
+        testDate.getMonth() !== month - 1 || 
+        testDate.getDate() !== day) {
+      return null;
+    }
+    
     // Format as DD/MM/YYYY
     const dd = String(day).padStart(2, "0");
     const mm = String(month).padStart(2, "0");
@@ -3863,17 +3871,20 @@ async function loadMarketPulseCards(period = "1d") {
     if (dateHeader) {
       const formattedDate = mpFormatDate(data.asOfDate);
       if (formattedDate) {
-        // Check if it's likely not today by comparing with current date
+        // Check if the data is from today by comparing with current date (using UTC to avoid timezone issues)
         const today = new Date();
+        today.setHours(0, 0, 0, 0); // Normalize to start of day
+        
         const asOfParts = String(data.asOfDate).split("-");
         const asOfDate = asOfParts.length === 3 
           ? new Date(parseInt(asOfParts[0]), parseInt(asOfParts[1]) - 1, parseInt(asOfParts[2]))
           : null;
         
-        const isToday = asOfDate && 
-          asOfDate.getFullYear() === today.getFullYear() &&
-          asOfDate.getMonth() === today.getMonth() &&
-          asOfDate.getDate() === today.getDate();
+        if (asOfDate) {
+          asOfDate.setHours(0, 0, 0, 0); // Normalize to start of day
+        }
+        
+        const isToday = asOfDate && asOfDate.getTime() === today.getTime();
         
         dateHeader.textContent = isToday 
           ? `Market data as of ${formattedDate}`
