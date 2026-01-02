@@ -149,9 +149,18 @@ async function getPrevCloseMap(asOfDate, maxLookbackDays = 7) {
     const d = dateAddDays(asOfDate, -i);
     const raw = await redisGet(`${EOD_PREFIX}${d}`);
     const obj = parse(raw);
-    if (obj && Array.isArray(obj.rows) && obj.rows.length > 0) {
+    
+    // Support both direct array and object with .rows property
+    let rows = null;
+    if (Array.isArray(obj)) {
+      rows = obj;
+    } else if (obj && Array.isArray(obj.rows)) {
+      rows = obj.rows;
+    }
+    
+    if (rows && rows.length > 0) {
       const map = new Map();
-      for (const r of obj.rows) {
+      for (const r of rows) {
         const code = r?.code ? String(r.code).toUpperCase() : null;
         if (!code) continue;
         // prefer explicit prevClose/close if present; otherwise try price
