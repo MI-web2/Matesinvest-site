@@ -122,7 +122,7 @@ exports.handler = async function (event) {
 
     const okHeaders = {
       "Content-Type": "application/json",
-      "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=120",
+      "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
     };
 
     if (period === "1d") {
