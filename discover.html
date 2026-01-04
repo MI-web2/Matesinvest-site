@@ -1933,7 +1933,7 @@ tbody tr:nth-child(even) {
 </section>
 
 <!-- Email Capture CTA -->
-<section class="mi-capture" aria-label="Email signup">
+<section class="mi-capture" aria-label="Subscribe to daily ASX brief">
   <h3>Get the free 6:05am ASX brief</h3>
   <p>Daily snapshot + key moves. No spam. Unsubscribe anytime.</p>
 
@@ -1983,8 +1983,8 @@ tbody tr:nth-child(even) {
   </div>
 </section>
 <div class="mi-tip">
-  <div>Tip: best viewed in <strong>landscape</strong> on mobile (turn your phone sideways).</div>
-  <div>Click a company to see the invest slip and share with mates.</div>
+  Tip: best viewed in <strong>landscape</strong> on mobile (turn your phone sideways).<br>
+  Click a company to see the invest slip and share with mates.
 </div>
 
       <section class="filters-card" id="filtersCard">
@@ -4371,6 +4371,8 @@ buttons.forEach((btn) =>
         const msg = document.getElementById("miEmailMsg");
         if (!form || !emailEl || !btn || !msg) return;
 
+        const REDIRECT_DELAY_MS = 700;
+
         function setMsg(text, ok) {
           msg.textContent = text || "";
           msg.style.color = ok ? "#16a34a" : "#dc2626";
@@ -4395,15 +4397,17 @@ buttons.forEach((btn) =>
               })
             });
 
-            if (!res.ok) throw new Error("bad_status_" + res.status);
+            if (!res.ok) {
+              throw new Error("Unable to subscribe at the moment. Please try again.");
+            }
 
             setMsg("You're in ✅ Check your inbox tomorrow at 6:05am.", true);
             emailEl.value = "";
           } catch (err) {
-            setMsg("Couldn't add you automatically — redirecting…", false);
+            setMsg("Could not add you automatically - redirecting to signup page...", false);
             setTimeout(() => { 
               window.location.href = "/join.html"; 
-            }, 700);
+            }, REDIRECT_DELAY_MS);
           } finally {
             btn.disabled = false;
           }
