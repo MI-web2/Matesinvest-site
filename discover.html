@@ -1383,6 +1383,92 @@ tbody tr:nth-child(even) {
 .chg.pos{ color:#16a34a; }
 .chg.neg{ color:#ef4444; }
 .chg.neu{ color:#64748b; }
+/* ================================
+   Email Capture CTA (inline)
+   ================================ */
+.mi-capture {
+  max-width: 1240px;
+  margin: 0 auto 0.9rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--glass);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.09);
+}
+.mi-capture h3 { 
+  margin: 0 0 0.4rem; 
+  font-size: 1.05rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--navy);
+}
+.mi-capture p { 
+  margin: 0 0 0.75rem; 
+  color: var(--muted); 
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.mi-capture .row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.mi-capture input[type="email"]{
+  flex: 1 1 240px;
+  padding: 0.65rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  outline: none;
+  background: #f8fafc;
+  color: var(--navy);
+}
+.mi-capture input[type="email"]:focus {
+  border-color: var(--accent);
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 191, 255, 0.08);
+}
+.mi-capture button{
+  padding: 0.65rem 1.1rem;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: #001220;
+  box-shadow: 0 7px 16px rgba(15, 23, 42, 0.18);
+  transition: background 0.15s ease;
+}
+.mi-capture button:hover {
+  background: var(--accent-strong);
+}
+.mi-capture button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.mi-capture .msg {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .mi-capture {
+    padding: 0.8rem;
+  }
+  .mi-capture h3 {
+    font-size: 0.95rem;
+  }
+  .mi-capture p {
+    font-size: 0.78rem;
+  }
+  .mi-capture input[type="email"],
+  .mi-capture button {
+    font-size: 0.82rem;
+  }
+}
 /* ---------- Invest Slip ---------- */
 .mi-ins-slip-btn{
   margin: 0.4rem 0 0.35rem;
@@ -1846,6 +1932,26 @@ tbody tr:nth-child(even) {
   </div>
 </section>
 
+<!-- Email Capture CTA -->
+<section class="mi-capture" aria-label="Subscribe to daily ASX brief">
+  <h3>Get the free 6:05am ASX brief</h3>
+  <p>Daily snapshot + key moves. No spam. Unsubscribe anytime.</p>
+
+  <form id="miEmailForm" class="row">
+    <input
+      id="miEmail"
+      type="email"
+      inputmode="email"
+      autocomplete="email"
+      placeholder="Email address"
+      required
+    />
+    <button id="miEmailBtn" type="submit">Get the email</button>
+  </form>
+
+  <div id="miEmailMsg" class="msg" aria-live="polite"></div>
+</section>
+
 <!-- Sector Performance Chart -->
 <section class="sector-chart-wrap" aria-label="Sector performance chart">
   <div class="sector-chart-card">
@@ -1877,7 +1983,8 @@ tbody tr:nth-child(even) {
   </div>
 </section>
 <div class="mi-tip">
-  Tip: best viewed in <strong>landscape</strong> on mobile (turn your phone sideways).
+  Tip: best viewed in <strong>landscape</strong> on mobile (turn your phone sideways).<br>
+  Click a company to see the invest slip and share with mates.
 </div>
 
       <section class="filters-card" id="filtersCard">
@@ -4254,6 +4361,59 @@ buttons.forEach((btn) =>
     });
   })();
 </script>
+
+    <!-- Email Capture Handler -->
+    <script>
+      (() => {
+        const form = document.getElementById("miEmailForm");
+        const emailEl = document.getElementById("miEmail");
+        const btn = document.getElementById("miEmailBtn");
+        const msg = document.getElementById("miEmailMsg");
+        if (!form || !emailEl || !btn || !msg) return;
+
+        const REDIRECT_DELAY_MS = 700;
+
+        function setMsg(text, ok) {
+          msg.textContent = text || "";
+          msg.style.color = ok ? "#16a34a" : "#dc2626";
+        }
+
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const email = (emailEl.value || "").trim();
+          if (!email) return;
+
+          btn.disabled = true;
+          setMsg("Adding you…", true);
+
+          try {
+            const res = await fetch("/.netlify/functions/subscribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email,
+                source: "discover_page",
+                path: window.location.pathname
+              })
+            });
+
+            if (!res.ok) {
+              throw new Error("Unable to subscribe at the moment. Please try again.");
+            }
+
+            setMsg("You're in ✅ Check your inbox tomorrow at 6:05am.", true);
+            emailEl.value = "";
+          } catch (err) {
+            setMsg("Could not add you automatically - redirecting to signup page...", false);
+            setTimeout(() => { 
+              window.location.href = "/join.html"; 
+            }, REDIRECT_DELAY_MS);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      })();
+    </script>
 
     <!-- REPEAT USER TRACKING (Option 1) -->
     <script>
