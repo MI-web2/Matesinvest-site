@@ -11,6 +11,8 @@ jobs:
   snapshot-vix-proxy:
     runs-on: ubuntu-latest
     name: Fetch VXX (VIX Proxy) data from EODHD and write to Upstash
+    permissions:
+      contents: read
     steps:
       - name: Call snapshot-vix-proxy function
         env:
