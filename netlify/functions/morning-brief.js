@@ -461,71 +461,26 @@ exports.handler = async function (event) {
       } else {
         vxxDataSource = "market:vixproxy:eod:latest";
 
-        // Get yesterday's data for pct change calculation
-        let yesterdayVxx = null;
-        let yesterdayClose = null;
-        
-        try {
-          // Try to get yesterday's snapshot using the date
-          if (vxxSnapshot.date) {
-            const vxxDate = new Date(vxxSnapshot.date + "T00:00:00Z");
-            const yesterdayDate = new Date(vxxDate.getTime() - 86400000).toISOString().slice(0, 10);
-            const yesterdayKey = `market:vixproxy:eod:${yesterdayDate}`;
-            const rawYesterday = await redisGet(yesterdayKey);
-            
-            if (rawYesterday) {
-              if (typeof rawYesterday === "string") {
-                try {
-                  yesterdayVxx = JSON.parse(rawYesterday);
-                } catch (e) {
-                  yesterdayVxx = null;
-                }
-              } else if (typeof rawYesterday === "object") {
-                yesterdayVxx = rawYesterday;
-              }
-              
-              if (yesterdayVxx && typeof yesterdayVxx.close === "number") {
-                yesterdayClose = yesterdayVxx.close;
-              }
-            }
-            
-            debug.steps.push({
-              source: "vxx-yesterday-lookup",
-              date: yesterdayDate,
-              found: !!yesterdayVxx,
-            });
-          }
-        } catch (e) {
-          debug.steps.push({
-            source: "vxx-yesterday-error",
-            error: e && e.message,
-          });
-        }
-
-        // Calculate percent change
+        // Calculate percent change: (close - open) / open
         let pctChange = null;
         const todayClose = typeof vxxSnapshot.close === "number" ? vxxSnapshot.close : null;
+        const todayOpen = typeof vxxSnapshot.open === "number" ? vxxSnapshot.open : null;
         
-        if (todayClose !== null && yesterdayClose !== null && yesterdayClose !== 0) {
-          const rawPct = ((todayClose - yesterdayClose) / yesterdayClose) * 100;
+        if (todayClose !== null && todayOpen !== null && todayOpen !== 0) {
+          const rawPct = ((todayClose - todayOpen) / todayOpen) * 100;
           if (Number.isFinite(rawPct) && Math.abs(rawPct) <= 1000) {
             pctChange = Number(rawPct.toFixed(2));
           }
         }
 
-        // Convert to AUD if FX rate is available
-        const fx = typeof usdToAud === "number" && Number.isFinite(usdToAud) ? usdToAud : null;
-        const priceAUD = fx !== null && todayClose !== null ? todayClose * fx : null;
-        const yesterdayPriceAUD = fx !== null && yesterdayClose !== null ? yesterdayClose * fx : null;
-
+        // Keep VXX in USD (do NOT convert to AUD)
         vxx = {
           code: vxxSnapshot.code || "VXX.US",
           name: vxxSnapshot.name || "VIX Proxy (VXX)",
           priceUSD: fmt(todayClose),
-          priceAUD: fmt(priceAUD),
-          yesterdayPriceUSD: fmt(yesterdayClose),
-          yesterdayPriceAUD: fmt(yesterdayPriceAUD),
+          priceAUD: fmt(todayClose), // Keep as USD, not converted
           pctChange,
+          open: fmt(todayOpen),
           date: vxxSnapshot.date || null,
           priceTimestamp: vxxSnapshot.updatedAt || null,
           note: vxxSnapshot.note || null,
@@ -535,6 +490,7 @@ exports.handler = async function (event) {
           source: "vxx-loaded",
           date: vxxSnapshot.date,
           priceUSD: todayClose,
+          open: todayOpen,
           pctChange,
         });
       }

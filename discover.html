@@ -1975,7 +1975,7 @@ tbody tr:nth-child(even) {
 <!-- Across Markets (small + slick) -->
 <section class="across-markets" aria-label="Across Markets">
   <div class="across-head">
-    <span class="across-title">Across markets (1D AUD)</span>
+    <span class="across-title">Across markets (1D AUD, VXX in USD)</span>
     <span class="across-meta" id="acrossMeta">Live snapshot</span>
   </div>
   <div class="across-scroll" id="acrossItems">
@@ -2459,6 +2459,14 @@ function fmtMoneyAUD(n) {
   return "$" + n.toFixed(2);
 }
 
+function fmtMoneyUSD(n) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+  // USD formatting
+  if (n >= 1_000_000) return "$" + (n / 1_000_000).toFixed(2) + "m USD";
+  if (n >= 1_000) return "$" + Math.round(n).toLocaleString("en-US") + " USD";
+  return "$" + n.toFixed(2) + " USD";
+}
+
 function fmtPct(p) {
   if (typeof p !== "number" || !Number.isFinite(p)) return "—";
   const sign = p > 0 ? "+" : "";
@@ -2545,6 +2553,9 @@ wrap.innerHTML = chips
 const isCrypto = (x.sym === "BTC" || x.sym === "ETH" || x.sym === "SOL");
 const tag = isCrypto ? "" : (ACROSS_TAG_MAP[x.sym] || "");
 
+// VXX should show USD, everything else shows AUD
+const priceTxt = x.sym === "VXX" ? fmtMoneyUSD(x.px) : fmtMoneyAUD(x.px);
+
     return `
       <div class="across-chip" title="${x.lbl}" data-sym="${x.sym}" data-tag="${tag}">
         <div class="k">
@@ -2552,7 +2563,7 @@ const tag = isCrypto ? "" : (ACROSS_TAG_MAP[x.sym] || "");
           <div class="lbl">${x.lbl}</div>
         </div>
         <div class="v">
-          <div class="px">${fmtMoneyAUD(x.px)}</div>
+          <div class="px">${priceTxt}</div>
           <div class="chg ${cls}">${chgTxt}</div>
         </div>
       </div>
