@@ -284,10 +284,13 @@ exports.handler = async function () {
       // ASX200 (weighted by market cap if available)
       const f = fundMap.get(code);
       const isAsx200 =
+        f?.inAsx200 === 1 ||
+        f?.inAsx200 === true ||
+        f?.asx200 === 1 ||
         f?.asx200 === true ||
-        f?.index === "ASX200" ||
         f?.asx200Member === true ||
-        f?.asx200_member === true;
+        f?.asx200_member === true ||
+        f?.index === "ASX200";
 
       if (isAsx200) {
         const mc = num(f.marketCap ?? f.market_cap ?? f.mktCap ?? f.mkt_cap);
