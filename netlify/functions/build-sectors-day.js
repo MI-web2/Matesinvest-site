@@ -125,12 +125,12 @@ exports.handler = async function (event) {
           console.log('build-sectors-day: Using date from rawUrl:', asOfDate);
         }
       } catch (e) {
-        // URL parsing failed - this is normal for scheduled invocations
-        console.log('build-sectors-day: URL parsing failed (scheduled invocation):', e.message);
+        // URL parsing failed - could be scheduled invocation or malformed URL
+        console.log('build-sectors-day: URL parsing failed:', e.message);
       }
     } else {
-      // Scheduled invocation - no rawUrl or queryStringParameters
-      console.log('build-sectors-day: Scheduled invocation detected, using latest EOD date');
+      // No rawUrl - likely a scheduled invocation
+      console.log('build-sectors-day: No rawUrl (likely scheduled invocation), using latest EOD date');
     }
 
     // If no ?date= provided or scheduled invocation, use universe EOD latest
@@ -173,11 +173,10 @@ exports.handler = async function (event) {
       loadJson(`asx:universe:fundamentals:latest`),
     ]);
 
-    console.log('build-sectors-day: Loaded data:', {
-      todayCount: Array.isArray(todayArr) ? todayArr.length : 0,
-      prevCount: Array.isArray(prevArr) ? prevArr.length : 0,
-      fundamentalsType: Array.isArray(fundamentalsData) ? 'array' : (fundamentalsData?.items ? 'object with items' : 'other')
-    });
+    const todayCount = Array.isArray(todayArr) ? todayArr.length : 0;
+    const prevCount = Array.isArray(prevArr) ? prevArr.length : 0;
+    const fundType = Array.isArray(fundamentalsData) ? 'array' : (fundamentalsData?.items ? 'object' : 'other');
+    console.log(`build-sectors-day: Data loaded - today:${todayCount} prev:${prevCount} fund:${fundType}`);
 
     // Support both direct array and object with .items property
     let fundamentalsArr = [];
@@ -190,10 +189,10 @@ exports.handler = async function (event) {
     if (!Array.isArray(todayArr) || !Array.isArray(prevArr) || !Array.isArray(fundamentalsArr) || fundamentalsArr.length === 0) {
       const errorMsg = "Missing/invalid cached arrays (eod or fundamentals)";
       console.error('build-sectors-day ERROR:', errorMsg, {
-        todayArrValid: Array.isArray(todayArr),
-        prevArrValid: Array.isArray(prevArr),
-        fundamentalsArrValid: Array.isArray(fundamentalsArr),
-        fundamentalsCount: fundamentalsArr.length
+        todayOk: Array.isArray(todayArr),
+        prevOk: Array.isArray(prevArr),
+        fundOk: Array.isArray(fundamentalsArr),
+        fundLen: fundamentalsArr?.length ?? 0
       });
       return { statusCode: 500, body: errorMsg };
     }
