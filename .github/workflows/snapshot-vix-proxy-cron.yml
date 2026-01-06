@@ -1,0 +1,31 @@
+name: Snapshot VIX Proxy (daily schedule)
+
+on:
+  schedule:
+    # 06:00 AEST = 20:00 UTC previous day (AEST is UTC+10)
+    # Runs daily to fetch VXX.US data from EODHD
+    - cron: '0 20 * * *'
+  workflow_dispatch: {}  # allows manual run from Actions UI
+
+jobs:
+  snapshot-vix-proxy:
+    runs-on: ubuntu-latest
+    name: Fetch VXX (VIX Proxy) data from EODHD and write to Upstash
+    steps:
+      - name: Call snapshot-vix-proxy function
+        env:
+          BASE_URL: ${{ secrets.NETLIFY_BASE_URL }}
+        run: |
+          if [ -z "$BASE_URL" ]; then
+            echo "ERROR: NETLIFY_BASE_URL secret not set."
+            exit 1
+          fi
+          echo "Calling VIX proxy snapshot endpoint at ${BASE_URL}/.netlify/functions/snapshot-vix-proxy"
+          HTTP_STATUS=$(curl -s -o /tmp/vix_snapshot_out.json -w "%{http_code}" "${BASE_URL}/.netlify/functions/snapshot-vix-proxy")
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/vix_snapshot_out.json
+          if [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "VIX proxy snapshot call failed"
+            exit 1
+          fi
+          echo "VIX proxy snapshot completed successfully"
