@@ -112,34 +112,59 @@ exports.handler = async function (event) {
 
     // ✅ Scheduler-safe: handle both HTTP requests and scheduled invocations
     let asOfDate = null;
-    if (event?.rawUrl) {
+    
+    // Try to get date from query parameters if this is an HTTP request
+    if (event?.queryStringParameters?.date) {
+      asOfDate = event.queryStringParameters.date;
+      console.log('build-sectors-day: Using date from query params:', asOfDate);
+    } else if (event?.rawUrl) {
       try {
         const url = new URL(event.rawUrl);
         asOfDate = url.searchParams.get("date");
+        if (asOfDate) {
+          console.log('build-sectors-day: Using date from rawUrl:', asOfDate);
+        }
       } catch (e) {
-        // URL parsing failed (e.g., scheduled invocation or malformed rawUrl)
-        console.warn('build-sectors-day: URL parsing failed, using latest EOD date:', e.message);
+        // URL parsing failed - could be scheduled invocation or malformed URL
+        console.log('build-sectors-day: URL parsing failed:', e.message);
       }
+    } else {
+      // No rawUrl - likely a scheduled invocation
+      console.log('build-sectors-day: No rawUrl (likely scheduled invocation), using latest EOD date');
     }
 
     // If no ?date= provided or scheduled invocation, use universe EOD latest
     if (!asOfDate) {
       asOfDate = await getLatestEodDate();
+      console.log('build-sectors-day: Using latest EOD date:', asOfDate);
     }
     asOfDate = extractYmdFromUnknown(asOfDate);
+    console.log('build-sectors-day: Final asOfDate after extraction:', asOfDate);
 
     if (!asOfDate) {
-      return { statusCode: 409, body: "No date provided and asx:universe:eod:latest not set" };
+      const errorMsg = "No date provided and asx:universe:eod:latest not set";
+      console.error('build-sectors-day ERROR:', errorMsg);
+      return { statusCode: 409, body: errorMsg };
     }
 
     // Ensure the EOD snapshot exists for that date
-    if (!(await existsKey(`asx:universe:eod:${asOfDate}`))) {
-      return { statusCode: 409, body: `Missing EOD snapshot for ${asOfDate} (asx:universe:eod:${asOfDate})` };
+    const eodKey = `asx:universe:eod:${asOfDate}`;
+    const eodExists = await existsKey(eodKey);
+    console.log(`build-sectors-day: Checking if ${eodKey} exists:`, eodExists);
+    
+    if (!eodExists) {
+      const errorMsg = `Missing EOD snapshot for ${asOfDate} (${eodKey})`;
+      console.error('build-sectors-day ERROR:', errorMsg);
+      return { statusCode: 409, body: errorMsg };
     }
 
     const prevDate = await findPrevTradingDate(asOfDate, 20);
+    console.log('build-sectors-day: Previous trading date:', prevDate);
+    
     if (!prevDate) {
-      return { statusCode: 409, body: `No prior trading day snapshot found before ${asOfDate}` };
+      const errorMsg = `No prior trading day snapshot found before ${asOfDate}`;
+      console.error('build-sectors-day ERROR:', errorMsg);
+      return { statusCode: 409, body: errorMsg };
     }
 
     const [todayArr, prevArr, fundamentalsData] = await Promise.all([
@@ -147,6 +172,11 @@ exports.handler = async function (event) {
       loadJson(`asx:universe:eod:${prevDate}`),
       loadJson(`asx:universe:fundamentals:latest`),
     ]);
+
+    const todayCount = Array.isArray(todayArr) ? todayArr.length : 0;
+    const prevCount = Array.isArray(prevArr) ? prevArr.length : 0;
+    const fundType = Array.isArray(fundamentalsData) ? 'array' : (fundamentalsData?.items ? 'object' : 'other');
+    console.log(`build-sectors-day: Data loaded - today:${todayCount} prev:${prevCount} fund:${fundType}`);
 
     // Support both direct array and object with .items property
     let fundamentalsArr = [];
@@ -157,7 +187,14 @@ exports.handler = async function (event) {
     }
 
     if (!Array.isArray(todayArr) || !Array.isArray(prevArr) || !Array.isArray(fundamentalsArr) || fundamentalsArr.length === 0) {
-      return { statusCode: 500, body: "Missing/invalid cached arrays (eod or fundamentals)" };
+      const errorMsg = "Missing/invalid cached arrays (eod or fundamentals)";
+      console.error('build-sectors-day ERROR:', errorMsg, {
+        todayOk: Array.isArray(todayArr),
+        prevOk: Array.isArray(prevArr),
+        fundOk: Array.isArray(fundamentalsArr),
+        fundLen: fundamentalsArr?.length ?? 0
+      });
+      return { statusCode: 500, body: errorMsg };
     }
 
     // Build maps for joins
@@ -207,7 +244,9 @@ exports.handler = async function (event) {
     }
 
     if (used < 200) {
-      console.warn(`Sector coverage lower than expected: used=${used}`);
+      console.warn(`build-sectors-day: Sector coverage lower than expected: used=${used}`);
+    } else {
+      console.log(`build-sectors-day: Processed ${used} stocks across ${agg.size} sectors`);
     }
 
     // Load yesterday sector snapshot to roll a simple "level" series
@@ -251,6 +290,8 @@ exports.handler = async function (event) {
       redis(["SET", `asx:sectors:latest`, asOfDate]),
       redis(["SADD", SECTOR_DATES_SET, asOfDate]),
     ]);
+
+    console.log('build-sectors-day SUCCESS: Written sector data for', asOfDate, 'with', sectorsOut.length, 'sectors');
 
     return {
       statusCode: 200,
