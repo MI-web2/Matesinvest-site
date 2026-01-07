@@ -221,6 +221,33 @@ exports.handler = async function () {
       fundRows = fundObj.items;
     } else if (Array.isArray(fundObj.rows)) {
       fundRows = fundObj.rows;
+    } else {
+      // Support partitioned manifest: { fallback: true, parts: [ "key1", ... ] }
+      const partKeys = Array.isArray(fundObj.parts)
+        ? fundObj.parts
+        : Array.isArray(fundObj.partKeys)
+        ? fundObj.partKeys
+        : null;
+
+      if (partKeys && partKeys.length > 0) {
+        console.log(`market-pulse: Loading fundamentals from ${partKeys.length} parts`);
+        for (const pk of partKeys) {
+          try {
+            const rawPart = await redisGet(pk);
+            const partObj = parse(rawPart);
+            if (!partObj) continue;
+            
+            if (Array.isArray(partObj.items)) {
+              fundRows.push(...partObj.items);
+            } else if (Array.isArray(partObj)) {
+              fundRows.push(...partObj);
+            }
+          } catch (e) {
+            console.warn(`market-pulse: failed to fetch part ${pk}:`, e?.message || e);
+          }
+        }
+        console.log(`market-pulse: Loaded ${fundRows.length} fundamentals from parts`);
+      }
     }
 
     // Map code -> fundamentals

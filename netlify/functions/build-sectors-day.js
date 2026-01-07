@@ -184,6 +184,31 @@ exports.handler = async function (event) {
       fundamentalsArr = fundamentalsData;
     } else if (fundamentalsData && Array.isArray(fundamentalsData.items)) {
       fundamentalsArr = fundamentalsData.items;
+    } else {
+      // Support partitioned manifest: { fallback: true, parts: [ "key1", ... ] }
+      const partKeys = Array.isArray(fundamentalsData?.parts)
+        ? fundamentalsData.parts
+        : Array.isArray(fundamentalsData?.partKeys)
+        ? fundamentalsData.partKeys
+        : null;
+
+      if (partKeys && partKeys.length > 0) {
+        // Load fundamentals from parts
+        console.log(`build-sectors-day: Loading fundamentals from ${partKeys.length} parts`);
+        for (const pk of partKeys) {
+          try {
+            const partData = await loadJson(pk);
+            if (partData && Array.isArray(partData.items)) {
+              fundamentalsArr.push(...partData.items);
+            } else if (Array.isArray(partData)) {
+              fundamentalsArr.push(...partData);
+            }
+          } catch (e) {
+            console.warn(`build-sectors-day: failed to fetch part ${pk}:`, e?.message || e);
+          }
+        }
+        console.log(`build-sectors-day: Loaded ${fundamentalsArr.length} fundamentals from parts`);
+      }
     }
 
     if (!Array.isArray(todayArr) || !Array.isArray(prevArr) || !Array.isArray(fundamentalsArr) || fundamentalsArr.length === 0) {
