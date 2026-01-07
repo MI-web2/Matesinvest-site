@@ -184,7 +184,7 @@ async function loadFundamentalsMap() {
   if (rows.length > 0) {
     all.push(...rows);
   } else {
-    // Check if we have a manifest with parts array
+    // Support partitioned manifest: { fallback: true, parts: [ "key1", ... ] }
     const partKeys = Array.isArray(obj?.parts)
       ? obj.parts
       : Array.isArray(obj?.partKeys)
@@ -209,7 +209,7 @@ async function loadFundamentalsMap() {
       }
       console.log(`backfill-market-pulse: Loaded ${all.length} fundamentals from manifest parts`);
     } else {
-      // Fallback: Stitch parts by scanning offsets (legacy behavior)
+      // Legacy: Scan for parts by offset (older snapshots without manifest)
       console.log('backfill-market-pulse: No manifest found, scanning for parts by offset');
       let misses = 0;
       for (let offset = 0; offset <= 50000; offset += 500) {

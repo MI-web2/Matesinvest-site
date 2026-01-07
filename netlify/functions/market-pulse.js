@@ -222,7 +222,7 @@ exports.handler = async function () {
     } else if (Array.isArray(fundObj.rows)) {
       fundRows = fundObj.rows;
     } else {
-      // Support fallback manifest: { fallback: true, parts: [ "key1", ... ] }
+      // Support partitioned manifest: { fallback: true, parts: [ "key1", ... ] }
       const partKeys = Array.isArray(fundObj.parts)
         ? fundObj.parts
         : Array.isArray(fundObj.partKeys)

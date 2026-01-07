@@ -185,7 +185,7 @@ exports.handler = async function (event) {
     } else if (fundamentalsData && Array.isArray(fundamentalsData.items)) {
       fundamentalsArr = fundamentalsData.items;
     } else {
-      // Check if we have a manifest with parts array
+      // Support partitioned manifest: { fallback: true, parts: [ "key1", ... ] }
       const partKeys = Array.isArray(fundamentalsData?.parts)
         ? fundamentalsData.parts
         : Array.isArray(fundamentalsData?.partKeys)
