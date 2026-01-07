@@ -184,21 +184,47 @@ async function loadFundamentalsMap() {
   if (rows.length > 0) {
     all.push(...rows);
   } else {
-    // Stitch parts: part offsets are multiples of 500 typically (0,500,1000,...)
-    // We'll scan until we hit a few consecutive misses.
-    let misses = 0;
-    for (let offset = 0; offset <= 50000; offset += 500) {
-      const pr = await redisGet(`${FUND_PART_PREFIX}${offset}`);
-      const po = parse(pr);
-      const items = getArrayFromAny(po);
-      if (items.length > 0) {
-        all.push(...items);
-        misses = 0;
-      } else {
-        misses++;
-        if (misses >= 4) break; // stop after 4 empty parts
+    // Check if we have a manifest with parts array
+    const partKeys = Array.isArray(obj?.parts)
+      ? obj.parts
+      : Array.isArray(obj?.partKeys)
+      ? obj.partKeys
+      : null;
+
+    if (partKeys && partKeys.length > 0) {
+      // Use manifest to load parts
+      console.log(`backfill-market-pulse: Loading fundamentals from ${partKeys.length} parts (via manifest)`);
+      for (const pk of partKeys) {
+        try {
+          const pr = await redisGet(pk);
+          const po = parse(pr);
+          const items = getArrayFromAny(po);
+          if (items.length > 0) {
+            all.push(...items);
+          }
+        } catch (e) {
+          console.warn(`backfill-market-pulse: failed to fetch part ${pk}:`, e?.message || e);
+        }
+        await sleep(25);
       }
-      await sleep(25);
+      console.log(`backfill-market-pulse: Loaded ${all.length} fundamentals from manifest parts`);
+    } else {
+      // Fallback: Stitch parts by scanning offsets (legacy behavior)
+      console.log('backfill-market-pulse: No manifest found, scanning for parts by offset');
+      let misses = 0;
+      for (let offset = 0; offset <= 50000; offset += 500) {
+        const pr = await redisGet(`${FUND_PART_PREFIX}${offset}`);
+        const po = parse(pr);
+        const items = getArrayFromAny(po);
+        if (items.length > 0) {
+          all.push(...items);
+          misses = 0;
+        } else {
+          misses++;
+          if (misses >= 4) break; // stop after 4 empty parts
+        }
+        await sleep(25);
+      }
     }
   }
 
