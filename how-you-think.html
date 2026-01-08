@@ -380,6 +380,7 @@
 >
   <input
     type="email"
+    id="quizEmailInput"
     name="email"
     required
     placeholder="you@example.com"
@@ -453,11 +454,11 @@
 <!-- Quiz: inline email signup (result stage) -->
 <script>
 (function () {
-  const form = document.getElementById("quizInlineSignup");
+  const form = document.getElementById("quizEmailForm");
   if (!form) return;
 
-  const emailInput = document.getElementById("quizInlineEmail");
-  const statusEl = document.getElementById("quizInlineStatus");
+  const emailInput = document.getElementById("quizEmailInput");
+  const statusEl = document.getElementById("quizEmailStatus");
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
