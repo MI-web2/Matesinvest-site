@@ -276,7 +276,7 @@
       border:1px solid rgba(0,0,0,0.06);
       background:linear-gradient(180deg,rgba(0,0,0,0.015),rgba(0,0,0,0));
       display:none; /* IMPORTANT */
-    }}
+    }
 
     .join-card h3{
       font-size: 1.15rem;
@@ -362,8 +362,38 @@
         <div class="footer-note" style="margin-top:0.75rem;">
           Examples are educational only and not financial advice. MatesInvest doesn’t know your personal circumstances.
         </div>
-      </div>
+      
+</div>
+
+<!-- EMAIL CAPTURE (RESULT STAGE) -->
+<div class="card quiz-card" id="quizEmailCard" style="padding:1rem; margin-top:1rem;">
+  <p class="hero-eyebrow" style="margin-bottom:0.35rem;">Daily market snapshot</p>
+  <h3 style="margin:0 0 0.35rem 0; line-height:1.2;">Get this kind of context each morning</h3>
+  <p class="bridge" style="margin:0 0 0.9rem 0;">
+    A short daily market snapshot, written for people who think like you.
+  </p>
+
+  <form id="quizInlineSignup" class="inline-signup" style="display:flex;flex-wrap:wrap;gap:0.5rem;width:100%;">
+    <input
+      type="email"
+      id="quizInlineEmail"
+      name="email"
+      required
+      placeholder="you@example.com"
+      autocomplete="email"
+      style="flex:1;min-width:220px;"
+    />
+    <button type="submit" class="btn-primary">
+      Get the daily snapshot
+    </button>
+  </form>
+
+  <div id="quizInlineStatus" style="font-size:13px;color:var(--muted);margin-top:0.5rem;"></div>
+  <div class="join-micro" style="margin-top:0.55rem;">Free · No stock tips · Unsubscribe anytime</div>
+</div>
+
 <div class="quiz-actions">
+
   <button class="btn-primary" id="doYourOwnBtn">Do this yourself</button>
   <button class="btn-ghost" id="seeExamplesBtn">See how people like this invest</button>
   <button class="btn-ghost" id="shareBtn">Share</button>
@@ -376,15 +406,15 @@
 
   <!-- JOIN COMMUNITY CTA (RESULT ONLY) -->
   <div class="card quiz-card join-card" id="joinCommunityCard">
-    <p class="hero-eyebrow">Optional next step</p>
-    <h3>Join the MatesInvest community</h3>
+    <p class="hero-eyebrow">Continue the thread</p>
+    <h3>Keep going with MatesInvest</h3>
     <p class="join-sub">
       Calm market context, explained simply.<br>
-      No stock tips. No hype.
+      No stock tips. No hype. Just clarity.
     </p>
     <div class="quiz-actions">
-      <a href="/" class="btn-primary">See what it's about</a>
-      <span class="join-micro">Free daily market note · Unsubscribe anytime</span>
+      <a href="/" class="btn-primary">See today’s snapshot</a>
+      <span class="join-micro">Free daily snapshot · Unsubscribe anytime</span>
     </div>
   </div>
 
@@ -414,6 +444,57 @@
 </script>
 <!-- Session Tracking -->
 <script src="/scripts/track-session.js"></script>
+
+<!-- Quiz: inline email signup (result stage) -->
+<script>
+(function () {
+  const form = document.getElementById("quizInlineSignup");
+  if (!form) return;
+
+  const emailInput = document.getElementById("quizInlineEmail");
+  const statusEl = document.getElementById("quizInlineStatus");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = (emailInput.value || "").trim();
+
+    if (!email) {
+      statusEl.textContent = "Please enter an email address.";
+      statusEl.style.color = "#dc2626";
+      return;
+    }
+
+    statusEl.textContent = "Subscribing…";
+    statusEl.style.color = "var(--muted)";
+
+    try {
+      const res = await fetch("/.netlify/functions/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        const msg =
+          (data && (data.error || data.message)) ||
+          "Something went wrong. Try again.";
+        statusEl.textContent = msg;
+        statusEl.style.color = "#dc2626";
+        return;
+      }
+
+      statusEl.textContent = "You’re in! Tomorrow’s snapshot will arrive in the morning.";
+      statusEl.style.color = "#15803d";
+      emailInput.value = "";
+    } catch (err) {
+      statusEl.textContent = "Network error, try again shortly.";
+      statusEl.style.color = "#dc2626";
+    }
+  });
+})();
+</script>
 
 </body>
 </html>
