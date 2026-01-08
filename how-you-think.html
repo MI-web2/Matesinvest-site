@@ -388,7 +388,7 @@
     style="flex:1;min-width:200px;"
   />
   <button type="submit" class="btn btn-primary">
-    Get the daily snapshot
+    Get the daily snapshot, and see what MatesInvest is about
   </button>
 </form>
 <p
@@ -400,8 +400,8 @@
 
 <div class="quiz-actions">
 
-  <button class="btn-primary" id="doYourOwnBtn">Do this yourself</button>
-  <button class="btn-ghost" id="seeExamplesBtn">See how people like this invest</button>
+  <button class="btn-primary" id="doYourOwnBtn">Take the quiz</button>
+  <button class="btn-ghost" id="seeExamplesBtn" style="display:none;">See how people like this invest</button>
   <button class="btn-ghost" id="shareBtn">Share</button>
 </div>
 
@@ -411,7 +411,7 @@
     </div>
 
   <!-- JOIN COMMUNITY CTA (RESULT ONLY) -->
-  <div class="card quiz-card join-card" id="joinCommunityCard">
+  <div class="card quiz-card join-card" id="joinCommunityCard" style="display:none !important;">
     <p class="hero-eyebrow">Continue the thread</p>
     <h3>Keep going with MatesInvest</h3>
     <p class="join-sub">
@@ -491,9 +491,14 @@
         return;
       }
 
-      statusEl.textContent = "You’re in! Tomorrow’s snapshot will arrive in the morning.";
+      statusEl.textContent = "You're in, you'll get the 6.05am email to stay across markets";
       statusEl.style.color = "#15803d";
       emailInput.value = "";
+      
+      // Redirect to index.html after a short delay
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 2000);
     } catch (err) {
       statusEl.textContent = "Network error, try again shortly.";
       statusEl.style.color = "#dc2626";
