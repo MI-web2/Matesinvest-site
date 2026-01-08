@@ -373,22 +373,27 @@
     A short daily market snapshot, written for people who think like you.
   </p>
 
-  <form id="quizInlineSignup" class="inline-signup" style="display:flex;flex-wrap:wrap;gap:0.5rem;width:100%;">
-    <input
-      type="email"
-      id="quizInlineEmail"
-      name="email"
-      required
-      placeholder="you@example.com"
-      autocomplete="email"
-      style="flex:1;min-width:220px;"
-    />
-    <button type="submit" class="btn-primary">
-      Get the daily snapshot
-    </button>
-  </form>
-
-  <div id="quizInlineStatus" style="font-size:13px;color:var(--muted);margin-top:0.5rem;"></div>
+<form
+  class="inline-signup"
+  style="display:flex;flex-wrap:wrap;gap:0.5rem;width:100%;"
+  id="quizEmailForm"
+>
+  <input
+    type="email"
+    name="email"
+    required
+    placeholder="you@example.com"
+    autocomplete="email"
+    style="flex:1;min-width:200px;"
+  />
+  <button type="submit" class="btn btn-primary">
+    Get the daily snapshot
+  </button>
+</form>
+<p
+  id="quizEmailStatus"
+  style="font-size:13px;color:#64748b;margin-top:6px;"
+></p>
   <div class="join-micro" style="margin-top:0.55rem;">Free · No stock tips · Unsubscribe anytime</div>
 </div>
 
