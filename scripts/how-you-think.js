@@ -72,13 +72,12 @@
 
   // NEW: Get screener URL with preset for quiz result
   function getScreenerUrl(primary) {
-    const presets = TYPES[primary]?.presets || [];
-    // Use first preset as the primary recommendation for this thinking style
-    const preset = presets[0];
-    if (!preset) return SCREENER_URL; // Fallback to basic screener
+    // Use the thinking style ID directly (e.g., "long_term", "technical")
+    // These match the preset IDs in discover.html's applyStylePreset function
+    if (!primary || !TYPES[primary]) return SCREENER_URL; // Fallback to basic screener
     
     const u = new URL(window.location.origin + SCREENER_URL);
-    u.searchParams.set("preset", preset);
+    u.searchParams.set("preset", primary);
     return u.toString();
   }
 
