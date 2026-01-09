@@ -70,6 +70,18 @@
     return u.toString();
   }
 
+  // NEW: Get screener URL with preset for quiz result
+  function getScreenerUrl(primary) {
+    const presets = TYPES[primary]?.presets || [];
+    // Use first preset as the primary recommendation for this thinking style
+    const preset = presets[0];
+    if (!preset) return SCREENER_URL; // Fallback to basic screener
+    
+    const u = new URL(window.location.origin + SCREENER_URL);
+    u.searchParams.set("preset", preset);
+    return u.toString();
+  }
+
   const TYPES = {
     technical: {
       label: "The Numbers Person",
@@ -215,6 +227,11 @@
   // NEW: Join community card (should only show after quiz completes)
   const joinCommunityCard = document.getElementById("joinCommunityCard");
 
+  // NEW: Screener preview elements
+  const screenerPreview = document.getElementById("screenerPreview");
+  const screenerPreviewIframe = document.getElementById("screenerPreviewIframe");
+  const screenerPreviewLink = document.getElementById("screenerPreviewLink");
+
   // State
   let idx = 0;
   let scores = resetScores();
@@ -336,6 +353,9 @@
 
     // NEW: hide CTA while taking quiz
     joinCommunityCard?.classList.remove("on");
+    
+    // NEW: hide screener preview while taking quiz
+    screenerPreview?.classList.remove("on");
 
     restartBtn.style.display = "inline-flex";
     idx = 0;
@@ -377,6 +397,14 @@
       `;
       resultGrid.appendChild(el);
     });
+
+    // NEW: Setup screener preview with matching preset
+    const screenerUrl = getScreenerUrl(primary);
+    if (screenerPreview && screenerPreviewIframe && screenerPreviewLink) {
+      screenerPreview.classList.add("on");
+      screenerPreviewIframe.src = screenerUrl;
+      screenerPreviewLink.href = screenerUrl;
+    }
 
     // CHANGED: route to thinking-style pages (education)
     seeExamplesBtn.onclick = () => {
@@ -509,6 +537,7 @@
 
       // NEW: hide CTA when returning to start
       joinCommunityCard?.classList.remove("on");
+      screenerPreview?.classList.remove("on");
     });
 
     startBtn.addEventListener("click", showQuiz);
@@ -524,6 +553,7 @@
 
       // NEW: hide CTA on restart
       joinCommunityCard?.classList.remove("on");
+      screenerPreview?.classList.remove("on");
 
       restartBtn.style.display = "none";
       idx = 0;

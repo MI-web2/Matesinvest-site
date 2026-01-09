@@ -296,6 +296,70 @@
       color: var(--muted);
     }
     .join-card.on{ display:block; }
+
+    /* -----------------------------------------
+       Blurred Screener Preview (RESULT STAGE)
+       ----------------------------------------- */
+    .screener-preview-wrap{
+      position: relative;
+      margin-top: 1rem;
+      border-radius: 24px;
+      overflow: hidden;
+      display: none; /* Hidden by default */
+      height: 400px;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.10);
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .screener-preview-wrap.on{ display:block; }
+
+    .screener-preview-iframe{
+      width: 100%;
+      height: 100%;
+      border: none;
+      filter: blur(4px);
+      transform: scale(1.05); /* Slight zoom to hide blur edges */
+      pointer-events: none;
+    }
+
+    .screener-preview-overlay{
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.85) 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      text-align: center;
+    }
+
+    .screener-preview-overlay h3{
+      font-size: 1.25rem;
+      margin: 0 0 0.5rem;
+      line-height: 1.2;
+    }
+
+    .screener-preview-overlay p{
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0 0 1rem;
+      max-width: 36ch;
+    }
+
+    @media (max-width: 768px) {
+      .screener-preview-wrap{
+        height: 300px;
+      }
+      
+      .screener-preview-overlay h3{
+        font-size: 1.1rem;
+      }
+      
+      .screener-preview-overlay p{
+        font-size: 0.88rem;
+      }
+    }
   </style>
 </head>
 
@@ -409,6 +473,23 @@
         Tip: share it in the group chat and see who’s the “fast mover”.
       </div>
     </div>
+
+  <!-- BLURRED SCREENER PREVIEW (RESULT STAGE ONLY) -->
+  <!-- Preview is non-interactive by design - sandbox prevents scripts to keep it as visual teaser only -->
+  <div class="screener-preview-wrap" id="screenerPreview">
+    <iframe
+      id="screenerPreviewIframe"
+      class="screener-preview-iframe"
+      title="Investment Dashboard Preview"
+      loading="lazy"
+      sandbox="allow-same-origin"
+    ></iframe>
+    <div class="screener-preview-overlay">
+      <h3>Your personalized investment dashboard</h3>
+      <p>Explore stocks filtered to match how you think about investing</p>
+      <a href="#" id="screenerPreviewLink" class="btn-primary">Explore the dashboard →</a>
+    </div>
+  </div>
 
   <!-- JOIN COMMUNITY CTA (RESULT ONLY) -->
   <div class="card quiz-card join-card" id="joinCommunityCard" style="display:none !important;">
