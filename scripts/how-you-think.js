@@ -73,7 +73,8 @@
   // NEW: Get screener URL with preset for quiz result
   function getScreenerUrl(primary) {
     const presets = TYPES[primary]?.presets || [];
-    const preset = presets[0]; // Use first preset for the type
+    // Use first preset as the primary recommendation for this thinking style
+    const preset = presets[0];
     if (!preset) return SCREENER_URL; // Fallback to basic screener
     
     const u = new URL(window.location.origin + SCREENER_URL);
