@@ -674,9 +674,13 @@
       statusEl.style.color = "#15803d";
       emailInput.value = "";
       
-      // Redirect to index.html after a short delay
+      // Get the iframe src (which has the preset filter from quiz result)
+      const iframe = document.getElementById("screenerPreviewIframe");
+      const redirectUrl = iframe && iframe.src ? iframe.src : "/discover.html";
+      
+      // Redirect to discover page with preset filter after a short delay
       setTimeout(() => {
-        window.location.href = "/";
+        window.location.href = redirectUrl;
       }, 2000);
     } catch (err) {
       statusEl.textContent = "Network error, try again shortly.";
