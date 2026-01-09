@@ -230,7 +230,6 @@
   // NEW: Screener preview elements
   const screenerPreview = document.getElementById("screenerPreview");
   const screenerPreviewIframe = document.getElementById("screenerPreviewIframe");
-  const screenerPreviewLink = document.getElementById("screenerPreviewLink");
 
   // State
   let idx = 0;
@@ -400,16 +399,17 @@
 
     // NEW: Setup screener preview with matching preset
     const screenerUrl = getScreenerUrl(primary);
-    if (screenerPreview && screenerPreviewIframe && screenerPreviewLink) {
+    if (screenerPreview && screenerPreviewIframe) {
       screenerPreview.classList.add("on");
       screenerPreviewIframe.src = screenerUrl;
-      screenerPreviewLink.href = screenerUrl;
     }
 
     // CHANGED: route to thinking-style pages (education)
-    seeExamplesBtn.onclick = () => {
-      window.location.href = getThinkingUrl(primary, secondary);
-    };
+    if (seeExamplesBtn) {
+      seeExamplesBtn.onclick = () => {
+        window.location.href = getThinkingUrl(primary, secondary);
+      };
+    }
 
     // include secondary in share URL
     const shareUrl = new URL(window.location.href);
@@ -419,7 +419,9 @@
 
     const shareText = buildShareText(primary, secondary);
     shareBtn.onclick = async () => shareSmart(shareText, shareUrl.toString());
-    copyResultBtn.onclick = async () => copyToClipboard(shareText + " " + shareUrl.toString());
+    if (copyResultBtn) {
+      copyResultBtn.onclick = async () => copyToClipboard(shareText + " " + shareUrl.toString());
+    }
   }
 
   function buildShareText(primary, secondary) {

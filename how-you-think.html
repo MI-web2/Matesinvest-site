@@ -347,6 +347,33 @@
       max-width: 36ch;
     }
 
+    .screener-preview-overlay .inline-signup{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .screener-preview-overlay .inline-signup input{
+      flex: 1;
+      min-width: 200px;
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.95rem;
+    }
+
+    .screener-preview-overlay .inline-signup button{
+      padding: 0.7rem 1.2rem;
+    }
+
+    .screener-preview-overlay .join-micro{
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 0.55rem;
+    }
+
     @media (max-width: 768px) {
       .screener-preview-wrap{
         height: 300px;
@@ -429,8 +456,8 @@
       
 </div>
 
-<!-- EMAIL CAPTURE (RESULT STAGE) -->
-<div class="card quiz-card" id="quizEmailCard" style="padding:1rem; margin-top:1rem;">
+<!-- EMAIL CAPTURE (RESULT STAGE) - HIDDEN -->
+<div class="card quiz-card" id="quizEmailCard" style="padding:1rem; margin-top:1rem; display: none;">
   <p class="hero-eyebrow" style="margin-bottom:0.35rem;">Continue the thread</p>
   <h3 style="margin:0 0 0.35rem 0; line-height:1.2;">Get this kind of context each morning</h3>
   <p class="bridge" style="margin:0 0 0.9rem 0;">
@@ -487,7 +514,22 @@
     <div class="screener-preview-overlay">
       <h3>Your personalized investment dashboard</h3>
       <p>Explore stocks filtered to match how you think about investing</p>
-      <a href="#" id="screenerPreviewLink" class="btn-primary">Explore the dashboard →</a>
+      
+      <form class="inline-signup" id="screenerEmailForm">
+        <input
+          type="email"
+          id="screenerEmailInput"
+          name="email"
+          required
+          placeholder="you@example.com"
+          autocomplete="email"
+        />
+        <button type="submit" class="btn btn-primary">
+          Get access
+        </button>
+      </form>
+      <p id="screenerEmailStatus" style="font-size:13px;color:#64748b;margin-top:6px;"></p>
+      <div class="join-micro">Free · No stock tips · Unsubscribe anytime</div>
     </div>
   </div>
 
@@ -540,6 +582,62 @@
 
   const emailInput = document.getElementById("quizEmailInput");
   const statusEl = document.getElementById("quizEmailStatus");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = (emailInput.value || "").trim();
+
+    if (!email) {
+      statusEl.textContent = "Please enter an email address.";
+      statusEl.style.color = "#dc2626";
+      return;
+    }
+
+    statusEl.textContent = "Subscribing…";
+    statusEl.style.color = "var(--muted)";
+
+    try {
+      const res = await fetch("/.netlify/functions/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        const msg =
+          (data && (data.error || data.message)) ||
+          "Something went wrong. Try again.";
+        statusEl.textContent = msg;
+        statusEl.style.color = "#dc2626";
+        return;
+      }
+
+      statusEl.textContent = "You're in, you'll get the 6.05am email to stay across markets";
+      statusEl.style.color = "#15803d";
+      emailInput.value = "";
+      
+      // Redirect to index.html after a short delay
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 2000);
+    } catch (err) {
+      statusEl.textContent = "Network error, try again shortly.";
+      statusEl.style.color = "#dc2626";
+    }
+  });
+})();
+</script>
+
+<!-- Screener preview: inline email signup (result stage) -->
+<script>
+(function () {
+  const form = document.getElementById("screenerEmailForm");
+  if (!form) return;
+
+  const emailInput = document.getElementById("screenerEmailInput");
+  const statusEl = document.getElementById("screenerEmailStatus");
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
