@@ -28,7 +28,7 @@ const WIN_5D = "asx:market:pulse:window:5d";
 const WIN_1M = "asx:market:pulse:window:1m";
 
 // Optional: keep old key in sync (leave false unless you want it)
-const ALSO_WRITE_DAILY_POINTER = false;
+const ALSO_WRITE_DAILY_POINTER = true;
 const PULSE_LATEST_KEY = "asx:market:pulse:daily";
 
 async function redisGet(key) {
