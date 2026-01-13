@@ -3331,10 +3331,12 @@ function miRenderChart(history) {
 
   ctx.clearRect(0, 0, w, h);
 
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#38bdf8"; // cyan-blue line
-  ctx.beginPath();
+  // First, create the filled area under the line
+  const gradient = ctx.createLinearGradient(0, padY, 0, h);
+  gradient.addColorStop(0, "rgba(56,189,248,0.25)");
+  gradient.addColorStop(1, "rgba(56,189,248,0.0)");
 
+  ctx.beginPath();
   pts.forEach((v, i) => {
     const x = padX + (i / (pts.length - 1)) * (w - padX * 2);
     const y = h - padY - ((v - min) / (max - min)) * (h - padY * 2);
@@ -3342,19 +3344,25 @@ function miRenderChart(history) {
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   });
-
-  ctx.stroke();
-
-  // Fade fill under the line
-  const gradient = ctx.createLinearGradient(0, padY, 0, h);
-  gradient.addColorStop(0, "rgba(56,189,248,0.25)");
-  gradient.addColorStop(1, "rgba(56,189,248,0.0)");
-
+  // Close the path to create a filled area
   ctx.lineTo(w - padX, h - padY);
   ctx.lineTo(padX, h - padY);
   ctx.closePath();
   ctx.fillStyle = gradient;
   ctx.fill();
+
+  // Then draw the line on top
+  ctx.beginPath();
+  pts.forEach((v, i) => {
+    const x = padX + (i / (pts.length - 1)) * (w - padX * 2);
+    const y = h - padY - ((v - min) / (max - min)) * (h - padY * 2);
+
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#38bdf8"; // cyan-blue line
+  ctx.stroke();
 }
 
   // -------- Wire up clicks --------

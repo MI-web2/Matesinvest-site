@@ -3151,28 +3151,36 @@ filteredItems.sort((a, b) => {
         const padX = 20;
         const padY = 10;
 
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#38bdf8";
-        ctx.beginPath();
+        // First, create the filled area under the line
+        const gradient = ctx.createLinearGradient(0, padY, 0, h);
+        gradient.addColorStop(0, "rgba(56,189,248,0.25)");
+        gradient.addColorStop(1, "rgba(56,189,248,0.0)");
 
+        ctx.beginPath();
         pts.forEach((v, i) => {
           const x = padX + (i / (pts.length - 1)) * (w - padX * 2);
           const y = h - padY - ((v - min) / (max - min)) * (h - padY * 2);
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         });
-
-        ctx.stroke();
-
-        const gradient = ctx.createLinearGradient(0, padY, 0, h);
-        gradient.addColorStop(0, "rgba(56,189,248,0.25)");
-        gradient.addColorStop(1, "rgba(56,189,248,0.0)");
-
+        // Close the path to create a filled area
         ctx.lineTo(w - padX, h - padY);
         ctx.lineTo(padX, h - padY);
         ctx.closePath();
         ctx.fillStyle = gradient;
         ctx.fill();
+
+        // Then draw the line on top
+        ctx.beginPath();
+        pts.forEach((v, i) => {
+          const x = padX + (i / (pts.length - 1)) * (w - padX * 2);
+          const y = h - padY - ((v - min) / (max - min)) * (h - padY * 2);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#38bdf8";
+        ctx.stroke();
       }
 
       function miOpenInstrumentModal(data) {
@@ -3579,7 +3587,23 @@ function miRenderSlipChart(history){
   ctx.lineTo(w - padX, Math.round(h/2));
   ctx.stroke();
 
-  // --- line ---
+  // --- fill area first ---
+  const grad = ctx.createLinearGradient(0, padY, 0, h);
+  grad.addColorStop(0, "rgba(56,189,248,0.18)");
+  grad.addColorStop(1, "rgba(56,189,248,0)");
+  ctx.beginPath();
+  pts.forEach((v,i)=>{
+    const x = xAt(i);
+    const y = yAt(v);
+    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.lineTo(w - padX, h - padY);
+  ctx.lineTo(padX, h - padY);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // --- line on top ---
   ctx.lineWidth = 2;
   ctx.strokeStyle = "#38bdf8";
   ctx.beginPath();
@@ -3589,16 +3613,6 @@ function miRenderSlipChart(history){
     if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   ctx.stroke();
-
-  // --- fill ---
-  const grad = ctx.createLinearGradient(0, padY, 0, h);
-  grad.addColorStop(0, "rgba(56,189,248,0.18)");
-  grad.addColorStop(1, "rgba(56,189,248,0)");
-  ctx.lineTo(w - padX, h - padY);
-  ctx.lineTo(padX, h - padY);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
 
   // --- last point dot ---
   const lx = xAt(pts.length - 1);
