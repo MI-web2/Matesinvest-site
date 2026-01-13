@@ -1,12 +1,16 @@
 // netlify/functions/subscribe.js
-// Subscription endpoint for Daily Morning Brief
-// Usage examples:
+// Subscription endpoint
 //
-//  POST JSON:
-//    POST /.netlify/functions/subscribe
-//    { "email": "user@example.com" }
+// Backwards-compatible behaviour:
+// - If no `source` (or not app-related): defaults to existing list: email:subscribers
+// - If app-related source: always add to email:subscribers-App
+//   and optionally to email:subscribers if daily_updates === true
 //
-//  OR simple GET for testing:
+// Usage:
+//  POST /.netlify/functions/subscribe
+//    { "email": "user@example.com", "source": "meta-social-coming-soon", "daily_updates": true }
+//
+//  OR GET for testing:
 //    /.netlify/functions/subscribe?email=user@example.com
 
 const fetch = (...args) => global.fetch(...args);
@@ -36,18 +40,40 @@ exports.handler = async function (event) {
   }
 
   let email =
-    (event.queryStringParameters &&
-      event.queryStringParameters.email) ||
-    null;
+    (event.queryStringParameters && event.queryStringParameters.email) || null;
+
+  // Parse body (POST)
+  let source = null;
+  let dailyUpdates = false;
 
   if (!email && event.body && event.httpMethod === "POST") {
     try {
       const parsed = JSON.parse(event.body);
+
       if (parsed && typeof parsed.email === "string") {
         email = parsed.email;
       }
+      if (parsed && typeof parsed.source === "string") {
+        source = parsed.source;
+      }
+      if (parsed && typeof parsed.daily_updates === "boolean") {
+        dailyUpdates = parsed.daily_updates;
+      }
     } catch {
       // ignore body parse error
+    }
+  } else if (event.body && event.httpMethod === "POST") {
+    // Email came via query param, but still allow source/daily_updates in body if present
+    try {
+      const parsed = JSON.parse(event.body);
+      if (parsed && typeof parsed.source === "string") {
+        source = parsed.source;
+      }
+      if (parsed && typeof parsed.daily_updates === "boolean") {
+        dailyUpdates = parsed.daily_updates;
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -90,13 +116,20 @@ exports.handler = async function (event) {
     }
   }
 
-  const key = "email:subscribers";
+  // Keys
+  const dailyKey = "email:subscribers";
+  const appKey = "email:subscribers-App";
 
-  try {
-    // SADD email:subscribers <email>
+  // Treat these sources as "app coming soon" signups
+  const isAppSignup =
+    source === "meta-social-coming-soon" ||
+    source === "app-early-access" ||
+    source === "social-investing";
+
+  async function sadd(keyName) {
     const url =
       `${UPSTASH_URL}/sadd/` +
-      `${encodeURIComponent(key)}/` +
+      `${encodeURIComponent(keyName)}/` +
       `${encodeURIComponent(email)}`;
 
     const res = await fetchWithTimeout(url, {
@@ -106,9 +139,43 @@ exports.handler = async function (event) {
       },
     });
 
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      console.warn("subscribe sadd failed", res.status, txt);
+    return res;
+  }
+
+  try {
+    // Backwards compatibility:
+    // If not an app signup, preserve existing behaviour: add to daily list.
+    if (!isAppSignup) {
+      const r = await sadd(dailyKey);
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        console.warn("subscribe sadd failed (daily default)", r.status, txt);
+        return {
+          statusCode: 500,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+          body: JSON.stringify({ error: "Failed to save subscription" }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({ ok: true }),
+      };
+    }
+
+    // App signup path:
+    // 1) Always add to app waitlist
+    const r1 = await sadd(appKey);
+    if (!r1.ok) {
+      const txt = await r1.text().catch(() => "");
+      console.warn("subscribe sadd failed (app)", r1.status, txt);
       return {
         statusCode: 500,
         headers: {
@@ -117,6 +184,23 @@ exports.handler = async function (event) {
         },
         body: JSON.stringify({ error: "Failed to save subscription" }),
       };
+    }
+
+    // 2) Only add to daily updates if they opted in
+    if (dailyUpdates) {
+      const r2 = await sadd(dailyKey);
+      if (!r2.ok) {
+        const txt = await r2.text().catch(() => "");
+        console.warn("subscribe sadd failed (daily opt-in)", r2.status, txt);
+        return {
+          statusCode: 500,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+          body: JSON.stringify({ error: "Failed to save subscription" }),
+        };
+      }
     }
 
     return {
