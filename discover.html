@@ -3372,7 +3372,11 @@ filteredItems.sort((a, b) => {
         if (h) {
           // Use requestAnimationFrame to ensure the modal is fully rendered before drawing
           requestAnimationFrame(() => {
-            miRenderChart(h);
+            try {
+              miRenderChart(h);
+            } catch (err) {
+              console.error("Failed to render instrument chart:", err);
+            }
           });
         }
       }
@@ -3702,7 +3706,11 @@ function miOpenSlipFromCurrent(tablePctChange){
   // Render chart AFTER slip is visible to ensure canvas has proper dimensions
   // Use requestAnimationFrame to ensure the slip is fully rendered before drawing
   requestAnimationFrame(() => {
-    miRenderSlipChart(data.history);
+    try {
+      miRenderSlipChart(data.history);
+    } catch (err) {
+      console.error("Failed to render slip chart:", err);
+    }
   });
 }
 
