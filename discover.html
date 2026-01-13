@@ -3681,8 +3681,6 @@ function miOpenSlipFromCurrent(tablePctChange){
       ? f.priceToSales.toFixed(2) + "×" 
       : "—";
 
-  miRenderSlipChart(data.history);
-
   // Set deep link URL
   const stockCode = data.code || "";
   const deepLinkUrl = stockCode 
@@ -3700,6 +3698,12 @@ function miOpenSlipFromCurrent(tablePctChange){
   const overlay = document.getElementById("mi-slip-overlay");
   overlay.style.display = "flex";
   overlay.setAttribute("aria-hidden", "false");
+  
+  // Render chart AFTER slip is visible to ensure canvas has proper dimensions
+  // Use requestAnimationFrame to ensure the slip is fully rendered before drawing
+  requestAnimationFrame(() => {
+    miRenderSlipChart(data.history);
+  });
 }
 
 function miCloseSlip(){
