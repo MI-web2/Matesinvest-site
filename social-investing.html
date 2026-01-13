@@ -13,7 +13,7 @@
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
 
-    <!-- Keep your global styles if you want consistency -->
+    <!-- Keep your global styles for consistency (optional) -->
     <link rel="stylesheet" href="/styles.css" />
 
     <style>
@@ -57,6 +57,7 @@
         color: #0f172a;
         font-weight: 600;
         box-shadow: 0 8px 22px rgba(2, 6, 23, 0.05);
+        transition: transform 0.15s ease;
       }
       .mi-home:hover {
         transform: translateY(-1px);
@@ -195,6 +196,19 @@
         box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
       }
 
+      /* Opt-in checkbox */
+      .mi-optin { margin-top: 6px; }
+      .mi-check {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        font-size: 13px;
+        color: #0f172a;
+        line-height: 1.35;
+        user-select: none;
+      }
+      .mi-check input { margin-top: 2px; }
+
       .mi-btn {
         width: 100%;
         padding: 12px 14px;
@@ -205,6 +219,7 @@
         background: linear-gradient(180deg, #3b82f6, #2563eb);
         color: #fff;
         box-shadow: 0 12px 22px rgba(37, 99, 235, 0.25);
+        transition: transform 0.15s ease;
       }
       .mi-btn:hover {
         transform: translateY(-1px);
@@ -266,7 +281,6 @@
         font-weight: 800;
       }
 
-      /* Caption rows */
       .mi-rowcap {
         margin: 12px 0 18px;
         color: var(--mi-muted);
@@ -296,9 +310,7 @@
     <div class="mi-wrap">
       <!-- Top bar -->
       <div class="mi-topbar">
-        <a class="mi-home" href="/">
-          ← Home
-        </a>
+        <a class="mi-home" href="/">← Home</a>
 
         <div class="mi-brand" aria-label="MatesInvest">
           <img src="/assets/favicon.png" alt="MatesInvest logo" />
@@ -329,9 +341,7 @@
         <!-- Waitlist -->
         <aside class="mi-card">
           <h3>Get early access</h3>
-          <p>
-            We’re opening access gradually. Join the waitlist and be first in.
-          </p>
+          <p>We’re opening access gradually. Join the waitlist and be first in.</p>
 
           <form id="earlyAccessForm" class="mi-form" novalidate>
             <div class="mi-field">
@@ -356,13 +366,18 @@
               />
             </div>
 
+            <div class="mi-optin">
+              <label class="mi-check">
+                <input id="eaDaily" type="checkbox" />
+                <span>Also send me daily market updates (optional)</span>
+              </label>
+            </div>
+
             <button class="mi-btn" type="submit">Join early access</button>
             <div id="eaStatus" class="mi-status"></div>
           </form>
 
-          <div class="mi-note">
-            Launching soon • Australia-first • No spam
-          </div>
+          <div class="mi-note">Launching soon • Australia-first • No spam</div>
         </aside>
       </section>
 
@@ -419,11 +434,11 @@
     </div>
 
     <script>
-      // Early access form -> Netlify function -> your existing flow
       (function () {
         const form = document.getElementById("earlyAccessForm");
         const nameInput = document.getElementById("eaName");
         const emailInput = document.getElementById("eaEmail");
+        const dailyInput = document.getElementById("eaDaily");
         const statusEl = document.getElementById("eaStatus");
 
         if (!form) return;
@@ -438,6 +453,7 @@
 
           const name = (nameInput.value || "").trim();
           const email = (emailInput.value || "").trim();
+          const dailyOptIn = dailyInput && dailyInput.checked === true;
 
           if (!name || !email) {
             setStatus("Please enter your name and email.", "#dc2626");
@@ -454,6 +470,7 @@
                 name,
                 email,
                 source: "meta-social-coming-soon",
+                daily_updates: dailyOptIn
               }),
             });
 
@@ -464,7 +481,12 @@
               return;
             }
 
-            setStatus("You’re on the list! We’ll email you when early access opens.", "#15803d");
+            if (dailyOptIn) {
+              setStatus("You’re on the early access list + daily updates.", "#15803d");
+            } else {
+              setStatus("You’re on the early access list. We’ll email you when it opens.", "#15803d");
+            }
+
             form.reset();
           } catch (err) {
             setStatus("Network error — try again shortly.", "#dc2626");
