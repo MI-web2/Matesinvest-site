@@ -3314,7 +3314,6 @@ filteredItems.sort((a, b) => {
             historySummaryEl.textContent = "Price history not available.";
           }
         }
-        if (h) miRenderChart(h);
 
         if (aiSummaryEl) {
           aiSummaryEl.textContent = "We’re loading a short AI snapshot for this company…";
@@ -3368,6 +3367,18 @@ filteredItems.sort((a, b) => {
 
         overlay.style.display = "flex";
         overlay.setAttribute("aria-hidden", "false");
+        
+        // Render chart AFTER modal is visible to ensure canvas has proper dimensions
+        if (h) {
+          // Use requestAnimationFrame to ensure the modal is fully rendered before drawing
+          requestAnimationFrame(() => {
+            try {
+              miRenderChart(h);
+            } catch (err) {
+              console.error("Failed to render instrument chart:", err);
+            }
+          });
+        }
       }
       // Keep the latest instrument payload so the slip can reuse it
 let miLastInstrumentData = null;
@@ -3674,8 +3685,6 @@ function miOpenSlipFromCurrent(tablePctChange){
       ? f.priceToSales.toFixed(2) + "×" 
       : "—";
 
-  miRenderSlipChart(data.history);
-
   // Set deep link URL
   const stockCode = data.code || "";
   const deepLinkUrl = stockCode 
@@ -3693,6 +3702,16 @@ function miOpenSlipFromCurrent(tablePctChange){
   const overlay = document.getElementById("mi-slip-overlay");
   overlay.style.display = "flex";
   overlay.setAttribute("aria-hidden", "false");
+  
+  // Render chart AFTER slip is visible to ensure canvas has proper dimensions
+  // Use requestAnimationFrame to ensure the slip is fully rendered before drawing
+  requestAnimationFrame(() => {
+    try {
+      miRenderSlipChart(data.history);
+    } catch (err) {
+      console.error("Failed to render slip chart:", err);
+    }
+  });
 }
 
 function miCloseSlip(){
