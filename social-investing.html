@@ -36,47 +36,97 @@
         padding: 28px 18px 60px;
       }
 
-      /* Top bar */
-      .mi-topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        margin-bottom: 28px;
-      }
+      /* ---------- HOME-STYLE TOP NAV (matches discover.html) ---------- */
+.container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
 
-      .mi-home {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        border: 1px solid var(--mi-border);
-        background: #fff;
-        border-radius: 999px;
-        text-decoration: none;
-        color: #0f172a;
-        font-weight: 600;
-        box-shadow: 0 8px 22px rgba(2, 6, 23, 0.05);
-        transition: transform 0.15s ease;
-      }
-      .mi-home:hover {
-        transform: translateY(-1px);
-      }
+header.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: #fff;
+  border-bottom: 1px solid #eef1f6;
+}
 
-      .mi-brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-      }
-      .mi-brand img {
-        width: 30px;
-        height: 30px;
-      }
-      .mi-brand span {
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        color: #0f172a;
-      }
+.nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  color: #002040;
+}
+
+.brand .logo {
+  height: 28px;
+}
+
+header.nav nav {
+  display: flex;
+  align-items: center;
+}
+
+header.nav nav a {
+  margin: 0 10px;
+  color: #0b1220;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+/* Mobile menu behaviour (matches discover.html) */
+@media (max-width: 768px) {
+  .menu-btn {
+    display: block;
+  }
+
+  header.nav nav {
+    display: none;
+  }
+
+  body.nav-open header.nav nav {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: 56px;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.20);
+    gap: 0.5rem;
+    z-index: 1000;
+  }
+
+  body.nav-open header.nav nav a {
+    padding: 0.4rem 0;
+    text-align: left;
+    margin: 0;
+  }
+
+  body.nav-open header.nav nav .btn {
+    width: 100%;
+    text-align: center;
+    margin-top: 0.25rem;
+  }
+}
 
       /* Hero */
       .mi-hero {
@@ -307,16 +357,25 @@
   </head>
 
   <body>
-    <div class="mi-wrap">
-      <!-- Top bar -->
-      <div class="mi-topbar">
-        <a class="mi-home" href="/">← Home</a>
-
-        <div class="mi-brand" aria-label="MatesInvest">
-          <img src="/assets/favicon.png" alt="MatesInvest logo" />
+    <!-- NAV OUTSIDE .mi-wrap -->
+    <header class="nav">
+      <div class="container nav-inner">
+        <div class="brand">
+          <img src="/assets/favicon.png" alt="MatesInvest logo" class="logo" />
           <span>MatesInvest</span>
         </div>
+
+        <nav>
+          <a href="/">Home</a>
+          <a href="/join.html" class="btn btn-outline">Join</a>
+          <a href="/mates-feedback.html">Feedback</a>
+        </nav>
+
+        <button class="menu-btn" aria-label="Toggle navigation">☰</button>
       </div>
+    </header>
+
+    <div class="mi-wrap">
 
       <!-- Hero -->
       <section class="mi-hero">
@@ -490,6 +549,28 @@
             form.reset();
           } catch (err) {
             setStatus("Network error — try again shortly.", "#dc2626");
+          }
+        });
+      })();
+    </script>
+
+    <!-- Mobile nav toggle (matches discover.html) -->
+    <script>
+      (function () {
+        const btn = document.querySelector(".menu-btn");
+        const body = document.body;
+        const nav = document.querySelector("header.nav nav");
+        if (!btn || !nav) return;
+
+        btn.addEventListener("click", function () {
+          body.classList.toggle("nav-open");
+        });
+
+        // Close menu when a nav link is tapped
+        nav.addEventListener("click", function (evt) {
+          const target = evt.target;
+          if (target && target.tagName.toLowerCase() === "a") {
+            body.classList.remove("nav-open");
           }
         });
       })();
