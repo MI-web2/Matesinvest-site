@@ -3314,7 +3314,6 @@ filteredItems.sort((a, b) => {
             historySummaryEl.textContent = "Price history not available.";
           }
         }
-        if (h) miRenderChart(h);
 
         if (aiSummaryEl) {
           aiSummaryEl.textContent = "We’re loading a short AI snapshot for this company…";
@@ -3368,6 +3367,14 @@ filteredItems.sort((a, b) => {
 
         overlay.style.display = "flex";
         overlay.setAttribute("aria-hidden", "false");
+        
+        // Render chart AFTER modal is visible to ensure canvas has proper dimensions
+        if (h) {
+          // Use requestAnimationFrame to ensure the modal is fully rendered before drawing
+          requestAnimationFrame(() => {
+            miRenderChart(h);
+          });
+        }
       }
       // Keep the latest instrument payload so the slip can reuse it
 let miLastInstrumentData = null;
