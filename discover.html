@@ -24,6 +24,15 @@
         --radius: 18px;
         --gap: 1rem;
         --slip-share-btn-height: 72px;
+        
+        /* Modern blue colors for invest slip */
+        --blue-500: #0ea5e9;
+        --blue-600: #0284c7;
+        --blue-700: #0369a1;
+        --slate-900: #0f172a;
+        --slate-700: #334155;
+        --slate-600: #475569;
+        --slate-500: #64748b;
       }
       /* ---------- HOME-STYLE TOP NAV (matches styles.css) ---------- */
 .container {
@@ -1477,7 +1486,7 @@ tbody tr:nth-child(even) {
   width: 100%;
   padding: 10px 14px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  background: linear-gradient(135deg, var(--blue-500) 0%, var(--blue-600) 100%);
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
@@ -1487,30 +1496,20 @@ tbody tr:nth-child(even) {
   transition: all 0.2s ease;
 }
 .mi-ins-slip-btn:hover{
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  background: linear-gradient(135deg, var(--blue-600) 0%, var(--blue-700) 100%);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(14, 165, 233, 0.35);
-}
-
-.mi-slip-overlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(15,23,42,0.70);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
 }
 
 .mi-slip-modal{
   width: 100%;
   max-width: 560px;
   margin: 12px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, var(--card) 0%, #f8fafc 100%);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 16px 16px 14px;
-  color: #0f172a;
+  color: var(--slate-900);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15);
   position: relative;
 }
@@ -1520,9 +1519,9 @@ tbody tr:nth-child(even) {
   top: 10px;
   right: 12px;
   font-size: 18px;
-  color: #64748b;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  color: var(--slate-500);
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 50%;
   width: 32px;
   height: 32px;
@@ -1533,7 +1532,7 @@ tbody tr:nth-child(even) {
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
 }
 .mi-slip-close:hover{ 
-  color:#0f172a;
+  color: var(--slate-900);
   background: #f8fafc;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
 }
@@ -1549,7 +1548,7 @@ tbody tr:nth-child(even) {
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.12em;
-  color:#0ea5e9;
+  color: var(--blue-500);
   text-shadow: none;
 }
 .mi-slip-pill{
@@ -1573,7 +1572,7 @@ tbody tr:nth-child(even) {
 }
 .mi-slip-name{
   font-size: 13px;
-  color: #475569;
+  color: var(--slate-600);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -1581,7 +1580,7 @@ tbody tr:nth-child(even) {
 }
 .mi-slip-sub{
   font-size: 12px;
-  color:#64748b;
+  color: var(--slate-500);
   margin-top: 4px;
 }
 
@@ -1598,7 +1597,7 @@ tbody tr:nth-child(even) {
   font-weight: 900;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   background: #f8fafc;
 }
 
@@ -1613,7 +1612,7 @@ tbody tr:nth-child(even) {
 .mi-slip-chart-meta{
   margin-top: 6px;
   font-size: 11px;
-  color:#64748b;
+  color: var(--slate-500);
   text-align: right;
 }
 
@@ -1621,14 +1620,14 @@ tbody tr:nth-child(even) {
 .mi-slip-section{ margin-top: 12px; }
 .mi-slip-section-title{
   font-size: 12px;
-  color:#334155;
+  color: var(--slate-700);
   font-weight: 800;
   margin-bottom: 8px;
 }
 .mi-slip-bullets{
   margin: 0;
   padding-left: 18px;
-  color:#1e293b;
+  color: var(--slate-900);
   font-size: 13px;
   line-height: 1.35;
 }
@@ -1651,14 +1650,14 @@ tbody tr:nth-child(even) {
   font-size: 12px;
 }
 .mi-slip-fund-label{
-  color: #64748b;
+  color: var(--slate-500);
   display: block;
   margin-bottom: 2px;
   font-size: 11px;
 }
 .mi-slip-fund-value{
   font-weight: 700;
-  color: #0f172a;
+  color: var(--slate-900);
 }
 
 .mi-slip-overlay{
@@ -1666,6 +1665,8 @@ tbody tr:nth-child(even) {
   inset: 0;
   background: rgba(15, 23, 42, 0.75);
   display: none;
+  align-items: center;
+  justify-content: center;
   z-index: 10000;
 }
 
@@ -1715,7 +1716,7 @@ tbody tr:nth-child(even) {
   border: 1px solid rgba(148,163,184,0.25);
 }
       .mi-slip-bullets li{
-  color: #334155;
+  color: var(--slate-700);
 }
 
 
@@ -1736,8 +1737,8 @@ tbody tr:nth-child(even) {
 
   background: linear-gradient(
     135deg,
-    #0ea5e9 0%,
-    #0284c7 100%
+    var(--blue-500) 0%,
+    var(--blue-600) 100%
   );
   border-top: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.1);
@@ -1755,8 +1756,8 @@ tbody tr:nth-child(even) {
 .mi-slip-share:hover {
   background: linear-gradient(
     135deg,
-    #0284c7 0%,
-    #0369a1 100%
+    var(--blue-600) 0%,
+    var(--blue-700) 100%
   );
   box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.15);
 }
@@ -1790,7 +1791,7 @@ tbody tr:nth-child(even) {
     #e0f2fe 100%
   );
   border: 1px solid #bae6fd;
-  color: #0369a1;
+  color: var(--blue-700);
   font-size: 16px;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -1826,18 +1827,18 @@ tbody tr:nth-child(even) {
   margin: 8px 0 0;
   border-radius: 12px;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   font-size: 12px;
-  color: #64748b;
+  color: var(--slate-500);
 }
 
 .mi-slip-deeplink-label{
   font-weight: 600;
-  color: #475569;
+  color: var(--slate-600);
 }
 
 .mi-slip-deeplink-url{
-  color: #0ea5e9;
+  color: var(--blue-500);
   text-decoration: none;
   font-weight: 600;
   word-break: break-all;
