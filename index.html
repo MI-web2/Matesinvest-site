@@ -2,19 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>MatesInvest – Invest smarter together.</title>
+    <title>Free Daily ASX Market Brief | Plain-English ASX News for Aussie Investors</title>
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="MatesInvest is a social investing companion for everyday Aussies — helping retail investors link their existing broker, cut through ASX noise with plain-English insights, and feel confident talking about money with their mates."
+      content="Start your day with a free 6:05am ASX brief in plain English. No jargon, no hot tips — just clear market context for everyday Aussie investors. Join 500+ retail investors."
     />
 
+    <!-- Keywords for SEO -->
+    <meta name="keywords" content="ASX brief, Australian stock market news, ASX daily brief, plain english investing, retail investor tools, ASX for beginners, free market brief Australia" />
+
     <!-- Open Graph / social -->
-    <meta property="og:title" content="MatesInvest – Invest smarter together." />
+    <meta property="og:title" content="Free Daily ASX Brief at 6:05am | MatesInvest" />
     <meta
       property="og:description"
-      content="MatesInvest is a social investing companion for everyday Aussies — helping retail investors link their existing broker, cut through ASX noise with plain-English insights, and feel confident talking about money with their mates."
+      content="Join 500+ Aussie investors getting a plain-English ASX brief every morning. No jargon, no hot tips — just clear market context. 100% free."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://matesinvest.com/" />
@@ -22,10 +25,10 @@
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="MatesInvest – Invest smarter together." />
+    <meta name="twitter:title" content="Free Daily ASX Brief at 6:05am | MatesInvest" />
     <meta
       name="twitter:description"
-      content="MatesInvest is a social investing companion for everyday Aussies — helping retail investors link their existing broker, cut through ASX noise with plain-English insights, and feel confident talking about money with their mates."
+      content="Join 500+ Aussie investors getting a plain-English ASX brief every morning. No jargon, no hot tips — just clear market context. 100% free."
     />
     <meta name="twitter:image" content="/assets/matesinvest-social-card.png" />
 
@@ -115,7 +118,8 @@
 
   <!-- Social proof line (now forced underneath) -->
   <p style="width:100%;font-size:13px;color:#64748b;margin-top:6px;">
-    Join <strong>hundreds of Aussie investors</strong> starting their day with this.
+    Join <strong id="userCount">500+</strong> Aussie investors starting their day with this. 
+    <span style="opacity:0.8;">⭐⭐⭐⭐⭐ Loved by retail investors</span>
   </p>
 </div>
 
@@ -138,6 +142,19 @@
   In private beta now. No trading, no “hot tips” — just context,
   education, and tools to help you feel on top of your investing.
 </p>
+
+<!-- Trust badges -->
+<div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-top:1rem;opacity:0.7;">
+  <span style="font-size:11px;display:flex;align-items:center;gap:0.3rem;">
+    🔒 Bank-grade security
+  </span>
+  <span style="font-size:11px;display:flex;align-items:center;gap:0.3rem;">
+    📧 Unsubscribe anytime
+  </span>
+  <span style="font-size:11px;display:flex;align-items:center;gap:0.3rem;">
+    🇦🇺 100% Aussie-made
+  </span>
+</div>
           </div>
         </div>
       </section>
@@ -457,6 +474,35 @@
               Longer term, we expect a simple subscription model — no ads, no payment
               for order flow, and no selling your data. We&apos;ll share pricing
               openly with our early users before anything changes.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- REFER A MATE -->
+      <section id="refer" class="section">
+        <div class="container">
+          <div class="card" style="padding:2rem;text-align:center;background:linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+            <h2 style="margin:0 0 0.5rem;">Help mates invest smarter</h2>
+            <p style="color:var(--muted);font-size:1rem;margin:0 0 1.5rem;max-width:52ch;margin-left:auto;margin-right:auto;">
+              Know someone who'd benefit from clear, no-nonsense ASX insights? Share MatesInvest and help them feel more confident about investing.
+            </p>
+            <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
+              <button 
+                class="btn btn-primary" 
+                onclick="navigator.clipboard.writeText(window.location.origin).then(() => { this.textContent = '✓ Link copied!'; setTimeout(() => { this.textContent = 'Copy link to share'; }, 2000); })"
+              >
+                Copy link to share
+              </button>
+              <button 
+                class="btn btn-outline"
+                onclick="window.location.href='mailto:?subject=Check out MatesInvest&body=I thought you might find this useful — it's a free daily ASX brief that cuts through the jargon: ' + encodeURIComponent(window.location.origin)"
+              >
+                Share via email
+              </button>
+            </div>
+            <p style="font-size:0.78rem;color:var(--muted);margin-top:1rem;">
+              🎁 Referral rewards coming soon for early supporters
             </p>
           </div>
         </div>
