@@ -2,7 +2,8 @@
 // Builds daily sector returns + a simple sector "level" series from cached Upstash data.
 // Uses:
 //   asx:universe:eod:YYYY-MM-DD         (array of {code,date,close,volume,...})
-//   asx:universe:eod:latest             (string YYYY-MM-DD OR json {date/asOfDate/...})
+//   asx:universe:eod:latest             (array of rows)
+//   asx:universe:eod:latestDate         (string YYYY-MM-DD)
 //   asx:universe:fundamentals:latest    (array of {code, sector, marketCap,...})
 //
 // Writes:
@@ -86,8 +87,14 @@ function extractYmdFromUnknown(v) {
 }
 
 async function getLatestEodDate() {
-  const v = await redis(["GET", "asx:universe:eod:latest"]);
-  return extractYmdFromUnknown(v);
+  // Prefer explicit latestDate pointer
+  const v1 = await redis(["GET", "asx:universe:eod:latestDate"]);
+  const d1 = extractYmdFromUnknown(v1);
+  if (d1) return d1;
+
+  // Fallback to whatever is in latest
+  const v2 = await redis(["GET", "asx:universe:eod:latest"]);
+  return extractYmdFromUnknown(v2);
 }
 
 async function existsKey(key) {

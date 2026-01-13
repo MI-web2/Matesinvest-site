@@ -6,6 +6,7 @@
 // Stores into Upstash as:
 //   asx:universe:eod:YYYY-MM-DD
 //   asx:universe:eod:latest
+//   asx:universe:eod:latestDate
 
 const fs = require("fs");
 const path = require("path");
@@ -341,11 +342,13 @@ const url = `https://eodhd.com/api/eod-bulk-last-day/AU?api_token=${encodeURICom
 
   const dailyKey = `asx:universe:eod:${snapshotDate}`;
   const latestKey = `asx:universe:eod:latest`;
+  const latestDateKey = `asx:universe:eod:latestDate`;
 
   const okDaily = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, dailyKey, rows);
   const okLatest = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, latestKey, rows);
+  const okLatestDate = await redisSet(UPSTASH_URL, UPSTASH_TOKEN, latestDateKey, snapshotDate);
 
-  const ok = okDaily && okLatest;
+  const ok = okDaily && okLatest && okLatestDate;
 
   console.log(
     `[snapshot-asx-universe-prices] Completed: snapshotDate=${snapshotDate}, prevDate=${prevDate || 'none'}, rows=${rows.length}, prevTradingDayLookupSize=${prevTradingDayMap.size}`
@@ -359,6 +362,7 @@ const url = `https://eodhd.com/api/eod-bulk-last-day/AU?api_token=${encodeURICom
       prevDateUsed: prevDate,
       dailyKey,
       latestKey,
+      latestDateKey,
       rows: rows.length,
       prevTradingDayLookupSize: prevTradingDayMap.size,
       elapsedMs: Date.now() - start,
