@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MatesInvest — Social Investing App (Coming Soon)</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="MatesInvest is a social investing app coming soon. Create groups, share portfolios, vote on ideas, and stay aligned. Join early access."
+    />
+
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <link rel="icon" type="image/png" href="/assets/favicon.png" />
+
+    <!-- Keep your global styles if you want consistency -->
+    <link rel="stylesheet" href="/styles.css" />
+
+    <style>
+      :root {
+        --mi-max: 1040px;
+        --mi-muted: #6b7280;
+        --mi-border: rgba(15, 23, 42, 0.12);
+        --mi-soft: rgba(2, 6, 23, 0.04);
+        --mi-shadow: 0 12px 30px rgba(2, 6, 23, 0.08);
+        --mi-radius: 18px;
+      }
+
+      body {
+        background: #fff;
+      }
+
+      .mi-wrap {
+        max-width: var(--mi-max);
+        margin: 0 auto;
+        padding: 28px 18px 60px;
+      }
+
+      /* Top bar */
+      .mi-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 28px;
+      }
+
+      .mi-home {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border: 1px solid var(--mi-border);
+        background: #fff;
+        border-radius: 999px;
+        text-decoration: none;
+        color: #0f172a;
+        font-weight: 600;
+        box-shadow: 0 8px 22px rgba(2, 6, 23, 0.05);
+      }
+      .mi-home:hover {
+        transform: translateY(-1px);
+      }
+
+      .mi-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .mi-brand img {
+        width: 30px;
+        height: 30px;
+      }
+      .mi-brand span {
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #0f172a;
+      }
+
+      /* Hero */
+      .mi-hero {
+        display: grid;
+        grid-template-columns: 1.25fr 0.75fr;
+        gap: 22px;
+        align-items: start;
+        margin-bottom: 26px;
+      }
+
+      .mi-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: var(--mi-soft);
+        border: 1px solid var(--mi-border);
+        color: #0f172a;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .mi-h1 {
+        margin: 14px 0 10px;
+        font-size: clamp(28px, 4.2vw, 44px);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        color: #0f172a;
+      }
+
+      .mi-lead {
+        margin: 0 0 18px;
+        color: var(--mi-muted);
+        font-size: 16px;
+        line-height: 1.55;
+        max-width: 54ch;
+      }
+
+      .mi-bullets {
+        margin: 14px 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 10px;
+      }
+      .mi-bullets li {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        color: #0f172a;
+        font-size: 14px;
+      }
+      .mi-bullets .tick {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        background: rgba(37, 99, 235, 0.12);
+        border: 1px solid rgba(37, 99, 235, 0.25);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 20px;
+        margin-top: 2px;
+      }
+
+      /* Waitlist card */
+      .mi-card {
+        border: 1px solid var(--mi-border);
+        background: #fff;
+        border-radius: var(--mi-radius);
+        box-shadow: var(--mi-shadow);
+        padding: 18px;
+        position: sticky;
+        top: 16px;
+      }
+
+      .mi-card h3 {
+        margin: 0 0 6px;
+        font-size: 16px;
+        letter-spacing: -0.01em;
+        color: #0f172a;
+      }
+
+      .mi-card p {
+        margin: 0 0 14px;
+        color: var(--mi-muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .mi-form {
+        display: grid;
+        gap: 10px;
+      }
+
+      .mi-field {
+        display: grid;
+        gap: 6px;
+      }
+      .mi-field label {
+        font-size: 12px;
+        color: #0f172a;
+        font-weight: 700;
+      }
+      .mi-field input {
+        width: 100%;
+        padding: 12px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--mi-border);
+        background: #fff;
+        font-size: 14px;
+        outline: none;
+      }
+      .mi-field input:focus {
+        border-color: rgba(37, 99, 235, 0.6);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      }
+
+      .mi-btn {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 0;
+        font-weight: 800;
+        cursor: pointer;
+        background: linear-gradient(180deg, #3b82f6, #2563eb);
+        color: #fff;
+        box-shadow: 0 12px 22px rgba(37, 99, 235, 0.25);
+      }
+      .mi-btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .mi-status {
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--mi-muted);
+        min-height: 18px;
+      }
+
+      .mi-note {
+        margin-top: 10px;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+
+      /* Screenshots */
+      .mi-section-title {
+        margin: 30px 0 10px;
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: -0.01em;
+        color: #0f172a;
+      }
+
+      .mi-section-sub {
+        margin: 0 0 16px;
+        color: var(--mi-muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .mi-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .mi-shot {
+        border: 1px solid var(--mi-border);
+        border-radius: var(--mi-radius);
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 10px 22px rgba(2, 6, 23, 0.06);
+      }
+
+      .mi-shot img {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .mi-cap {
+        padding: 10px 12px 12px;
+        font-size: 13px;
+        color: #0f172a;
+        font-weight: 800;
+      }
+
+      /* Caption rows */
+      .mi-rowcap {
+        margin: 12px 0 18px;
+        color: var(--mi-muted);
+        font-size: 14px;
+      }
+
+      /* Responsive */
+      @media (max-width: 920px) {
+        .mi-hero {
+          grid-template-columns: 1fr;
+        }
+        .mi-card {
+          position: relative;
+          top: auto;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .mi-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="mi-wrap">
+      <!-- Top bar -->
+      <div class="mi-topbar">
+        <a class="mi-home" href="/">
+          ← Home
+        </a>
+
+        <div class="mi-brand" aria-label="MatesInvest">
+          <img src="/assets/favicon.png" alt="MatesInvest logo" />
+          <span>MatesInvest</span>
+        </div>
+      </div>
+
+      <!-- Hero -->
+      <section class="mi-hero">
+        <div>
+          <div class="mi-eyebrow">Social investing app • Coming soon</div>
+
+          <h1 class="mi-h1">Investing, but done together.</h1>
+
+          <p class="mi-lead">
+            MatesInvest helps friends and families invest as a group — create portfolios,
+            propose ideas, vote on decisions, and stay aligned without the awkward money conversations.
+          </p>
+
+          <ul class="mi-bullets">
+            <li><span class="tick">✓</span><span><strong>Built for groups</strong>, not solo traders</span></li>
+            <li><span class="tick">✓</span><span><strong>Works alongside your broker</strong> (no switching required)</span></li>
+            <li><span class="tick">✓</span><span><strong>No tips, no hype</strong> — just clarity and transparency</span></li>
+            <li><span class="tick">✓</span><span><strong>Designed for long-term thinking</strong> and accountability</span></li>
+          </ul>
+        </div>
+
+        <!-- Waitlist -->
+        <aside class="mi-card">
+          <h3>Get early access</h3>
+          <p>
+            We’re opening access gradually. Join the waitlist and be first in.
+          </p>
+
+          <form id="earlyAccessForm" class="mi-form" novalidate>
+            <div class="mi-field">
+              <label for="eaName">First name</label>
+              <input
+                id="eaName"
+                name="first_name"
+                type="text"
+                autocomplete="given-name"
+                required
+              />
+            </div>
+
+            <div class="mi-field">
+              <label for="eaEmail">Email</label>
+              <input
+                id="eaEmail"
+                name="email"
+                type="email"
+                autocomplete="email"
+                required
+              />
+            </div>
+
+            <button class="mi-btn" type="submit">Join early access</button>
+            <div id="eaStatus" class="mi-status"></div>
+          </form>
+
+          <div class="mi-note">
+            Launching soon • Australia-first • No spam
+          </div>
+        </aside>
+      </section>
+
+      <!-- Screenshots -->
+      <section>
+        <div class="mi-section-title">How social investing actually works</div>
+        <div class="mi-section-sub">
+          The app is built around groups, transparency, and clear decisions — so everyone stays aligned.
+        </div>
+
+        <!-- Row 1 -->
+        <div class="mi-grid">
+          <figure class="mi-shot">
+            <img src="/assets/App_Development_1/4.jpg" alt="Group details and members" />
+            <figcaption class="mi-cap">Create investing groups</figcaption>
+          </figure>
+          <figure class="mi-shot">
+            <img src="/assets/App_Development_1/5.jpg" alt="Group performance and holdings" />
+            <figcaption class="mi-cap">See shared performance</figcaption>
+          </figure>
+        </div>
+        <div class="mi-rowcap">Create groups with friends or family and see the same numbers together.</div>
+
+        <!-- Row 2 -->
+        <div class="mi-grid">
+          <figure class="mi-shot">
+            <img src="/assets/App_Development_1/6.jpg" alt="Proposal and voting flow" />
+            <figcaption class="mi-cap">Propose ideas & vote</figcaption>
+          </figure>
+          <figure class="mi-shot">
+            <img src="/assets/App_Development_1/3.jpg" alt="Connect your broker" />
+            <figcaption class="mi-cap">Works with your broker</figcaption>
+          </figure>
+        </div>
+        <div class="mi-rowcap">Keep decisions clear and recorded — without messy group chats.</div>
+
+        <!-- Row 3 -->
+        <div class="mi-grid">
+          <figure class="mi-shot">
+            <img src="/assets/App_Development_1/2.jpg" alt="Onboarding screen with headline" />
+            <figcaption class="mi-cap">Simple onboarding</figcaption>
+          </figure>
+          <figure class="mi-shot">
+            <img src="/assets/App_Development_1/1.jpg" alt="MatesInvest splash screen" />
+            <figcaption class="mi-cap">Coming soon</figcaption>
+          </figure>
+        </div>
+        <div class="mi-rowcap">Built to reduce noise and make group investing calm and transparent.</div>
+
+        <p style="margin-top: 18px; font-size: 12px; color: #94a3b8;">
+          MatesInvest does not provide financial advice. This app helps groups stay aligned and organised.
+        </p>
+      </section>
+    </div>
+
+    <script>
+      // Early access form -> Netlify function -> your existing flow
+      (function () {
+        const form = document.getElementById("earlyAccessForm");
+        const nameInput = document.getElementById("eaName");
+        const emailInput = document.getElementById("eaEmail");
+        const statusEl = document.getElementById("eaStatus");
+
+        if (!form) return;
+
+        function setStatus(msg, color) {
+          statusEl.textContent = msg;
+          statusEl.style.color = color || "#6b7280";
+        }
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          const name = (nameInput.value || "").trim();
+          const email = (emailInput.value || "").trim();
+
+          if (!name || !email) {
+            setStatus("Please enter your name and email.", "#dc2626");
+            return;
+          }
+
+          setStatus("Adding you to early access…", "#6b7280");
+
+          try {
+            const res = await fetch("/.netlify/functions/subscribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name,
+                email,
+                source: "meta-social-coming-soon",
+              }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok || data.ok === false) {
+              setStatus(data.error || "Something went wrong. Try again.", "#dc2626");
+              return;
+            }
+
+            setStatus("You’re on the list! We’ll email you when early access opens.", "#15803d");
+            form.reset();
+          } catch (err) {
+            setStatus("Network error — try again shortly.", "#dc2626");
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
