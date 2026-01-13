@@ -20,8 +20,9 @@ const EMAIL_FROM = process.env.EMAIL_FROM || "hello@matesinvest.com";
 // Comma-separated list: "luke@...,dale@..."
 const ANALYTICS_EMAIL_TO = process.env.ANALYTICS_EMAIL_TO || "";
 
-// Upstash key for your subscriber list (Set)
+// Upstash keys for subscriber lists (Sets)
 const SUBSCRIBERS_KEY = "email:subscribers";
+const SUBSCRIBERS_APP_KEY = "email:subscribers-App";
 
 function assertEnv() {
   const missing = [];
@@ -178,7 +179,7 @@ exports.handler = async function () {
     // Fetch:
     // - yesterday totals
     // - yesterday per-path stats
-    // - subscriber count (current)
+    // - subscriber counts (current)
     // - MTD totals
     // - YTD totals
     const yCmd = [
@@ -186,6 +187,7 @@ exports.handler = async function () {
       ["HGETALL", pathsKey(yesterday)],
       ["HGETALL", pathStatsKey(yesterday)],
       ["SCARD", SUBSCRIBERS_KEY],
+      ["SCARD", SUBSCRIBERS_APP_KEY],
     ];
 
     const mCmd = mtdDays.map((d) => ["HGETALL", dayKey(d)]);
@@ -203,6 +205,7 @@ exports.handler = async function () {
     const pathStatsObj = hgetallArrayToStringObject(yRes?.[2]?.result); // per-page repeat stats
 
     const subscribersCount = Number(yRes?.[3]?.result || 0);
+    const subscribersAppCount = Number(yRes?.[4]?.result || 0);
 
     const mObjs = (mRes || []).map((r) => hgetallArrayToObject(r.result));
     const ytdObjs = (ytdRes || []).map((r) => hgetallArrayToObject(r.result));
@@ -279,9 +282,15 @@ exports.handler = async function () {
         <p style="margin:0 0 10px;color:#444;">Date: <b>${yesterday}</b> (AEST)</p>
 
         <div style="margin:0 0 16px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;max-width:640px;">
-          <div style="color:#111827;font-weight:700;font-size:13px;">Subscriber count (current)</div>
+          <div style="color:#111827;font-weight:700;font-size:13px;">Web Subscribers (email:subscribers)</div>
           <div style="font-size:22px;font-weight:800;margin-top:2px;">${subscribersCount}</div>
           <div style="color:#6b7280;font-size:12px;margin-top:2px;">Source: <code>${SUBSCRIBERS_KEY}</code> (SCARD)</div>
+        </div>
+
+        <div style="margin:0 0 16px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;max-width:640px;">
+          <div style="color:#111827;font-weight:700;font-size:13px;">App Subscribers (email:subscribers-App)</div>
+          <div style="font-size:22px;font-weight:800;margin-top:2px;">${subscribersAppCount}</div>
+          <div style="color:#6b7280;font-size:12px;margin-top:2px;">Source: <code>${SUBSCRIBERS_APP_KEY}</code> (SCARD)</div>
         </div>
 
         <table style="border-collapse:collapse;width:100%;max-width:640px;">
