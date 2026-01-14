@@ -61,6 +61,27 @@ exports.handler = async function () {
     }
   }
 
+  // Get user ID from email
+  async function getUserId(email) {
+    if (!email) return null;
+    const emailLower = email.toLowerCase().trim();
+    const userId = await redisGet(`email:id:${emailLower}`);
+    return userId;
+  }
+
+  // Create tracking link for email clicks
+  function makeTrackingLink(url, userId, emailType) {
+    if (!userId) return url;
+    const siteUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL || 'https://matesinvest.com';
+    const trackUrl = `${siteUrl}/.netlify/functions/track-email-click`;
+    const params = new URLSearchParams({
+      uid: userId,
+      type: emailType,
+      url: url,
+    });
+    return `${trackUrl}?${params.toString()}`;
+  }
+
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -538,7 +559,7 @@ exports.handler = async function () {
   // -------------------------------
   // HTML builder
   // -------------------------------
-  function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc) {
+  function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc, userId = null) {
     const { weeklyTopSectors, weeklyBottomSectors, metalsWeekly, cryptoWeekly } =
       aggregates;
 
@@ -862,13 +883,14 @@ exports.handler = async function () {
             <td style="padding:12px 20px 18px 20px;border-top:1px solid #e2e8f0;background-color:#ffffff;">
               <p style="margin:0 0 6px 0;font-size:12px;color:#64748b;">
                 View the live version and full AI summaries on
-                <a href="https://matesinvest.com/mates-summaries" style="color:#00BFFF;text-decoration:none;font-weight:600;">
+                <a href="${userId ? makeTrackingLink('https://matesinvest.com/mates-summaries', userId, 'weekly-brief') : 'https://matesinvest.com/mates-summaries'}" style="color:#00BFFF;text-decoration:none;font-weight:600;">
                   MatesFeed
                 </a>.
               </p>
               <p style="margin:0;font-size:11px;color:#94a3b8;">
                 This email is general information only and is not financial advice.
               </p>
+              ${userId ? `<p style="margin:8px 0 0 0;font-size:10px;color:#cbd5e1;">Subscriber ID: ${userId}</p>` : ''}
             </td>
           </tr>
 
@@ -914,8 +936,6 @@ exports.handler = async function () {
     const rangeStr = formatWeekRangeForSubject(datesAsc);
     const subject = `MatesMorning – The Week That Was (${rangeStr})`;
 
-    const html = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc);
-
     // ---------------------------
     // Per-recipient idempotency + Resend Batch sending
     // ---------------------------
@@ -951,12 +971,18 @@ exports.handler = async function () {
       if (!pending.length) continue;
 
       // One email per subscriber (privacy-safe)
-      const emailItems = pending.map((p) => ({
-        from: `MatesInvest <${EMAIL_FROM}>`,
-        to: [p.email],
-        subject,
-        html,
-      }));
+      // Build HTML for each user with their userId for tracking
+      const emailItems = [];
+      for (const p of pending) {
+        const userId = await getUserId(p.email);
+        const userHtml = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc, userId);
+        emailItems.push({
+          from: `MatesInvest <${EMAIL_FROM}>`,
+          to: [p.email],
+          subject,
+          html: userHtml,
+        });
+      }
 
       // Idempotency key per batch request (protects against Netlify retries)
       const batchIdempotencyKey = `${sendKeyPrefix}:batch:${i}`;

@@ -186,6 +186,27 @@ exports.handler = async function (event) {
     }
   }
 
+  // Get user ID from email
+  async function getUserId(email) {
+    if (!email) return null;
+    const emailLower = email.toLowerCase().trim();
+    const userId = await redisGet(`email:id:${emailLower}`);
+    return userId;
+  }
+
+  // Create tracking link for email clicks
+  function makeTrackingLink(url, userId, emailType) {
+    if (!userId) return url;
+    const siteUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL || 'https://matesinvest.com';
+    const trackUrl = `${siteUrl}/.netlify/functions/track-email-click`;
+    const params = new URLSearchParams({
+      uid: userId,
+      type: emailType,
+      url: url,
+    });
+    return `${trackUrl}?${params.toString()}`;
+  }
+
   function escapeHtml(s) {
     return String(s || "")
       .replace(/&/g, "&amp;")
@@ -230,7 +251,7 @@ exports.handler = async function (event) {
     `;
   }
 
-  function buildEmailHtml(payload) {
+  function buildEmailHtml(payload, userId = null) {
     const week = payload.week || {};
     const macro = payload.macro || { bullets: [] };
     const sectors = payload.sectors || { results: [] };
@@ -454,6 +475,7 @@ exports.handler = async function (event) {
             <p style="margin:0;font-size:11px;color:#94a3b8;">
               This email is general information only and is not financial advice.
             </p>
+            ${userId ? `<p style="margin:8px 0 0 0;font-size:10px;color:#cbd5e1;">Subscriber ID: ${userId}</p>` : ''}
           </td>
         </tr>
 
@@ -494,7 +516,6 @@ exports.handler = async function (event) {
 
     const subjectDate = formatAestForSubject(new Date());
     const subject = `MatesMorning – Week Ahead (${payload.week.label || subjectDate})`;
-    const html = buildEmailHtml(payload);
 
     // Preview mode (still supported)
     const previewTo = String(process.env.WEEK_AHEAD_EMAIL_PREVIEW_TO || "")
@@ -519,7 +540,9 @@ exports.handler = async function (event) {
         };
       }
 
-      await sendEmail(previewTo, subject, html);
+      // Build preview HTML without userId
+      const previewHtml = buildEmailHtml(payload);
+      await sendEmail(previewTo, subject, previewHtml);
       return {
         statusCode: 200,
         headers: { "content-type": "application/json" },
@@ -556,6 +579,12 @@ exports.handler = async function (event) {
       if (disableSend) continue;
 
       try {
+        // Get userId for this subscriber
+        const userId = await getUserId(email);
+        
+        // Build HTML with userId for tracking
+        const html = buildEmailHtml(payload, userId);
+        
         await sendEmail(email, subject, html);
         sentCount += 1;
         await redisSet(personKey, "sent", perRecipientTtlSeconds);

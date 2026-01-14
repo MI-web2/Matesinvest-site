@@ -175,11 +175,13 @@ exports.handler = async function () {
     const dayKey = (day) => `mates:analytics:day:${day}`;
     const pathsKey = (day) => `mates:analytics:day:${day}:paths`;
     const pathStatsKey = (day) => `mates:analytics:day:${day}:pathstats`;
+    const emailClicksKey = (day) => `email:clicks:day:${day}`;
 
     // Fetch:
     // - yesterday totals
     // - yesterday per-path stats
     // - subscriber counts (current)
+    // - email clicks (yesterday)
     // - MTD totals
     // - YTD totals
     const yCmd = [
@@ -188,6 +190,7 @@ exports.handler = async function () {
       ["HGETALL", pathStatsKey(yesterday)],
       ["SCARD", SUBSCRIBERS_KEY],
       ["SCARD", SUBSCRIBERS_APP_KEY],
+      ["HGETALL", emailClicksKey(yesterday)],
     ];
 
     const mCmd = mtdDays.map((d) => ["HGETALL", dayKey(d)]);
@@ -206,6 +209,8 @@ exports.handler = async function () {
 
     const subscribersCount = Number(yRes?.[3]?.result || 0);
     const subscribersAppCount = Number(yRes?.[4]?.result || 0);
+    
+    const emailClicksObj = hgetallArrayToObject(yRes?.[5]?.result); // email click tracking
 
     const mObjs = (mRes || []).map((r) => hgetallArrayToObject(r.result));
     const ytdObjs = (ytdRes || []).map((r) => hgetallArrayToObject(r.result));
@@ -379,6 +384,34 @@ exports.handler = async function () {
             <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Engage %</th>
           </tr>
           ${pagesRowsHtml}
+        </table>
+
+        <h3 style="margin:18px 0 8px;">Email Click Tracking (Yesterday)</h3>
+        <table style="border-collapse:collapse;width:100%;max-width:640px;">
+          <tr>
+            <th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">Metric</th>
+            <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Count</th>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #f5f5f5;">Total Clicks</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${emailClicksObj.total_clicks || 0}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #f5f5f5;">Daily Brief Clicks</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${emailClicksObj['daily-brief_clicks'] || 0}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #f5f5f5;">Daily Quiz Clicks</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${emailClicksObj['daily-brief-quiz_clicks'] || 0}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #f5f5f5;">Week Ahead Clicks</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${emailClicksObj['week-ahead_clicks'] || 0}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #f5f5f5;">Weekly Brief Clicks</td>
+            <td style="text-align:right;padding:8px;border-bottom:1px solid #f5f5f5;">${emailClicksObj['weekly-brief_clicks'] || 0}</td>
+          </tr>
         </table>
 
         <p style="margin:16px 0 0;color:#666;font-size:12px;">
