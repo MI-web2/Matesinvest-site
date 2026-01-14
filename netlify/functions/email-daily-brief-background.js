@@ -216,6 +216,7 @@ exports.handler = async function (event) {
       year: "numeric",
     });
 
+    const socialInvestingUrl = 'https://matesinvest.com/social-investing.html';
     const top = Array.isArray(payload.topPerformers) ? payload.topPerformers : [];
 
     const metalsObj = payload.metals || payload.symbols || {};
@@ -409,7 +410,7 @@ exports.handler = async function (event) {
                 <p style="margin:0 0 14px 0;font-size:13px;color:#0b1220;line-height:1.5;">
                   If you're planning to use this with a partner, friend, or family member, now's a good time to loop them in.
                 </p>
-                <a href="${userId ? makeTrackingLink('https://matesinvest.com/social-investing.html', userId, 'daily-brief') : 'https://matesinvest.com/social-investing.html'}"
+                <a href="${userId ? makeTrackingLink(socialInvestingUrl, userId, 'daily-brief') : socialInvestingUrl}"
                    style="
                      display:inline-block;
                      padding:10px 18px;
