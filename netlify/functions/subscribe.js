@@ -157,97 +157,107 @@ exports.handler = async function (event) {
   // NEW: ensure ID exists for this email, return it.
   // - If email already has an ID, re-use it.
   // - Else allocate the next sequential ID using INCR (safe under concurrency).
-  async function ensureMemberId() {
-    // Use pipeline so we can do multi-step operations efficiently.
-    const pipelineUrl = `${UPSTASH_URL}/pipeline`;
+async function ensureMemberId() {
+  const pipelineUrl = `${UPSTASH_URL}/pipeline`;
 
-    // Step 1: GET existing id
-    const r1 = await fetchWithTimeout(pipelineUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${UPSTASH_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([["GET", `email:id:${email}`]]),
-    });
+  // Step 1: GET existing id
+  const r1 = await fetchWithTimeout(pipelineUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${UPSTASH_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([["GET", `email:id:${email}`]]),
+  });
 
-    if (!r1.ok) {
-      const txt = await r1.text().catch(() => "");
-      console.warn("ensureMemberId: pipeline GET failed", r1.status, txt);
-      return null; // do not break subscription
-    }
+  if (!r1.ok) {
+    const txt = await r1.text().catch(() => "");
+    console.warn("ensureMemberId: pipeline GET failed", r1.status, txt);
+    return null;
+  }
 
-    const j1 = await r1.json().catch(() => null);
-    const existing = j1 && j1[0] && j1[0].result ? j1[0].result : null;
+  const j1 = await r1.json().catch(() => null);
+  const existing = j1 && j1[0] && j1[0].result ? j1[0].result : null;
+  if (existing) return existing;
 
-    if (existing) return existing;
+  // Step 2: Allocate next ID number
+  const r2 = await fetchWithTimeout(pipelineUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${UPSTASH_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([["INCR", "user:id:counter"]]),
+  });
 
-    // Step 2: INCR counter to allocate a new number
-    const r2 = await fetchWithTimeout(pipelineUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${UPSTASH_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([["INCR", "user:id:counter"]]),
-    });
+  if (!r2.ok) {
+    const txt = await r2.text().catch(() => "");
+    console.warn("ensureMemberId: pipeline INCR failed", r2.status, txt);
+    return null;
+  }
 
-    if (!r2.ok) {
-      const txt = await r2.text().catch(() => "");
-      console.warn("ensureMemberId: pipeline INCR failed", r2.status, txt);
-      return null;
-    }
+  const j2 = await r2.json().catch(() => null);
+  const n =
+    j2 && j2[0] && typeof j2[0].result === "number" ? j2[0].result : null;
+  if (!n) return null;
 
-    const j2 = await r2.json().catch(() => null);
-    const n = j2 && j2[0] && typeof j2[0].result === "number" ? j2[0].result : null;
-    if (!n) return null;
+  const newId = fmtId(n);
 
-    const newId = fmtId(n);
+  // Step 3: Try to claim email -> id
+  const r3 = await fetchWithTimeout(pipelineUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${UPSTASH_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([["SETNX", `email:id:${email}`, newId]]),
+  });
 
-    // Step 3: write both mappings, but only if still missing (best-effort)
-    // There is a tiny race where two requests could both not see an existing id, then both INCR.
-    // We prevent inconsistency by using SETNX for email:id:... so only one wins.
-    const r3 = await fetchWithTimeout(pipelineUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${UPSTASH_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([
-        ["SETNX", `email:id:${email}`, newId],
-        ["SET", `id:email:${newId}`, email],
-      ]),
-    });
+  if (!r3.ok) {
+    const txt = await r3.text().catch(() => "");
+    console.warn("ensureMemberId: pipeline SETNX failed", r3.status, txt);
+    return null;
+  }
 
-    if (!r3.ok) {
-      const txt = await r3.text().catch(() => "");
-      console.warn("ensureMemberId: pipeline SET failed", r3.status, txt);
-      return null;
-    }
+  const j3 = await r3.json().catch(() => null);
+  const setnx =
+    j3 && j3[0] && typeof j3[0].result === "number" ? j3[0].result : null;
 
-    const j3 = await r3.json().catch(() => null);
-    const setnx = j3 && j3[0] && typeof j3[0].result === "number" ? j3[0].result : null;
-
-    if (setnx === 1) {
-      // We won the SETNX, so mapping is correct.
-      return newId;
-    }
-
-    // Another request beat us; fetch the canonical id and return it.
+  if (setnx === 1) {
+    // We won the claim; now write reverse mapping
     const r4 = await fetchWithTimeout(pipelineUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${UPSTASH_TOKEN}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify([["GET", `email:id:${email}`]]),
+      body: JSON.stringify([["SET", `id:email:${newId}`, email]]),
     });
 
-    if (!r4.ok) return null;
-    const j4 = await r4.json().catch(() => null);
-    const canonical = j4 && j4[0] && j4[0].result ? j4[0].result : null;
-    return canonical || null;
+    if (!r4.ok) {
+      // Not fatal, but good to log
+      const txt = await r4.text().catch(() => "");
+      console.warn("ensureMemberId: pipeline SET reverse failed", r4.status, txt);
+    }
+
+    return newId;
   }
+
+  // Another request beat us; fetch canonical id and return it.
+  const r5 = await fetchWithTimeout(pipelineUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${UPSTASH_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([["GET", `email:id:${email}`]]),
+  });
+
+  if (!r5.ok) return null;
+  const j5 = await r5.json().catch(() => null);
+  const canonical = j5 && j5[0] && j5[0].result ? j5[0].result : null;
+  return canonical || null;
+}
 
   try {
     // Backwards compatibility:
