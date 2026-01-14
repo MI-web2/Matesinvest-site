@@ -13,27 +13,48 @@ const fetch = (...args) => global.fetch(...args);
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-async function redis(cmd) {
-  const res = await fetch(`${UPSTASH_URL}/command`, {
+function fmt(n) {
+  return `MI${String(n).padStart(7, "0")}`;
+}
+
+async function pipeline(cmds) {
+  const res = await fetch(`${UPSTASH_URL}/pipeline`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${UPSTASH_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ command: cmd }),
+    body: JSON.stringify(cmds),
   });
-  const json = await res.json();
-  if (json.error) throw new Error(JSON.stringify(json.error));
-  return json.result;
-}
 
-function fmt(n) {
-  return `MI${String(n).padStart(7, "0")}`;
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`Upstash pipeline non-JSON response: ${text}`);
+  }
+
+  if (!res.ok) {
+    throw new Error(`Upstash pipeline failed: ${res.status} ${text}`);
+  }
+
+  // Upstash returns an array of { result, error }
+  for (const item of json) {
+    if (item && item.error) {
+      throw new Error(`Upstash command error: ${JSON.stringify(item.error)}`);
+    }
+  }
+
+  return json;
 }
 
 exports.handler = async (event) => {
-  // Optional: protect this endpoint
-  // Call with ?key=YOUR_BACKFILL_KEY and set BACKFILL_KEY in env
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) {
+    return { statusCode: 500, body: "Upstash not configured" };
+  }
+
+  // Optional safety gate
   const key = event.queryStringParameters?.key;
   if (process.env.BACKFILL_KEY && key !== process.env.BACKFILL_KEY) {
     return { statusCode: 403, body: "Forbidden" };
@@ -42,41 +63,64 @@ exports.handler = async (event) => {
   const setKey = event.queryStringParameters?.set || "email:subscribers";
 
   // 1) Load emails from set
-  const emails = (await redis(["SMEMBERS", setKey])) || [];
+  const smembers = await pipeline([["SMEMBERS", setKey]]);
+  const emails = smembers?.[0]?.result || [];
   emails.sort((a, b) => a.localeCompare(b)); // deterministic order
 
-  // 2) Find the next counter start (if you already ran partially)
-  let counter = Number(await redis(["GET", "user:id:counter"])) || 0;
+  // 2) Read existing counter
+  const counterRes = await pipeline([["GET", "user:id:counter"]]);
+  let counter = Number(counterRes?.[0]?.result || 0);
 
-  // 3) Assign IDs to any email missing one
+  // 3) Assign IDs (skip existing)
   let assigned = 0;
-  for (const email of emails) {
-    const existing = await redis(["GET", `email:id:${email}`]);
-    if (existing) continue;
 
-    counter += 1;
-    const id = fmt(counter);
+  // Batch GET existing ids to reduce calls
+  // (Do in chunks to avoid huge payloads)
+  const chunkSize = 200;
 
-    // Write both directions
-    await redis(["SET", `email:id:${email}`, id]);
-    await redis(["SET", `id:email:${id}`, email]);
+  for (let i = 0; i < emails.length; i += chunkSize) {
+    const chunk = emails.slice(i, i + chunkSize);
 
-    assigned += 1;
+    // GET existing ids for chunk
+    const getCmds = chunk.map((email) => ["GET", `email:id:${email}`]);
+    const getRes = await pipeline(getCmds);
+
+    // Build write cmds for missing
+    const writeCmds = [];
+    for (let j = 0; j < chunk.length; j++) {
+      const email = chunk[j];
+      const existing = getRes[j]?.result;
+
+      if (existing) continue;
+
+      counter += 1;
+      const id = fmt(counter);
+
+      // Use SETNX so reruns are safe (and race-safe)
+      writeCmds.push(["SETNX", `email:id:${email}`, id]);
+      writeCmds.push(["SET", `id:email:${id}`, email]);
+
+      assigned += 1;
+    }
+
+    if (writeCmds.length) {
+      await pipeline(writeCmds);
+    }
   }
 
   // 4) Persist counter
-  await redis(["SET", "user:id:counter", String(counter)]);
+  await pipeline([["SET", "user:id:counter", String(counter)]]);
 
   return {
     statusCode: 200,
+    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     body: JSON.stringify({
       ok: true,
       setKey,
       total_emails: emails.length,
       newly_assigned: assigned,
       last_id: fmt(counter),
-      note:
-        "IDs assigned deterministically by sorted email order (NOT true signup time).",
+      note: "Assigned in deterministic A→Z email order (no true timestamps available).",
     }),
   };
 };
