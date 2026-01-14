@@ -216,6 +216,7 @@ exports.handler = async function (event) {
       year: "numeric",
     });
 
+    const socialInvestingUrl = 'https://matesinvest.com/social-investing.html';
     const top = Array.isArray(payload.topPerformers) ? payload.topPerformers : [];
 
     const metalsObj = payload.metals || payload.symbols || {};
@@ -384,6 +385,45 @@ exports.handler = async function (event) {
                   Built for Australian retail investors.<br/>
                   Short, plain-English, not financial advice.
                 </div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Founding 500 CTA -->
+          <tr>
+            <td style="padding:16px 20px 16px 20px;border-bottom:1px solid #e2e8f0;">
+              <div style="
+                background:#f0f9ff;
+                border:1px solid #bae6fd;
+                padding:16px 18px;
+                border-radius:12px;
+              ">
+                <h2 style="margin:0 0 10px 0;font-size:15px;font-weight:700;color:#002040;">
+                  A quick note before today's markets
+                </h2>
+                <p style="margin:0 0 10px 0;font-size:13px;color:#0b1220;line-height:1.5;">
+                  We're close to establishing the Founding 500 — early users who'll have access to all premium features from the start.
+                </p>
+                <p style="margin:0 0 12px 0;font-size:13px;color:#0b1220;line-height:1.5;">
+                  Because MatesInvest is built for people who invest together, we're prioritising access for those who join with someone else.
+                </p>
+                <p style="margin:0 0 14px 0;font-size:13px;color:#0b1220;line-height:1.5;">
+                  If you're planning to use this with a partner, friend, or family member, now's a good time to loop them in.
+                </p>
+                <a href="${userId ? makeTrackingLink(socialInvestingUrl, userId, 'daily-brief') : socialInvestingUrl}"
+                   style="
+                     display:inline-block;
+                     padding:10px 18px;
+                     background:linear-gradient(180deg, #3b82f6, #2563eb);
+                     color:#ffffff;
+                     text-decoration:none;
+                     border-radius:999px;
+                     font-size:14px;
+                     font-weight:600;
+                     box-shadow:0 4px 12px rgba(37, 99, 235, 0.25);
+                   ">
+                  👉 Invite someone you invest with
+                </a>
               </div>
             </td>
           </tr>
