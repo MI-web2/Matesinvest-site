@@ -170,6 +170,27 @@ exports.handler = async function (event) {
     }
   }
 
+  // Get user ID from email
+  async function getUserId(email) {
+    if (!email) return null;
+    const emailLower = email.toLowerCase().trim();
+    const userId = await redisGet(`email:id:${emailLower}`);
+    return userId;
+  }
+
+  // Create tracking link for email clicks
+  function makeTrackingLink(url, userId, emailType) {
+    if (!userId) return url;
+    const siteUrl = process.env.URL || process.env.DEPLOY_PRIME_URL || process.env.DEPLOY_URL || 'https://matesinvest.com';
+    const trackUrl = `${siteUrl}/.netlify/functions/track-email-click`;
+    const params = new URLSearchParams({
+      uid: userId,
+      type: emailType,
+      url: url,
+    });
+    return `${trackUrl}?${params.toString()}`;
+  }
+
   // Fetch the Mates Morning Note via the existing function
   async function getMorningNote() {
     try {
@@ -187,7 +208,7 @@ exports.handler = async function (event) {
   }
 
   // Build HTML email from morning-brief payload + morning note
-  function buildEmailHtml(payload, morningNote) {
+  function buildEmailHtml(payload, morningNote, userId = null) {
     const aestNow = getAestDate(new Date());
 
     const niceDate = aestNow.toLocaleDateString("en-AU", {
@@ -358,7 +379,7 @@ exports.handler = async function (event) {
         ? `Metals source: ${payload._debug.metalsDataSource}`
         : "Metals snapshot – not live prices";
 
-    const quizUrl = "https://matesinvest.com/how-you-think";
+    const quizUrl = userId ? makeTrackingLink("https://matesinvest.com/how-you-think", userId, 'daily-brief-quiz') : "https://matesinvest.com/how-you-think";
 
     return `
 <!doctype html>
@@ -567,13 +588,14 @@ exports.handler = async function (event) {
             <td style="padding:12px 20px 18px 20px;border-top:1px solid #e2e8f0;background-color:#ffffff;">
               <p style="margin:0 0 6px 0;font-size:12px;color:#64748b;">
                 View the live version and full AI summaries on
-                <a href="https://matesinvest.com/mates-summaries" style="color:#00BFFF;text-decoration:none;font-weight:600;">
+                <a href="${userId ? makeTrackingLink('https://matesinvest.com/mates-summaries', userId, 'daily-brief-quiz') : 'https://matesinvest.com/mates-summaries'}" style="color:#00BFFF;text-decoration:none;font-weight:600;">
                   MatesFeed
                 </a>.
               </p>
               <p style="margin:0;font-size:11px;color:#94a3b8;">
                 This email is general information only and is not financial advice.
               </p>
+              ${userId ? `<p style="margin:8px 0 0 0;font-size:10px;color:#cbd5e1;">Subscriber ID: ${userId}</p>` : ''}
             </td>
           </tr>
         </table>
@@ -633,7 +655,6 @@ exports.handler = async function (event) {
 
     const subjectDate = formatAestForSubject(new Date());
     const subject = `MatesMorning – ASX Briefing for ${subjectDate}`;
-    const html = buildEmailHtml(payload, morningNote);
 
     let sentCount = 0;
 
@@ -643,6 +664,12 @@ exports.handler = async function (event) {
       if (already) continue;
 
       try {
+        // Get userId for this subscriber
+        const userId = await getUserId(email);
+        
+        // Build HTML with userId for tracking
+        const html = buildEmailHtml(payload, morningNote, userId);
+        
         await sendEmail(email, subject, html);
         sentCount += 1;
 
