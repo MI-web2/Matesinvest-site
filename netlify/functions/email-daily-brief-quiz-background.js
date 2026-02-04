@@ -606,11 +606,11 @@ exports.handler = async function (event) {
 
         <div style="max-width:640px;margin-top:8px;font-size:10px;color:#94a3b8;text-align:center;">
           <p style="margin:0 0 4px 0;">You're receiving this because you subscribed to the MatesInvest daily briefing.</p>
-          <p style="margin:0;">
+          ${email ? `<p style="margin:0;">
             <a href="https://matesinvest.com/.netlify/functions/unsubscribe?email=${encodeURIComponent(email)}" style="color:#94a3b8;text-decoration:underline;">
               Unsubscribe
             </a>
-          </p>
+          </p>` : ''}
         </div>
       </td>
     </tr>

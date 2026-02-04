@@ -63,12 +63,12 @@ v=DMARC1; p=none; rua=mailto:dmarc-reports@matesinvest.com; adkim=s; aspf=r;
 
 Start with `p=none` to monitor, then move to `p=quarantine` or `p=reject` once confident.
 
-### 5. Monitor Bounce Rates
+### 4. Monitor Bounce Rates
 - Check Resend dashboard for bounce details
 - Monitor DMARC reports for authentication failures
 - Use tools like MXToolbox to verify DNS records
 
-### 6. Sender Reputation
+### 5. Sender Reputation
 - Continue monitoring email open rates (currently 20%)
 - Remove hard bounces promptly
 - Gradually warm up sending volume if scaling
