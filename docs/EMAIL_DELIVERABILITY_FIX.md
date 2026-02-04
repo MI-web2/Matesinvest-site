@@ -30,8 +30,7 @@ Added proper email headers to all email sending functions:
 
 ### Why This Helps:
 - **Reply-To Header**: Ensures the reply address matches the sending domain (matesinvest.com), improving authentication signals and helping with Bigpond's strict requirements
-
-**Note**: List-Unsubscribe header was considered but not added as there is no unsubscribe endpoint currently implemented. Adding one without proper functionality would violate RFC 2369. The Reply-To header alone provides the critical authentication improvement needed for Bigpond deliverability.
+- **List-Unsubscribe Header**: Added in a follow-up change to provide users with a standard unsubscribe mechanism per RFC 2369, further improving deliverability
 
 ## What Was NOT Changed
 - ✅ No changes to email content or HTML
@@ -41,30 +40,21 @@ Added proper email headers to all email sending functions:
 
 ## Additional Recommendations (Outside Code Scope)
 
-While the code changes should improve deliverability, the following DNS/infrastructure and code enhancements would provide additional protection:
+While the code changes should improve deliverability, the following DNS/infrastructure enhancements would provide additional protection:
 
-### 1. Add Unsubscribe Functionality (Future Enhancement)
-Create a proper unsubscribe endpoint and add List-Unsubscribe headers:
-```javascript
-headers: {
-  "List-Unsubscribe": "<https://matesinvest.com/.netlify/functions/unsubscribe?email={{email}}>",
-}
-```
-This signals to ISPs that this is legitimate bulk mail and can improve sender reputation.
-
-### 2. Verify SPF Record
+### 1. Verify SPF Record
 Ensure your DNS has a proper SPF record for matesinvest.com:
 ```
 v=spf1 include:amazonses.com ~all
 ```
 (Resend uses Amazon SES)
 
-### 3. Verify DKIM Configuration
+### 2. Verify DKIM Configuration
 Ensure DKIM is properly configured in Resend dashboard and DNS:
 - Add DKIM TXT records as provided by Resend
 - Verify using Resend's verification tool
 
-### 4. Implement DMARC Policy
+### 3. Implement DMARC Policy
 Add DMARC record to monitor authentication:
 ```
 _dmarc.matesinvest.com TXT

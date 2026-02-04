@@ -139,7 +139,6 @@ exports.handler = async function (event) {
         headers: {
           Authorization: `Bearer ${RESEND_API_KEY}`,
           "Content-Type": "application/json",
-          "List-Unsubscribe": `<https://matesinvest.com/.netlify/functions/unsubscribe?email=${encodeURIComponent(email)}>`,
         },
         body: JSON.stringify({
           from: `MatesInvest <${EMAIL_FROM}>`,
@@ -147,6 +146,9 @@ exports.handler = async function (event) {
           subject,
           html,
           reply_to: EMAIL_FROM,
+          headers: {
+            "List-Unsubscribe": `<https://matesinvest.com/.netlify/functions/unsubscribe?email=${encodeURIComponent(email)}>`,
+          },
         }),
       });
 
