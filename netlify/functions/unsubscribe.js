@@ -5,7 +5,18 @@
 //  GET /.netlify/functions/unsubscribe?email=user@example.com
 //  Returns HTML confirmation page
 
-const fetch = (...args) => global.fetch(...args);
+const REDIS_REQUEST_TIMEOUT_MS = 7000;
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
 
 exports.handler = async function (event) {
   const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
@@ -128,7 +139,7 @@ exports.handler = async function (event) {
     };
   }
 
-  async function fetchWithTimeout(url, opts = {}, timeout = 7000) {
+  async function fetchWithTimeout(url, opts = {}, timeout = REDIS_REQUEST_TIMEOUT_MS) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
@@ -276,7 +287,7 @@ exports.handler = async function (event) {
             <div class="success">✓</div>
             <h1>You've been unsubscribed</h1>
             <p>
-              <span class="email">${email}</span>
+              <span class="email">${escapeHtml(email)}</span>
             </p>
             <p>You will no longer receive emails from MatesInvest.</p>
             <p style="margin-top: 30px; font-size: 14px;">
