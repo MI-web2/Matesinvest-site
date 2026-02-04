@@ -559,7 +559,7 @@ exports.handler = async function () {
   // -------------------------------
   // HTML builder
   // -------------------------------
-  function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc, userId = null) {
+  function buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc, userId = null, email = null) {
     const { weeklyTopSectors, weeklyBottomSectors, metalsWeekly, cryptoWeekly } =
       aggregates;
 
@@ -896,8 +896,13 @@ exports.handler = async function () {
 
         </table>
 
-        <div style="max-width:640px;margin-top:8px;font-size:10px;color:#94a3b8;">
-          You're receiving this because you subscribed to the MatesInvest daily / weekly briefing.
+        <div style="max-width:640px;margin-top:8px;font-size:10px;color:#94a3b8;text-align:center;">
+          <p style="margin:0 0 4px 0;">You're receiving this because you subscribed to the MatesInvest daily / weekly briefing.</p>
+          <p style="margin:0;">
+            <a href="https://matesinvest.com/.netlify/functions/unsubscribe?email=${encodeURIComponent(email)}" style="color:#94a3b8;text-decoration:underline;">
+              Unsubscribe
+            </a>
+          </p>
         </div>
       </td>
     </tr>
@@ -975,13 +980,16 @@ exports.handler = async function () {
       const emailItems = [];
       for (const p of pending) {
         const userId = await getUserId(p.email);
-        const userHtml = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc, userId);
+        const userHtml = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc, userId, p.email);
         emailItems.push({
           from: `MatesInvest <${EMAIL_FROM}>`,
           to: [p.email],
           subject,
           html: userHtml,
           reply_to: EMAIL_FROM,
+          headers: {
+            "List-Unsubscribe": `<https://matesinvest.com/.netlify/functions/unsubscribe?email=${encodeURIComponent(p.email)}>`,
+          },
         });
       }
 
