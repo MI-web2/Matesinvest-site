@@ -147,6 +147,9 @@ async function resendSend({ to, subject, html }) {
       subject, 
       html,
       reply_to: EMAIL_FROM,
+      headers: {
+        "List-Unsubscribe": "<https://matesinvest.com/mates-summaries#subscribe>",
+      },
     }),
   });
   if (!res.ok) throw new Error(`Resend error: ${res.status} ${await res.text()}`);
