@@ -134,7 +134,7 @@ exports.handler = async function (event) {
   }
 
   // Send email to one or multiple recipients
-  async function sendEmail(to, subject, html) {
+  async function sendEmail(to, subject, html, email) {
     const toList = Array.isArray(to) ? to : [to];
 
     const res = await fetch("https://api.resend.com/emails", {
@@ -148,6 +148,10 @@ exports.handler = async function (event) {
         to: toList,
         subject,
         html,
+        reply_to: EMAIL_FROM,
+        headers: {
+          "List-Unsubscribe": `<https://matesinvest.com/.netlify/functions/unsubscribe?email=${encodeURIComponent(email)}>`,
+        },
       }),
     });
 
@@ -208,7 +212,7 @@ exports.handler = async function (event) {
   }
 
   // Build HTML email from morning-brief payload + morning note
-  function buildEmailHtml(payload, morningNote, userId = null) {
+  function buildEmailHtml(payload, morningNote, userId = null, email = null) {
     const aestNow = getAestDate(new Date());
 
     const niceDate = aestNow.toLocaleDateString("en-AU", {
@@ -600,8 +604,13 @@ exports.handler = async function (event) {
           </tr>
         </table>
 
-        <div style="max-width:640px;margin-top:8px;font-size:10px;color:#94a3b8;">
-          You’re receiving this because you subscribed to the MatesInvest daily briefing.
+        <div style="max-width:640px;margin-top:8px;font-size:10px;color:#94a3b8;text-align:center;">
+          <p style="margin:0 0 4px 0;">You're receiving this because you subscribed to the MatesInvest daily briefing.</p>
+          ${email ? `<p style="margin:0;">
+            <a href="https://matesinvest.com/.netlify/functions/unsubscribe?email=${encodeURIComponent(email)}" style="color:#94a3b8;text-decoration:underline;">
+              Unsubscribe
+            </a>
+          </p>` : ''}
         </div>
       </td>
     </tr>
@@ -668,9 +677,9 @@ exports.handler = async function (event) {
         const userId = await getUserId(email);
         
         // Build HTML with userId for tracking
-        const html = buildEmailHtml(payload, morningNote, userId);
+        const html = buildEmailHtml(payload, morningNote, userId, email);
         
-        await sendEmail(email, subject, html);
+        await sendEmail(email, subject, html, email);
         sentCount += 1;
 
         await redisSet(personKey, "sent", perRecipientTtlSeconds);
