@@ -148,6 +148,10 @@ exports.handler = async function (event) {
         to: toList,
         subject,
         html,
+        reply_to: EMAIL_FROM,
+        headers: {
+          "List-Unsubscribe": "<https://matesinvest.com/mates-summaries#subscribe>",
+        },
       }),
     });
 

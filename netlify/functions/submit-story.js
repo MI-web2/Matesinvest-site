@@ -197,6 +197,7 @@ async function sendModerationEmail({
       to: toList,
       subject,
       html,
+      reply_to: EMAIL_FROM,
     }),
   });
 

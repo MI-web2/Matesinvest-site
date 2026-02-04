@@ -141,7 +141,13 @@ async function resendSend({ to, subject, html }) {
       Authorization: `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: EMAIL_FROM, to, subject, html }),
+    body: JSON.stringify({ 
+      from: EMAIL_FROM, 
+      to, 
+      subject, 
+      html,
+      reply_to: EMAIL_FROM,
+    }),
   });
   if (!res.ok) throw new Error(`Resend error: ${res.status} ${await res.text()}`);
   return res.json();
