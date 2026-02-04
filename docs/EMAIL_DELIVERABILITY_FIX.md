@@ -25,15 +25,13 @@ Added proper email headers to all email sending functions:
 ```javascript
 {
   reply_to: EMAIL_FROM,  // Ensures domain alignment
-  headers: {
-    "List-Unsubscribe": "<https://matesinvest.com/mates-summaries#subscribe>"
-  }
 }
 ```
 
 ### Why This Helps:
-- **Reply-To Header**: Ensures the reply address matches the sending domain (matesinvest.com), improving authentication signals
-- **List-Unsubscribe Header**: Signals to ISPs that this is legitimate bulk mail with proper unsubscribe mechanism (RFC 2369), improving reputation with strict ISPs like Bigpond
+- **Reply-To Header**: Ensures the reply address matches the sending domain (matesinvest.com), improving authentication signals and helping with Bigpond's strict requirements
+
+**Note**: List-Unsubscribe header was considered but not added as there is no unsubscribe endpoint currently implemented. Adding one without proper functionality would violate RFC 2369. The Reply-To header alone provides the critical authentication improvement needed for Bigpond deliverability.
 
 ## What Was NOT Changed
 - ✅ No changes to email content or HTML
@@ -43,21 +41,30 @@ Added proper email headers to all email sending functions:
 
 ## Additional Recommendations (Outside Code Scope)
 
-While the code changes should improve deliverability, the following DNS/infrastructure changes would provide additional protection:
+While the code changes should improve deliverability, the following DNS/infrastructure and code enhancements would provide additional protection:
 
-### 1. Verify SPF Record
+### 1. Add Unsubscribe Functionality (Future Enhancement)
+Create a proper unsubscribe endpoint and add List-Unsubscribe headers:
+```javascript
+headers: {
+  "List-Unsubscribe": "<https://matesinvest.com/.netlify/functions/unsubscribe?email={{email}}>",
+}
+```
+This signals to ISPs that this is legitimate bulk mail and can improve sender reputation.
+
+### 2. Verify SPF Record
 Ensure your DNS has a proper SPF record for matesinvest.com:
 ```
 v=spf1 include:amazonses.com ~all
 ```
 (Resend uses Amazon SES)
 
-### 2. Verify DKIM Configuration
+### 3. Verify DKIM Configuration
 Ensure DKIM is properly configured in Resend dashboard and DNS:
 - Add DKIM TXT records as provided by Resend
 - Verify using Resend's verification tool
 
-### 3. Implement DMARC Policy
+### 4. Implement DMARC Policy
 Add DMARC record to monitor authentication:
 ```
 _dmarc.matesinvest.com TXT
@@ -66,12 +73,12 @@ v=DMARC1; p=none; rua=mailto:dmarc-reports@matesinvest.com; adkim=s; aspf=r;
 
 Start with `p=none` to monitor, then move to `p=quarantine` or `p=reject` once confident.
 
-### 4. Monitor Bounce Rates
+### 5. Monitor Bounce Rates
 - Check Resend dashboard for bounce details
 - Monitor DMARC reports for authentication failures
 - Use tools like MXToolbox to verify DNS records
 
-### 5. Sender Reputation
+### 6. Sender Reputation
 - Continue monitoring email open rates (currently 20%)
 - Remove hard bounces promptly
 - Gradually warm up sending volume if scaling

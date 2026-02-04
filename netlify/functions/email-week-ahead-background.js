@@ -146,9 +146,6 @@ exports.handler = async function (event) {
           subject,
           html,
           reply_to: EMAIL_FROM,
-          headers: {
-            "List-Unsubscribe": "<https://matesinvest.com/mates-summaries#subscribe>",
-          },
         }),
       });
 
