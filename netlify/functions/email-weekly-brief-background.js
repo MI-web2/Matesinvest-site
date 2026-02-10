@@ -1016,7 +1016,7 @@ exports.handler = async function () {
       while (attempt < maxAttempts && !success) {
         try {
           if (attempt > 0) {
-            const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
             console.log(`Batch ${i}: retry attempt ${attempt + 1} after ${backoffMs}ms delay`);
             await sleep(backoffMs);
           }
@@ -1070,7 +1070,7 @@ exports.handler = async function () {
     console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers (skipped ${skippedCount} already sent, failed batches: ${failedBatchCount}, total retrieved: ${subscribers.length})`);
     
     if (missedCount > 0) {
-      console.warn(`WARNING: ${missedCount} subscribers were not processed! This may indicate batch failures or processing errors.`);
+      console.warn(`WARNING: ${missedCount} subscribers were not processed due to batch failures or errors. Check failed batch logs above for details.`);
     }
     
     return {
