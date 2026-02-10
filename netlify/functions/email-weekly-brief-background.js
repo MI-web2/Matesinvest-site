@@ -1009,6 +1009,10 @@ exports.handler = async function () {
       const batchIdempotencyKey = `${sendKeyPrefix}:batch:${i}`;
 
       // Retry logic: attempt up to 3 times with exponential backoff
+      // attempt 0: initial try (no backoff)
+      // attempt 1: first retry after 1s
+      // attempt 2: second retry after 2s
+      // attempt 3: third retry after 4s (would exceed maxAttempts, so skipped)
       let attempt = 0;
       let success = false;
       const maxAttempts = 3;
@@ -1017,7 +1021,7 @@ exports.handler = async function () {
         try {
           if (attempt > 0) {
             const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
-            console.log(`Batch ${i}: retry attempt ${attempt + 1} after ${backoffMs}ms delay`);
+            console.log(`Batch ${i}: retry attempt ${attempt} (overall attempt ${attempt + 1}) after ${backoffMs}ms delay`);
             await sleep(backoffMs);
           }
 
@@ -1033,7 +1037,7 @@ exports.handler = async function () {
           
           console.log(`Batch ${i}: successfully sent to ${pending.length} recipients`);
 
-          // Light pause between batches (2 batches for ~150 subs)
+          // Light pause between batches to avoid rate limits
           await sleep(400);
         } catch (err) {
           attempt++;
