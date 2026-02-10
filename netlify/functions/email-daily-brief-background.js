@@ -633,6 +633,8 @@ exports.handler = async function (event) {
 
     // 2) Get subscriber list
     const subscribers = await getSubscribers();
+    console.log(`Retrieved ${subscribers.length} total subscribers from email:subscribers`);
+    
     if (!subscribers.length) {
       console.log("No subscribers – skipping send");
       return { statusCode: 200, body: "No subscribers" };
@@ -647,11 +649,13 @@ exports.handler = async function (event) {
 
     // 5) Send one email per recipient, with per-recipient idempotency keys
     let sentCount = 0;
+    let skippedCount = 0;
 
     for (const email of subscribers) {
       const personKey = `${sendKeyPrefix}:${email}`;
       const already = await redisGet(personKey);
       if (already) {
+        skippedCount++;
         continue;
       }
 
@@ -674,9 +678,9 @@ exports.handler = async function (event) {
       }
     }
 
-    console.log(`Daily brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`);
+    console.log(`Daily brief ${sendKeyPrefix} – sent to ${sentCount} subscribers (skipped ${skippedCount} already sent, total retrieved: ${subscribers.length})`);
 
-    return { statusCode: 200, body: `Sent to ${sentCount} subscribers` };
+    return { statusCode: 200, body: `Sent to ${sentCount} subscribers (skipped ${skippedCount}, total: ${subscribers.length})` };
   } catch (err) {
     console.error(
       "email-daily-brief-background error",

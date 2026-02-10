@@ -925,6 +925,8 @@ exports.handler = async function () {
       getCryptoDailySnapshots(datesAsc),
     ]);
 
+    console.log(`Retrieved ${subscribers.length} total subscribers from email:subscribers`);
+    
     if (!subscribers.length) {
       console.log("No subscribers – skipping weekly send");
       return { statusCode: 200, body: "No subscribers" };
@@ -953,10 +955,15 @@ exports.handler = async function () {
     const perRecipientTtlSeconds = 60 * 60 * 24 * 21; // 21 days
 
     let sentCount = 0;
+    let skippedCount = 0;
+    let failedBatchCount = 0;
+    let failedRecipientCount = 0;
 
     // Resend batch endpoint supports up to 100 email objects per request
     const RESEND_BATCH_LIMIT = 100;
     const chunks = chunkArray(subscribers, RESEND_BATCH_LIMIT);
+    
+    console.log(`Processing ${chunks.length} batches (max ${RESEND_BATCH_LIMIT} per batch)`);
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
@@ -968,12 +975,18 @@ exports.handler = async function () {
         const already = await redisGet(personKey);
         if (already) {
           console.log("Already sent weekly brief to", email, "- skipping");
+          skippedCount++;
           continue;
         }
         pending.push({ email, personKey });
       }
 
-      if (!pending.length) continue;
+      if (!pending.length) {
+        console.log(`Batch ${i}: all ${chunk.length} recipients already sent - skipping batch`);
+        continue;
+      }
+      
+      console.log(`Batch ${i}: processing ${pending.length} pending recipients (skipped ${chunk.length - pending.length} already sent)`);
 
       // One email per subscriber (privacy-safe)
       // Build HTML for each user with their userId for tracking
@@ -996,35 +1009,75 @@ exports.handler = async function () {
       // Idempotency key per batch request (protects against Netlify retries)
       const batchIdempotencyKey = `${sendKeyPrefix}:batch:${i}`;
 
-      try {
-        await sendBatchEmails(emailItems, batchIdempotencyKey);
+      // Retry logic: attempt up to 3 times with exponential backoff
+      // attempt 0: initial try (no backoff)
+      // attempt 1: retry after 1s backoff  
+      // attempt 2: retry after 2s backoff
+      let attempt = 0;
+      let success = false;
+      const maxAttempts = 3;
 
-        // Mark as sent ONLY after Resend accepted the batch
-        await Promise.all(
-          pending.map((p) => redisSet(p.personKey, "sent", perRecipientTtlSeconds))
-        );
+      while (attempt < maxAttempts && !success) {
+        try {
+          if (attempt > 0) {
+            // Backoff: 1000ms for first retry, 2000ms for second retry
+            const backoffMs = 1000 * Math.pow(2, attempt - 1);
+            console.log(`Batch ${i}: retry ${attempt} of ${maxAttempts - 1} (attempt ${attempt + 1} of ${maxAttempts}) after ${backoffMs}ms backoff`);
+            await sleep(backoffMs);
+          }
 
-        sentCount += pending.length;
+          await sendBatchEmails(emailItems, batchIdempotencyKey);
 
-        // Light pause between batches (2 batches for ~150 subs)
-        await sleep(400);
-      } catch (err) {
-        console.error(
-          "Failed sending weekly batch index",
-          i,
-          "size",
-          pending.length,
-          err && err.message
-        );
-        // Do NOT mark as sent; next run can retry safely
-        continue;
+          // Mark as sent ONLY after Resend accepted the batch
+          await Promise.all(
+            pending.map((p) => redisSet(p.personKey, "sent", perRecipientTtlSeconds))
+          );
+
+          sentCount += pending.length;
+          success = true;
+          
+          console.log(`Batch ${i}: successfully sent to ${pending.length} recipients`);
+
+          // Light pause between batches to avoid rate limits
+          await sleep(400);
+        } catch (err) {
+          attempt++;
+          
+          if (attempt >= maxAttempts) {
+            failedBatchCount++;
+            failedRecipientCount += pending.length;
+            console.error(
+              "Failed sending weekly batch index",
+              i,
+              "after",
+              maxAttempts,
+              "attempts, size",
+              pending.length,
+              "error:",
+              err && err.message,
+              "stack:",
+              err && err.stack
+            );
+            // Do NOT mark as sent; next run can retry safely
+          } else {
+            console.warn(
+              `Batch ${i}: initial attempt failed, will retry. Error:`,
+              err && err.message
+            );
+          }
+        }
       }
     }
 
-    console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`);
+    console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers (skipped ${skippedCount} already sent, failed: ${failedRecipientCount}, total retrieved: ${subscribers.length})`);
+    
+    if (failedRecipientCount > 0) {
+      console.warn(`WARNING: ${failedRecipientCount} subscribers were not processed due to ${failedBatchCount} failed batch(es). Check failed batch logs above for details.`);
+    }
+    
     return {
       statusCode: 200,
-      body: `Sent weekly brief to ${sentCount} subscribers`,
+      body: `Sent weekly brief to ${sentCount} subscribers (skipped ${skippedCount}, failed: ${failedRecipientCount}, batches failed: ${failedBatchCount}, total: ${subscribers.length})`,
     };
   } catch (err) {
     console.error("email-weekly-brief-background error", err && (err.stack || err.message));
