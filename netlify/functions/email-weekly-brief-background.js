@@ -1011,9 +1011,8 @@ exports.handler = async function () {
 
       // Retry logic: attempt up to 3 times with exponential backoff
       // attempt 0: initial try (no backoff)
-      // attempt 1: first retry after 1s
-      // attempt 2: second retry after 2s
-      // attempt 3: third retry after 4s (would exceed maxAttempts, so skipped)
+      // attempt 1: retry after 1s backoff  
+      // attempt 2: retry after 2s backoff
       let attempt = 0;
       let success = false;
       const maxAttempts = 3;
@@ -1021,8 +1020,9 @@ exports.handler = async function () {
       while (attempt < maxAttempts && !success) {
         try {
           if (attempt > 0) {
-            const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
-            console.log(`Batch ${i}: retry attempt ${attempt} of ${maxAttempts - 1} after ${backoffMs}ms delay`);
+            // Backoff: 1000ms for attempt 1, 2000ms for attempt 2
+            const backoffMs = 1000 * Math.pow(2, attempt - 1);
+            console.log(`Batch ${i}: attempt ${attempt + 1} of ${maxAttempts} after ${backoffMs}ms backoff`);
             await sleep(backoffMs);
           }
 
