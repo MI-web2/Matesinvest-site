@@ -956,6 +956,7 @@ exports.handler = async function () {
 
     let sentCount = 0;
     let skippedCount = 0;
+    let failedBatchCount = 0;
 
     // Resend batch endpoint supports up to 100 email objects per request
     const RESEND_BATCH_LIMIT = 100;
@@ -1022,22 +1023,35 @@ exports.handler = async function () {
         // Light pause between batches (2 batches for ~150 subs)
         await sleep(400);
       } catch (err) {
+        failedBatchCount++;
         console.error(
           "Failed sending weekly batch index",
           i,
           "size",
           pending.length,
-          err && err.message
+          "error:",
+          err && err.message,
+          "stack:",
+          err && err.stack
         );
         // Do NOT mark as sent; next run can retry safely
         continue;
       }
     }
 
-    console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers (skipped ${skippedCount} already sent, total retrieved: ${subscribers.length})`);
+    const totalProcessed = sentCount + skippedCount;
+    const expectedTotal = subscribers.length;
+    const missedCount = expectedTotal - totalProcessed;
+    
+    console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers (skipped ${skippedCount} already sent, failed batches: ${failedBatchCount}, total retrieved: ${subscribers.length})`);
+    
+    if (missedCount > 0) {
+      console.warn(`WARNING: ${missedCount} subscribers were not processed! This may indicate batch failures or processing errors.`);
+    }
+    
     return {
       statusCode: 200,
-      body: `Sent weekly brief to ${sentCount} subscribers (skipped ${skippedCount}, total: ${subscribers.length})`,
+      body: `Sent weekly brief to ${sentCount} subscribers (skipped ${skippedCount}, failed batches: ${failedBatchCount}, total: ${subscribers.length})`,
     };
   } catch (err) {
     console.error("email-weekly-brief-background error", err && (err.stack || err.message));
