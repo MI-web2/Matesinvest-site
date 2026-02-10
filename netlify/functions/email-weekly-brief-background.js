@@ -1008,34 +1008,58 @@ exports.handler = async function () {
       // Idempotency key per batch request (protects against Netlify retries)
       const batchIdempotencyKey = `${sendKeyPrefix}:batch:${i}`;
 
-      try {
-        await sendBatchEmails(emailItems, batchIdempotencyKey);
+      // Retry logic: attempt up to 3 times with exponential backoff
+      let attempt = 0;
+      let success = false;
+      const maxAttempts = 3;
 
-        // Mark as sent ONLY after Resend accepted the batch
-        await Promise.all(
-          pending.map((p) => redisSet(p.personKey, "sent", perRecipientTtlSeconds))
-        );
+      while (attempt < maxAttempts && !success) {
+        try {
+          if (attempt > 0) {
+            const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            console.log(`Batch ${i}: retry attempt ${attempt + 1} after ${backoffMs}ms delay`);
+            await sleep(backoffMs);
+          }
 
-        sentCount += pending.length;
-        
-        console.log(`Batch ${i}: successfully sent to ${pending.length} recipients`);
+          await sendBatchEmails(emailItems, batchIdempotencyKey);
 
-        // Light pause between batches (2 batches for ~150 subs)
-        await sleep(400);
-      } catch (err) {
-        failedBatchCount++;
-        console.error(
-          "Failed sending weekly batch index",
-          i,
-          "size",
-          pending.length,
-          "error:",
-          err && err.message,
-          "stack:",
-          err && err.stack
-        );
-        // Do NOT mark as sent; next run can retry safely
-        continue;
+          // Mark as sent ONLY after Resend accepted the batch
+          await Promise.all(
+            pending.map((p) => redisSet(p.personKey, "sent", perRecipientTtlSeconds))
+          );
+
+          sentCount += pending.length;
+          success = true;
+          
+          console.log(`Batch ${i}: successfully sent to ${pending.length} recipients`);
+
+          // Light pause between batches (2 batches for ~150 subs)
+          await sleep(400);
+        } catch (err) {
+          attempt++;
+          
+          if (attempt >= maxAttempts) {
+            failedBatchCount++;
+            console.error(
+              "Failed sending weekly batch index",
+              i,
+              "after",
+              maxAttempts,
+              "attempts, size",
+              pending.length,
+              "error:",
+              err && err.message,
+              "stack:",
+              err && err.stack
+            );
+            // Do NOT mark as sent; next run can retry safely
+          } else {
+            console.warn(
+              `Batch ${i}: attempt ${attempt} failed, will retry. Error:`,
+              err && err.message
+            );
+          }
+        }
       }
     }
 
