@@ -957,6 +957,7 @@ exports.handler = async function () {
     let sentCount = 0;
     let skippedCount = 0;
     let failedBatchCount = 0;
+    let failedRecipientCount = 0;
 
     // Resend batch endpoint supports up to 100 email objects per request
     const RESEND_BATCH_LIMIT = 100;
@@ -1021,7 +1022,7 @@ exports.handler = async function () {
         try {
           if (attempt > 0) {
             const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
-            console.log(`Batch ${i}: retry attempt ${attempt} (overall attempt ${attempt + 1}) after ${backoffMs}ms delay`);
+            console.log(`Batch ${i}: retry attempt ${attempt} of ${maxAttempts - 1} after ${backoffMs}ms delay`);
             await sleep(backoffMs);
           }
 
@@ -1044,6 +1045,7 @@ exports.handler = async function () {
           
           if (attempt >= maxAttempts) {
             failedBatchCount++;
+            failedRecipientCount += pending.length;
             console.error(
               "Failed sending weekly batch index",
               i,
@@ -1067,19 +1069,15 @@ exports.handler = async function () {
       }
     }
 
-    const totalProcessed = sentCount + skippedCount;
-    const expectedTotal = subscribers.length;
-    const missedCount = expectedTotal - totalProcessed;
+    console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers (skipped ${skippedCount} already sent, failed: ${failedRecipientCount}, total retrieved: ${subscribers.length})`);
     
-    console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers (skipped ${skippedCount} already sent, failed batches: ${failedBatchCount}, total retrieved: ${subscribers.length})`);
-    
-    if (missedCount > 0) {
-      console.warn(`WARNING: ${missedCount} subscribers were not processed due to batch failures or errors. Check failed batch logs above for details.`);
+    if (failedRecipientCount > 0) {
+      console.warn(`WARNING: ${failedRecipientCount} subscribers were not processed due to ${failedBatchCount} failed batch(es). Check failed batch logs above for details.`);
     }
     
     return {
       statusCode: 200,
-      body: `Sent weekly brief to ${sentCount} subscribers (skipped ${skippedCount}, failed batches: ${failedBatchCount}, total: ${subscribers.length})`,
+      body: `Sent weekly brief to ${sentCount} subscribers (skipped ${skippedCount}, failed: ${failedRecipientCount}, batches failed: ${failedBatchCount}, total: ${subscribers.length})`,
     };
   } catch (err) {
     console.error("email-weekly-brief-background error", err && (err.stack || err.message));
