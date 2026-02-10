@@ -1022,7 +1022,7 @@ exports.handler = async function () {
           if (attempt > 0) {
             // Backoff: 1000ms for first retry, 2000ms for second retry
             const backoffMs = 1000 * Math.pow(2, attempt - 1);
-            console.log(`Batch ${i}: retry ${attempt} of ${maxAttempts - 1} after ${backoffMs}ms backoff`);
+            console.log(`Batch ${i}: retry ${attempt} of ${maxAttempts - 1} (attempt ${attempt + 1} of ${maxAttempts}) after ${backoffMs}ms backoff`);
             await sleep(backoffMs);
           }
 
