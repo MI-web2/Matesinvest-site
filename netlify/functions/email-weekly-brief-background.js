@@ -925,6 +925,8 @@ exports.handler = async function () {
       getCryptoDailySnapshots(datesAsc),
     ]);
 
+    console.log(`Retrieved ${subscribers.length} total subscribers from email:subscribers`);
+    
     if (!subscribers.length) {
       console.log("No subscribers – skipping weekly send");
       return { statusCode: 200, body: "No subscribers" };
@@ -953,10 +955,13 @@ exports.handler = async function () {
     const perRecipientTtlSeconds = 60 * 60 * 24 * 21; // 21 days
 
     let sentCount = 0;
+    let skippedCount = 0;
 
     // Resend batch endpoint supports up to 100 email objects per request
     const RESEND_BATCH_LIMIT = 100;
     const chunks = chunkArray(subscribers, RESEND_BATCH_LIMIT);
+    
+    console.log(`Processing ${chunks.length} batches (max ${RESEND_BATCH_LIMIT} per batch)`);
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
@@ -968,12 +973,18 @@ exports.handler = async function () {
         const already = await redisGet(personKey);
         if (already) {
           console.log("Already sent weekly brief to", email, "- skipping");
+          skippedCount++;
           continue;
         }
         pending.push({ email, personKey });
       }
 
-      if (!pending.length) continue;
+      if (!pending.length) {
+        console.log(`Batch ${i}: all ${chunk.length} recipients already sent - skipping batch`);
+        continue;
+      }
+      
+      console.log(`Batch ${i}: processing ${pending.length} pending recipients (skipped ${chunk.length - pending.length} already sent)`);
 
       // One email per subscriber (privacy-safe)
       // Build HTML for each user with their userId for tracking
@@ -1005,6 +1016,8 @@ exports.handler = async function () {
         );
 
         sentCount += pending.length;
+        
+        console.log(`Batch ${i}: successfully sent to ${pending.length} recipients`);
 
         // Light pause between batches (2 batches for ~150 subs)
         await sleep(400);
@@ -1021,10 +1034,10 @@ exports.handler = async function () {
       }
     }
 
-    console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`);
+    console.log(`Weekly brief ${sendKeyPrefix} – sent to ${sentCount} subscribers (skipped ${skippedCount} already sent, total retrieved: ${subscribers.length})`);
     return {
       statusCode: 200,
-      body: `Sent weekly brief to ${sentCount} subscribers`,
+      body: `Sent weekly brief to ${sentCount} subscribers (skipped ${skippedCount}, total: ${subscribers.length})`,
     };
   } catch (err) {
     console.error("email-weekly-brief-background error", err && (err.stack || err.message));

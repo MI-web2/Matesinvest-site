@@ -655,6 +655,8 @@ exports.handler = async function (event) {
     }
 
     const subscribers = await getSubscribers();
+    console.log(`Retrieved ${subscribers.length} total subscribers from email:subscribers`);
+    
     if (!subscribers.length) {
       console.log("No subscribers – skipping send");
       return { statusCode: 200, body: "No subscribers" };
@@ -666,11 +668,15 @@ exports.handler = async function (event) {
     const subject = `MatesMorning – ASX Briefing for ${subjectDate}`;
 
     let sentCount = 0;
+    let skippedCount = 0;
 
     for (const email of subscribers) {
       const personKey = `${sendKeyPrefix}:${email}`;
       const already = await redisGet(personKey);
-      if (already) continue;
+      if (already) {
+        skippedCount++;
+        continue;
+      }
 
       try {
         // Get userId for this subscriber
@@ -691,9 +697,9 @@ exports.handler = async function (event) {
     }
 
     console.log(
-      `Daily quiz brief ${sendKeyPrefix} – sent to ${sentCount} subscribers`
+      `Daily quiz brief ${sendKeyPrefix} – sent to ${sentCount} subscribers (skipped ${skippedCount} already sent, total retrieved: ${subscribers.length})`
     );
-    return { statusCode: 200, body: `Sent to ${sentCount} subscribers` };
+    return { statusCode: 200, body: `Sent to ${sentCount} subscribers (skipped ${skippedCount}, total: ${subscribers.length})` };
   } catch (err) {
     console.error(
       "email-daily-brief-quiz-background error",
