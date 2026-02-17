@@ -123,7 +123,7 @@ exports.handler = async function () {
     console.log(`Site URL resolved to: ${siteUrl}`);
 
     // Ensure siteUrl starts with http:// or https:// (case-insensitive check)
-    const normalizedUrl = siteUrl.toLowerCase().startsWith('http') ? siteUrl : `https://${siteUrl}`;
+    const normalizedUrl = /^https?:\/\//i.test(siteUrl) ? siteUrl : `https://${siteUrl}`;
     const bgUrl = `${normalizedUrl}/.netlify/functions/email-daily-brief-quiz-background`;
     
     console.log(`Background function URL: ${bgUrl}`);
