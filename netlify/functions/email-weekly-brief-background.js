@@ -112,7 +112,7 @@ exports.handler = async function () {
   // ✅ Send MANY individual emails in one HTTP request (each item has its own `to`)
   // emailItems: [{ from, to:[email], subject, html }, ...] max 100
   async function sendBatchEmails(emailItems, idempotencyKey) {
-    const res = await fetch("https://api.resend.com/emails/batch", {
+    const res = await fetchWithTimeout("https://api.resend.com/emails/batch", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${RESEND_API_KEY}`,
@@ -120,7 +120,7 @@ exports.handler = async function () {
         ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       },
       body: JSON.stringify(emailItems),
-    });
+    }, 60000);
 
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
@@ -175,6 +175,32 @@ exports.handler = async function () {
       const txt = await res.text().catch(() => "");
       console.warn("redisSet failed", key, res.status, txt);
     }
+  }
+
+  // Execute multiple Redis commands in a single HTTP round-trip via Upstash pipeline.
+  // Returns an array of result values in the same order as commands.
+  async function redisPipeline(commands) {
+    const url = `${UPSTASH_URL}/pipeline`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${UPSTASH_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(commands),
+      },
+      10000
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("redisPipeline failed", res.status, txt);
+      return commands.map(() => null);
+    }
+    const j = await res.json().catch(() => null);
+    if (!Array.isArray(j)) return commands.map(() => null);
+    return j.map((item) => (item && item.result !== undefined ? item.result : null));
   }
 
   function chunkArray(arr, size) {
@@ -968,12 +994,19 @@ exports.handler = async function () {
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
 
+      // Batch-check already-sent status in a single pipeline call
+      const sentCheckCommands = chunk.map((email) => [
+        "GET",
+        `${sendKeyPrefix}:${email}`,
+      ]);
+      const sentCheckResults = await redisPipeline(sentCheckCommands);
+
       // Filter out recipients already sent this week's brief
       const pending = [];
-      for (const email of chunk) {
+      for (let idx = 0; idx < chunk.length; idx++) {
+        const email = chunk[idx];
         const personKey = `${sendKeyPrefix}:${email}`;
-        const already = await redisGet(personKey);
-        if (already) {
+        if (sentCheckResults[idx]) {
           console.log("Already sent weekly brief to", email, "- skipping");
           skippedCount++;
           continue;
@@ -988,13 +1021,19 @@ exports.handler = async function () {
       
       console.log(`Batch ${i}: processing ${pending.length} pending recipients (skipped ${chunk.length - pending.length} already sent)`);
 
+      // Batch-fetch user IDs in a single pipeline call
+      const idCommands = pending.map((p) => [
+        "GET",
+        `email:id:${p.email.toLowerCase().trim()}`,
+      ]);
+      const idResults = await redisPipeline(idCommands);
+
       // One email per subscriber (privacy-safe)
       // Build HTML for each user with their userId for tracking
-      const emailItems = [];
-      for (const p of pending) {
-        const userId = await getUserId(p.email);
+      const emailItems = pending.map((p, idx) => {
+        const userId = idResults[idx] || null;
         const userHtml = buildWeeklyEmailHtml(aggregates, weeklyNote, datesAsc, userId, p.email);
-        emailItems.push({
+        return {
           from: `MatesInvest <${EMAIL_FROM}>`,
           to: [p.email],
           subject,
@@ -1003,8 +1042,8 @@ exports.handler = async function () {
           headers: {
             "List-Unsubscribe": `<https://matesinvest.com/.netlify/functions/unsubscribe?email=${encodeURIComponent(p.email)}>`,
           },
-        });
-      }
+        };
+      });
 
       // Idempotency key per batch request (protects against Netlify retries)
       const batchIdempotencyKey = `${sendKeyPrefix}:batch:${i}`;
