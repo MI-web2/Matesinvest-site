@@ -190,6 +190,7 @@ exports.handler = async function () {
     // - email clicks (yesterday)
     // - MTD totals
     // - YTD totals
+    // - unique subscribers across both lists (SUNIONSTORE → returns count)
     const yCmd = [
       ["HGETALL", dayKey(yesterday)],
       ["HGETALL", pathsKey(yesterday)],
@@ -197,6 +198,8 @@ exports.handler = async function () {
       ["SCARD", SUBSCRIBERS_KEY],
       ["SCARD", SUBSCRIBERS_APP_KEY],
       ["HGETALL", emailClicksKey(yesterday)],
+      ["SUNIONSTORE", "tmp:union:subscribers", SUBSCRIBERS_KEY, SUBSCRIBERS_APP_KEY],
+      ["DEL", "tmp:union:subscribers"],
     ];
 
     const mCmd = mtdDays.map((d) => ["HGETALL", dayKey(d)]);
@@ -217,6 +220,8 @@ exports.handler = async function () {
     const subscribersAppCount = Number(yRes?.[4]?.result || 0);
     
     const emailClicksObj = hgetallArrayToObject(yRes?.[5]?.result); // email click tracking
+
+    const uniqueSubscribersCount = Number(yRes?.[6]?.result || 0);
 
     const mObjs = (mRes || []).map((r) => hgetallArrayToObject(r.result));
     const ytdObjs = (ytdRes || []).map((r) => hgetallArrayToObject(r.result));
@@ -291,6 +296,12 @@ exports.handler = async function () {
       <div style="font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height:1.4;">
         <h2 style="margin:0 0 12px;">MatesInvest Daily Analytics</h2>
         <p style="margin:0 0 10px;color:#444;">Date: <b>${yesterday}</b> (AEST)</p>
+
+        <div style="margin:0 0 20px;padding:12px 16px;border:2px solid #6366f1;border-radius:10px;max-width:640px;background:#f5f3ff;">
+          <div style="color:#4f46e5;font-weight:700;font-size:13px;">Total Unique Subscribers (Combined Lists)</div>
+          <div style="font-size:28px;font-weight:800;margin-top:2px;color:#3730a3;">${uniqueSubscribersCount}</div>
+          <div style="color:#6b7280;font-size:12px;margin-top:2px;">Unique emails across <code>${SUBSCRIBERS_KEY}</code> + <code>${SUBSCRIBERS_APP_KEY}</code> (SUNIONSTORE)</div>
+        </div>
 
         <div style="margin:0 0 16px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;max-width:640px;">
           <div style="color:#111827;font-weight:700;font-size:13px;">Web Subscribers (email:subscribers)</div>
