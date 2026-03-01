@@ -146,48 +146,18 @@ async function fetchDailyChangePct(symbol, from, to) {
   const raw = ((last.close - prev.close) / prev.close) * 100;
   return Number(raw.toFixed(2));
 }
-function toUnixSeconds(d) {
-  return Math.floor(d.getTime() / 1000);
-}
 
-async function fetchPrevClosePrice(symbol, from, to) {
+async function fetchRealTimeChangePct(symbol) {
   if (!EODHD_API_TOKEN) return null;
 
-  const url = `https://eodhd.com/api/eod/${encodeURIComponent(
+  const url = `https://eodhd.com/api/real-time/${encodeURIComponent(
     symbol
-  )}?api_token=${encodeURIComponent(
-    EODHD_API_TOKEN
-  )}&period=d&from=${from}&to=${to}&fmt=json`;
+  )}?api_token=${encodeURIComponent(EODHD_API_TOKEN)}&fmt=json`;
 
   const r = await safeFetchJson(url, 10000);
-  if (!r.ok || !Array.isArray(r.json) || r.json.length < 1) return null;
+  if (!r.ok || !r.json || typeof r.json.change_p !== "number") return null;
 
-  const arr = r.json
-    .slice()
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  const last = arr[arr.length - 1];
-  return typeof last.close === "number" ? last.close : null;
-}
-
-async function fetchIntradayLastPrice(symbol, fromUnix, toUnix) {
-  if (!EODHD_API_TOKEN) return null;
-
-  const url = `https://eodhd.com/api/intraday/${encodeURIComponent(
-    symbol
-  )}?api_token=${encodeURIComponent(
-    EODHD_API_TOKEN
-  )}&interval=5m&from=${fromUnix}&to=${toUnix}&fmt=json`;
-
-  const r = await safeFetchJson(url, 10000);
-  if (!r.ok || !Array.isArray(r.json) || r.json.length < 1) return null;
-
-  const arr = r.json
-    .slice()
-    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-
-  const last = arr[arr.length - 1];
-  return typeof last.close === "number" ? last.close : null;
+  return Number(r.json.change_p.toFixed(2));
 }
 // Returns { summaryLine, avgChange, components } or null
 async function getUSMarketsSnapshot() {
@@ -203,37 +173,18 @@ async function getUSMarketsSnapshot() {
     const components = [];
     for (const bench of US_BENCHMARKS) {
       try {
-const pct = await fetchDailyChangePct(bench.symbol, from, to);
-const prevClose = await fetchPrevClosePrice(bench.symbol, from, to);
+const eodChangePct = await fetchDailyChangePct(bench.symbol, from, to);
+const intradayChangePct = await fetchRealTimeChangePct(bench.symbol);
 
-const fromIntraday = toUnixSeconds(
-  new Date(Date.now() - 48 * 60 * 60 * 1000)
-);
-const toIntraday = toUnixSeconds(new Date());
+const changePct = intradayChangePct ?? eodChangePct;
 
-const intradayPrice = await fetchIntradayLastPrice(
-  bench.symbol,
-  fromIntraday,
-  toIntraday
-);
-
-const intradayChangePct =
-  prevClose && intradayPrice
-    ? Number((((intradayPrice - prevClose) / prevClose) * 100).toFixed(2))
-    : null;
-
-if (pct !== null) {
+if (changePct !== null) {
   components.push({
     symbol: bench.symbol,
     label: bench.label,
-
-    // existing behaviour (unchanged)
-    changePct: pct,
-
-    // new fields (for inspection only, not used yet)
-    prevClose,
-    intradayPrice,
+    changePct,
     intradayChangePct,
+    eodChangePct,
   });
 }
       } catch (err) {
