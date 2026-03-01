@@ -261,6 +261,17 @@ exports.handler = async function (event) {
     const sectors = payload.sectors || { results: [] };
     const charts = payload.charts || {};
 
+    const specialEnabled = String(process.env.WEEK_AHEAD_SPECIAL_NOTE_ENABLED || "").trim() === "1";
+    const specialTitle = String(process.env.WEEK_AHEAD_SPECIAL_NOTE_TITLE || "").trim() || "⚠ Geopolitical watch (US/Iran)";
+    const specialText = String(process.env.WEEK_AHEAD_SPECIAL_NOTE_TEXT || "").trim();
+    const specialBody = specialText || "With elevated geopolitical risk, keep an eye on early moves in Defence, Gold, and Oil. We'll highlight any major overnight moves in tomorrow morning's email.";
+    const specialNoteHtml = specialEnabled ? `
+      <div style="background:#fffbeb;border:1px solid #fde68a;padding:12px 14px;border-radius:12px;">
+        <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:4px;">${escapeHtml(specialTitle)}</div>
+        <div style="font-size:13px;color:#0b1220;line-height:1.5;">${escapeHtml(specialBody)}</div>
+      </div>
+    ` : "";
+
     const memoHtml = `
       <div style="background:#f9fbff;border:1px solid #dbeafe;padding:12px 14px;border-radius:12px;">
         <div style="font-size:13px;color:#0b1220;line-height:1.5;">
@@ -381,6 +392,8 @@ exports.handler = async function (event) {
         </tr>
 
         <tr><td style="padding:14px 20px 6px 20px;">${memoHtml}</td></tr>
+
+        ${specialNoteHtml ? `<tr><td style="padding:0 20px 6px 20px;">${specialNoteHtml}</td></tr>` : ""}
 
         <tr>
           <td style="padding:10px 20px 10px 20px;">
